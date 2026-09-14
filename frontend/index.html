@@ -1,0 +1,427 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Government Grievance Management System | Makkal Nagar Municipal Office</title>
+    <!-- FontAwesome for Icons -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+
+    <!-- Sidebar Navigation -->
+    <aside class="sidebar">
+        <div class="brand-header">
+            <div class="brand-emblem">
+                <i class="fa-solid fa-building-columns"></i>
+            </div>
+            <div class="brand-title">
+                <h2>Makkal Nagar</h2>
+                <p>Municipal Office</p>
+            </div>
+        </div>
+
+        <ul class="nav-list">
+            <li>
+                <a class="nav-link active" data-view="dashboard">
+                    <i class="fa-solid fa-chart-pie"></i>
+                    <span>Dashboard</span>
+                </a>
+            </li>
+            <li>
+                <a class="nav-link" data-view="complaints">
+                    <i class="fa-solid fa-list-check"></i>
+                    <span>Complaints</span>
+                </a>
+            </li>
+            <li>
+                <a class="nav-link" data-view="register">
+                    <i class="fa-solid fa-file-circle-plus"></i>
+                    <span>Register Complaint</span>
+                </a>
+            </li>
+            <li>
+                <a class="nav-link" data-view="priority-queue">
+                    <i class="fa-solid fa-layer-group"></i>
+                    <span>Priority Queue</span>
+                </a>
+            </li>
+            <li>
+                <a class="nav-link" data-view="departments">
+                    <i class="fa-solid fa-sitemap"></i>
+                    <span>Departments</span>
+                </a>
+            </li>
+        </ul>
+
+        <div class="sidebar-footer">
+            <p><strong>Version 1.0 (30% Prototype)</strong></p>
+            <p>Mini-Project Demo</p>
+        </div>
+    </aside>
+
+    <!-- Main Wrapper -->
+    <div class="main-wrapper">
+        <!-- Top Bar Header -->
+        <header class="top-header">
+            <h1>Government Grievance Management & Priority Resolution</h1>
+            <div class="header-right">
+                <span class="gov-badge">
+                    <i class="fa-solid fa-shield-halved"></i> Official Portal
+                </span>
+            </div>
+        </header>
+
+        <!-- Main Content Area -->
+        <main class="content-container">
+
+            <!-- 1. DASHBOARD VIEW -->
+            <section id="dashboard" class="page-view active">
+                <div class="page-header">
+                    <div>
+                        <h2>Municipal Administrative Dashboard</h2>
+                        <p>Real-time grievance summary and statistics for Makkal Nagar Zone</p>
+                    </div>
+                    <button class="btn btn-primary" onclick="switchView('register')">
+                        <i class="fa-solid fa-plus"></i> New Complaint
+                    </button>
+                </div>
+
+                <!-- Stats Cards -->
+                <div class="stats-grid">
+                    <div class="stat-card">
+                        <div class="stat-icon total"><i class="fa-solid fa-folder-open"></i></div>
+                        <div class="stat-info">
+                            <div class="stat-value" id="stat-total">0</div>
+                            <div class="stat-label">Total Complaints</div>
+                        </div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-icon pending"><i class="fa-solid fa-clock"></i></div>
+                        <div class="stat-info">
+                            <div class="stat-value" id="stat-pending">0</div>
+                            <div class="stat-label">Pending Complaints</div>
+                        </div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-icon progress"><i class="fa-solid fa-gears"></i></div>
+                        <div class="stat-info">
+                            <div class="stat-value" id="stat-progress">0</div>
+                            <div class="stat-label">In Progress</div>
+                        </div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-icon resolved"><i class="fa-solid fa-circle-check"></i></div>
+                        <div class="stat-info">
+                            <div class="stat-value" id="stat-resolved">0</div>
+                            <div class="stat-label">Resolved Complaints</div>
+                        </div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-icon high"><i class="fa-solid fa-triangle-exclamation"></i></div>
+                        <div class="stat-info">
+                            <div class="stat-value" id="stat-high">0</div>
+                            <div class="stat-label">High / Emergency</div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Recent Complaints Table -->
+                <div class="content-card">
+                    <div class="card-title-bar">
+                        <h3>Recent Grievances Register</h3>
+                        <button class="btn btn-secondary btn-sm" onclick="switchView('complaints')">View All</button>
+                    </div>
+                    <div class="table-responsive">
+                        <table class="custom-table">
+                            <thead>
+                                <tr>
+                                    <th>Complaint ID</th>
+                                    <th>Citizen</th>
+                                    <th>Type</th>
+                                    <th>Location</th>
+                                    <th>Priority</th>
+                                    <th>Status</th>
+                                    <th>Action</th>
+                                </tr>
+                            </thead>
+                            <tbody id="recent-complaints-tbody">
+                                <!-- Populated dynamically by JS -->
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </section>
+
+            <!-- 2. COMPLAINT LIST VIEW -->
+            <section id="complaints" class="page-view">
+                <div class="page-header">
+                    <div>
+                        <h2>Grievance Master Directory</h2>
+                        <p>Search, filter, and review all citizen submitted complaints</p>
+                    </div>
+                </div>
+
+                <div class="content-card">
+                    <!-- Search & Filters Toolbar -->
+                    <div class="toolbar">
+                        <div class="search-box">
+                            <i class="fa-solid fa-magnifying-glass"></i>
+                            <input type="text" id="search-input" class="form-control" placeholder="Search by Complaint ID, Citizen Name, Location, Description...">
+                        </div>
+                        <div class="filter-group">
+                            <select id="filter-type" class="form-control">
+                                <option value="">All Complaint Types</option>
+                                <option value="Streetlight">Streetlight</option>
+                                <option value="Waste Management">Waste Management</option>
+                                <option value="Road">Road</option>
+                                <option value="Water Supply">Water Supply</option>
+                                <option value="Drainage">Drainage</option>
+                                <option value="Sanitation">Sanitation</option>
+                                <option value="Other">Other</option>
+                            </select>
+                            <select id="filter-priority" class="form-control">
+                                <option value="">All Priorities</option>
+                                <option value="Emergency">Emergency</option>
+                                <option value="High">High</option>
+                                <option value="Medium">Medium</option>
+                                <option value="Low">Low</option>
+                            </select>
+                            <select id="filter-status" class="form-control">
+                                <option value="">All Statuses</option>
+                                <option value="Pending">Pending</option>
+                                <option value="In Progress">In Progress</option>
+                                <option value="Resolved">Resolved</option>
+                                <option value="Rejected">Rejected</option>
+                            </select>
+                        </div>
+                    </div>
+
+                    <div class="table-responsive">
+                        <table class="custom-table">
+                            <thead>
+                                <tr>
+                                    <th>Complaint ID</th>
+                                    <th>Citizen</th>
+                                    <th>Type</th>
+                                    <th>Location</th>
+                                    <th>Priority</th>
+                                    <th>Status</th>
+                                    <th>Date</th>
+                                    <th>Action</th>
+                                </tr>
+                            </thead>
+                            <tbody id="all-complaints-tbody">
+                                <!-- Populated dynamically -->
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </section>
+
+            <!-- 3. REGISTER COMPLAINT VIEW -->
+            <section id="register" class="page-view">
+                <div class="page-header">
+                    <div>
+                        <h2>Register New Citizen Complaint</h2>
+                        <p>File a new municipal grievance into the central resolution queue</p>
+                    </div>
+                </div>
+
+                <div class="content-card" style="max-width: 800px; margin: 0 auto;">
+                    <form id="register-form" onsubmit="handleRegisterSubmit(event)">
+                        <div class="form-grid">
+                            <div class="form-group">
+                                <label class="form-label">Citizen Name *</label>
+                                <input type="text" id="citizen-name" class="form-control" placeholder="e.g. Ravi Kumar" required>
+                            </div>
+
+                            <div class="form-group">
+                                <label class="form-label">Mobile Number *</label>
+                                <input type="tel" id="citizen-mobile" class="form-control" placeholder="e.g. 9876543210" required>
+                            </div>
+
+                            <div class="form-group">
+                                <label class="form-label">Complaint Type *</label>
+                                <select id="complaint-type" class="form-control" required>
+                                    <option value="">Select Type...</option>
+                                    <option value="Streetlight">Streetlight</option>
+                                    <option value="Waste Management">Waste Management</option>
+                                    <option value="Road">Road</option>
+                                    <option value="Water Supply">Water Supply</option>
+                                    <option value="Drainage">Drainage</option>
+                                    <option value="Sanitation">Sanitation</option>
+                                    <option value="Other">Other</option>
+                                </select>
+                            </div>
+
+                            <div class="form-group">
+                                <label class="form-label">Priority Level *</label>
+                                <select id="complaint-priority" class="form-control" required>
+                                    <option value="">Select Priority...</option>
+                                    <option value="Low">Low</option>
+                                    <option value="Medium">Medium</option>
+                                    <option value="High">High</option>
+                                    <option value="Emergency">Emergency</option>
+                                </select>
+                            </div>
+
+                            <div class="form-group full-width">
+                                <label class="form-label">Location / Landmark *</label>
+                                <input type="text" id="complaint-location" class="form-control" placeholder="e.g. Makkal Nagar 2nd Street, Near Water Tank" required>
+                            </div>
+
+                            <div class="form-group full-width">
+                                <label class="form-label">Detailed Complaint Description *</label>
+                                <textarea id="complaint-desc" class="form-control" placeholder="Provide full details about the issue..." required></textarea>
+                            </div>
+                        </div>
+
+                        <div style="margin-top: 24px; text-align: right;">
+                            <button type="reset" class="btn btn-secondary">Reset</button>
+                            <button type="submit" class="btn btn-primary" style="margin-left: 10px;">
+                                <i class="fa-solid fa-paper-plane"></i> Submit Complaint
+                            </button>
+                        </div>
+                    </form>
+                </div>
+            </section>
+
+            <!-- 4. PRIORITY RESOLUTION QUEUE VIEW -->
+            <section id="priority-queue" class="page-view">
+                <div class="page-header">
+                    <div>
+                        <h2>Priority Resolution Queue Visualizer</h2>
+                        <p>Complaints waiting for department action ordered by priority structure</p>
+                    </div>
+                </div>
+
+                <!-- Data Structure Explanation Banner -->
+                <div class="ds-banner">
+                    <div class="ds-icon">
+                        <i class="fa-solid fa-diagram-project"></i>
+                    </div>
+                    <div class="ds-content">
+                        <h4>Java Data Structure Implementation: PriorityQueue&lt;Complaint&gt;</h4>
+                        <p>This queue automatically orders complaints according to severity: <strong>Emergency &rarr; High &rarr; Medium &rarr; Low</strong>. Critical public hazards rise to rank #1 instantly, ensuring municipal teams resolve urgent cases first.</p>
+                    </div>
+                </div>
+
+                <div class="content-card">
+                    <div class="card-title-bar">
+                        <h3>Active Queue Dispatch List</h3>
+                        <span class="badge badge-emergency" id="active-queue-count">0 Complaints in Queue</span>
+                    </div>
+
+                    <div class="pq-list" id="pq-container">
+                        <!-- Populated dynamically -->
+                    </div>
+                </div>
+            </section>
+
+            <!-- 5. DEPARTMENTS VIEW -->
+            <section id="departments" class="page-view">
+                <div class="page-header">
+                    <div>
+                        <h2>Municipal Department Allocation</h2>
+                        <p>Overview of active departments and workload distribution</p>
+                    </div>
+                </div>
+
+                <div class="stats-grid" id="departments-grid">
+                    <!-- Populated dynamically -->
+                </div>
+            </section>
+
+        </main>
+    </div>
+
+    <!-- COMPLAINT DETAILS MODAL -->
+    <div class="modal-overlay" id="details-modal">
+        <div class="modal-card">
+            <div class="modal-header">
+                <h3>Complaint Case File: <span id="modal-cmp-id" style="color: var(--primary);">CMP1001</span></h3>
+                <button class="close-btn" onclick="closeModal()"><i class="fa-solid fa-xmark"></i></button>
+            </div>
+
+            <div class="modal-body-grid">
+                <div class="modal-detail-item">
+                    <div class="modal-detail-label">Citizen Name</div>
+                    <div id="modal-citizen-name" style="font-weight: 600;">-</div>
+                </div>
+                <div class="modal-detail-item">
+                    <div class="modal-detail-label">Mobile Number</div>
+                    <div id="modal-citizen-mobile">-</div>
+                </div>
+                <div class="modal-detail-item">
+                    <div class="modal-detail-label">Complaint Type</div>
+                    <div id="modal-type" style="font-weight: 600;">-</div>
+                </div>
+                <div class="modal-detail-item">
+                    <div class="modal-detail-label">Priority Level</div>
+                    <div id="modal-priority">-</div>
+                </div>
+                <div class="modal-detail-item full">
+                    <div class="modal-detail-label">Location / Address</div>
+                    <div id="modal-location">-</div>
+                </div>
+                <div class="modal-detail-item full">
+                    <div class="modal-detail-label">Description</div>
+                    <div id="modal-description" style="line-height: 1.5; color: var(--text-main);">-</div>
+                </div>
+                <div class="modal-detail-item">
+                    <div class="modal-detail-label">Filing Date</div>
+                    <div id="modal-date">-</div>
+                </div>
+                <div class="modal-detail-item">
+                    <div class="modal-detail-label">Current Status</div>
+                    <div id="modal-status">-</div>
+                </div>
+                <div class="modal-detail-item full">
+                    <div class="modal-detail-label">Assigned Department</div>
+                    <div id="modal-dept" style="font-weight: 600; color: var(--accent-gold);">-</div>
+                </div>
+            </div>
+
+            <!-- Actions Box -->
+            <div class="modal-actions-box">
+                <h4 style="font-size: 14px; color: var(--text-muted);">MUNICIPAL ACTION CONTROLS</h4>
+                <div class="form-grid">
+                    <div class="form-group">
+                        <label class="form-label">Assign Department</label>
+                        <div style="display: flex; gap: 8px;">
+                            <select id="assign-dept-select" class="form-control" style="flex: 1;">
+                                <option value="Electrical">Electrical</option>
+                                <option value="Sanitation">Sanitation</option>
+                                <option value="Roads">Roads</option>
+                                <option value="Water Supply">Water Supply</option>
+                                <option value="Drainage">Drainage</option>
+                            </select>
+                            <button class="btn btn-secondary btn-sm" onclick="handleAssignDept()">Assign</button>
+                        </div>
+                    </div>
+
+                    <div class="form-group">
+                        <label class="form-label">Update Status</label>
+                        <div style="display: flex; gap: 8px;">
+                            <select id="update-status-select" class="form-control" style="flex: 1;">
+                                <option value="Pending">Pending</option>
+                                <option value="In Progress">In Progress</option>
+                                <option value="Resolved">Resolved</option>
+                                <option value="Rejected">Rejected</option>
+                            </select>
+                            <button class="btn btn-primary btn-sm" onclick="handleUpdateStatus()">Update</button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Toast Notification Container -->
+    <div class="toast-container" id="toast-container"></div>
+
+    <script src="js/app.js"></script>
+</body>
+</html>
