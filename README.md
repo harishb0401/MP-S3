@@ -1,143 +1,144 @@
-# Government Grievance Management and Priority Resolution System
-### Municipal Office Case Study: Makkal Nagar Municipal Office
+# Full-Stack Government Grievance Management and Priority Resolution System
+### Municipal Case Study: Makkal Nagar Municipal Office
+
+A complete, working full-stack municipal grievance portal built using **Java (REST API + Data Structures)** and **Vanilla Web Technologies (HTML, CSS, JS)**.
 
 ---
 
-## 1. Project Title
-**Government Grievance Management and Priority Resolution System**
-
-## 2. Problem Statement
-Currently, municipal grievance reporting at **Makkal Nagar Municipal Office** is handled using paper registers, phone calls, and informal communications. This causes significant delays, lack of transparency, inability to track complaint statuses, and difficulty in identifying urgent civic emergencies (such as major water main bursts or hazardous waste leaks) over routine complaints.
-
-## 3. Objectives
-- Digitalize municipal grievance reporting into a centralized computerized system.
-- Implement priority-driven resolution so high-severity/emergency complaints are addressed first.
-- Provide real-time tracking for citizens and municipal administrative staff.
-- Demonstrate core Object-Oriented Programming (OOP) and Data Structures concepts in a practical Java & Web solution.
-
-## 4. Prototype Features Implemented (30% Scope)
-1. **Administrative Dashboard**: Displays total, pending, in-progress, resolved, and emergency grievance metrics with a recent complaints table.
-2. **Complaint Registration**: Form allowing citizens to file grievances with automatic Complaint ID generation (`CMP1001`, `CMP1002`, etc.).
-3. **Master Complaint Directory**: Full table displaying all complaints with live Search and multi-criteria Filtering (Type, Priority, Status).
-4. **Complaint Case Details & Actions**: Detailed modal allowing municipal staff to assign departments (Electrical, Sanitation, Roads, Water Supply, Drainage) and update complaint status.
-5. **Priority Resolution Queue**: Dedicated view utilizing a **PriorityQueue** algorithm ordering complaints by priority (**Emergency &rarr; High &rarr; Medium &rarr; Low**).
-6. **Department Workload Monitoring**: Overview cards displaying active complaint distribution across departments.
-
----
-
-## 5. Technologies Used
-- **Backend / Core Logic**: Java (JDK 8+)
-- **Frontend / UI**: HTML5, CSS3 (Vanilla Custom System with Dark Mode/Glassmorphism), JavaScript (ES6+ with `localStorage` persistence)
-- **Icons**: FontAwesome 6 (CDN)
-
----
-
-## 6. Object-Oriented Programming (OOP) Concepts Used
-- **Classes and Objects**: `Complaint`, `Citizen`, `Department`, and `Staff` objects representing domain entities.
-- **Encapsulation**: Private member fields with getter and setter methods controlling access to object state.
-- **Inheritance & Interfaces**: Implementation of `Comparable<Complaint>` interface to define custom natural ordering based on complaint priority weights.
-- **Abstraction**: `GrievanceManager` service encapsulating complex data structure operations (`ArrayList`, `HashMap`, `PriorityQueue`) behind a simple API interface.
-
----
-
-## 7. Data Structures Used
-- **`ArrayList<Complaint>`**: Used for sequential storage and dynamic iteration of all registered complaints.
-- **`HashMap<String, Complaint>`**: Provides fast $O(1)$ constant time lookup of complaints by `complaintId` (`CMP1001`).
-- **`PriorityQueue<Complaint>`**: Maintains complaints in priority order (**Emergency**=1, **High**=2, **Medium**=3, **Low**=4) so that critical civic emergencies are dispatched first.
-
----
-
-## 8. Current 30% Prototype Scope vs. 100% Roadmap
-
-| Feature | 30% Prototype (Tomorrow's Demo) | 100% Final System |
-| :--- | :--- | :--- |
-| **Data Storage** | Preloaded Sample Data & `localStorage` / Java In-Memory | Relational Database (MySQL / PostgreSQL) |
-| **Interface** | Admin Dashboard & Priority Queue Visualizer | Citizen & Staff Web & Mobile Apps |
-| **Priority Queue** | PriorityQueue Comparator Logic (Emergency &rarr; Low) | AI Automated Priority Prediction |
-| **Authentication** | Demo Mode | Role-Based Access Control (RBAC) |
-
----
-
-## 9. Future Features Roadmap (100% Completion)
-- Citizen Login & Profile Management Portal
-- Municipal Staff & Officer Login Portal
-- Persistent Database Integration (MySQL/PostgreSQL with Spring Boot REST API)
-- Automated Email & SMS Notifications for status updates
-- Automatic Complaint Escalation if pending beyond SLA time limits
-- Interactive GIS Map / Location Marker Integration
-- Automated Priority Prediction using NLP / Machine Learning
-- Complete Complaint History Logs & Audit Trail
-- Mobile Application (Flutter / React Native)
-
----
-
-## 10. File Structure Explanation
+## 1. Architecture & Overview
 
 ```text
-Government-Grievance-Management/
-├── backend/
-│   └── src/
-│       ├── model/
-│       │   ├── Citizen.java          # Model representing citizen contact details
-│       │   ├── Department.java       # Model representing municipal departments
-│       │   ├── Staff.java            # Model representing department staff members
-│       │   └── Complaint.java        # Core model implementing Comparable for PriorityQueue
-│       ├── service/
-│       │   └── GrievanceManager.java # Data Structure manager (ArrayList, HashMap, PriorityQueue)
-│       └── Main.java                 # Preloads sample data & runs CLI demonstration
-├── frontend/
-│   ├── index.html                    # Single Page Web App container (Dashboard, Queue, Form, Directory)
-│   ├── css/
-│   │   └── style.css                 # Modern municipal dark system styling
-│   └── js/
-│       └── app.js                    # State management, search/filters, modal logic & local storage
-└── README.md                         # Project documentation and demonstration guide
+       ┌────────────────────────┐         ┌────────────────────────┐
+       │     Citizen Portal     │         │   Staff/Admin Portal   │
+       └───────────┬────────────┘         └───────────┬────────────┘
+                   │                                  │
+                   └────────────────┬─────────────────┘
+                                    │ HTTP REST API (fetch)
+                                    ▼
+       ┌───────────────────────────────────────────────────────────┐
+       │            Java REST Backend (Port 8080)                  │
+       │    - HttpServer (com.sun.net.httpserver)                 │
+       │    - Auth & Token Session Manager                         │
+       │    - Priority Calculation & Department Mapper             │
+       │    - PriorityQueue<Complaint> & HashMap Lookups           │
+       └────────────────────────────┬──────────────────────────────┘
+                                    │
+                                    ▼
+       ┌───────────────────────────────────────────────────────────┐
+       │             Persistent Database Storage                   │
+       │             (backend/data/database.json)                  │
+       └───────────────────────────────────────────────────────────┘
 ```
 
 ---
 
-## 11. How to Run the Prototype
+## 2. Key Features Implemented
 
-### Running the Frontend Prototype (Web Dashboard)
-1. Open your web browser (Chrome, Edge, Firefox).
-2. Open the file directly:
-   `c:/Project/MP-S3/01/frontend/index.html`
-3. All features (Dashboard, Registration, Priority Queue, Department Assignment, Status Updates) work interactively out of the box!
+1. **Role-Based Portals**:
+   - **Citizen Portal**: Register, Login, Submit complaint, View personal complaints, Track case status step-by-step (`Submitted` $\rightarrow$ `Assigned` $\rightarrow$ `In Progress` $\rightarrow$ `Resolved`).
+   - **Municipal Staff/Admin Portal**: Staff login, Real-time Database Stats (Total, Pending, In Progress, Resolved, Critical), Master Directory with Search & Filters, Priority Queue visualizer, Department & Staff assignment, Status updates, Resolution Notes entry.
+2. **Real Database Synchronization**:
+   - Zero hardcoded mock arrays! Both portals query the **same Java REST API** on `http://localhost:8080/api`.
+   - Starts with **0 complaints**. Stats compute dynamically from the database.
+3. **Automated Department Mapping**:
+   - `Streetlight` $\rightarrow$ Electrical Department
+   - `Waste Management` / `Public Sanitation` $\rightarrow$ Sanitation Department
+   - `Road Damage` $\rightarrow$ Roads Department
+   - `Water Supply` $\rightarrow$ Water Supply Department
+   - `Drainage` $\rightarrow$ Drainage Department
+   - `Other` $\rightarrow$ General Administration
+4. **Backend Priority System & Data Structure**:
+   - Priority levels: `CRITICAL`, `HIGH`, `MEDIUM`, `LOW`.
+   - Backend priority calculator evaluates category & hazard keywords (`burst`, `flooding`, `hazardous`, `medical waste`, etc.).
+   - Java `PriorityQueue<Complaint>` orders active complaints by severity, then by submission timestamp.
 
-### Compiling and Running the Java Backend
-Open Command Prompt or Terminal and execute:
+---
 
-```bash
+## 3. Database & Default Admin Account
+
+All records are persisted to `backend/data/database.json`.
+
+### Initial Seeded Municipal Staff / Admin Account:
+- **Staff ID / Email**: `STF1001` or `admin@makkal.gov.in`
+- **Password**: `admin123`
+- **Role**: `STAFF`
+- **Department**: `General Administration`
+
+---
+
+## 4. Backend REST API Endpoints
+
+| Method | Endpoint | Description | Auth Required |
+| :--- | :--- | :--- | :--- |
+| `POST` | `/api/auth/register` | Register new Citizen account | No |
+| `POST` | `/api/auth/login` | Login for Citizen or Staff | No |
+| `GET` | `/api/auth/me` | Fetch authenticated user profile | Yes |
+| `GET` | `/api/dashboard/stats` | Compute real database metrics | No |
+| `POST` | `/api/complaints` | Submit new citizen grievance | Citizen |
+| `GET` | `/api/my-complaints` | Fetch logged-in citizen's complaints | Citizen |
+| `GET` | `/api/complaints` | Fetch master complaint directory | Staff |
+| `GET` | `/api/complaints/priority-queue` | Fetch complaints ordered by PriorityQueue | Any |
+| `GET` | `/api/complaints/:id` | Fetch specific complaint details | Any |
+| `PUT` | `/api/complaints/:id/status` | Update complaint status | Staff |
+| `POST` | `/api/complaints/:id/assign` | Assign department & staff officer | Staff |
+| `POST` | `/api/complaints/:id/resolve` | Mark resolved & add resolution notes | Staff |
+
+---
+
+## 5. How to Run the Project Locally
+
+### Step 1: Start the Java Backend REST API Server
+Open Command Prompt / Terminal:
+
+```cmd
 # Navigate to backend source directory
 cd c:\Project\MP-S3\01\backend\src
 
-# Compile all Java files into the bin directory
+# Compile Java source code
 javac -d ../bin model/*.java service/*.java Main.java
 
-# Run the compiled Java program
+# Run Java Backend REST Server
 java -cp ../bin Main
 ```
 
+*(Server will start on `http://localhost:8080/api/`)*
+
+### Step 2: Open the Web Application
+Open your web browser (Chrome, Edge, Firefox) and open:
+👉 [`c:/Project/MP-S3/01/frontend/index.html`](file:///c:/Project/MP-S3/01/frontend/index.html)
+
 ---
 
-## 12. 2–3 Minute Demonstration Script (For Tomorrow's Presentation)
+## 6. End-to-End Live Demonstration Procedure
 
-> **"Good morning/afternoon respected staff/professors. Today I am demonstrating the 30% prototype of the Government Grievance Management and Priority Resolution System for Makkal Nagar Municipal Office."**
+### Test 1: Citizen Registration & Login
+1. Open `index.html`.
+2. Click **Register Citizen**.
+3. Register citizen: Name `Ramesh Kumar`, Email `ramesh@example.com`, Password `password123`.
+4. Submit $\rightarrow$ Citizen Dashboard opens showing **0 Complaints**.
 
-### Step 1: Explain Problem & Dashboard (30 Seconds)
-- *"Currently, municipal offices record complaints in manual registers, leading to delays and missed emergencies."*
-- *"Here on the **Dashboard**, we have real-time metrics showing Total Complaints, Pending Cases, Resolved Cases, and High/Emergency Priority alerts."*
+### Test 2: Submit Complaint & Verify Backend Priority Calculation
+1. Click **Submit New Complaint**.
+2. Select Category `Streetlight`, Location `5th Main Road`, Description `Streetlight bulb broken near government school`.
+3. Submit $\rightarrow$ Receives generated Complaint ID (e.g. `GRV-2026-0001`). Priority is automatically set to `HIGH` and Department to `Electrical`.
 
-### Step 2: Register a New Complaint (45 Seconds)
-- *"Let's go to **Register Complaint**. Imagine citizen 'Ravi' submits a 'Streetlight' complaint with priority 'High'."*
-- *"When submitted, the system automatically generates a unique ID `CMP1007` and adds it to our master directory."*
+### Test 3: Municipal Staff Login & Master Directory
+1. Click **Logout**.
+2. Switch to **Municipal Staff** tab.
+3. Login using `STF1001` and password `admin123`.
+4. Staff Dashboard opens showing **Total: 1**, **Pending: 1**, **High Priority: 1**.
+5. `GRV-2026-0001` appears in the Master Register table.
 
-### Step 3: Demonstrate Priority Queue & Data Structures (45 Seconds)
-- *"Now let's switch to the **Priority Queue** view. This is the core Data Structure feature of our project."*
-- *"In Java, we use a `PriorityQueue<Complaint>` with custom `Comparable` weights. As you can see, **Emergency** complaints like water main bursts and medical waste dumping automatically rise to Rank #1 and #2 ahead of Low priority road complaints."*
-- *"In addition, we use `ArrayList` for sequential storage and a `HashMap<String, Complaint>` to perform instant $O(1)$ fast lookups by Complaint ID."*
+### Test 4: Staff Department Assignment & Resolution Notes
+1. Click **Manage** on `GRV-2026-0001`.
+2. Assign Staff Officer `Officer Suresh` and click **Assign**.
+3. Update Status to `IN_PROGRESS` and click **Update**.
+4. Enter Resolution Notes: `"Faulty streetlight bulb replaced with LED unit and tested successfully."`
+5. Click **Mark Resolved**. Status updates to `RESOLVED`.
 
-### Step 4: Complaint Details, Assigning & Updating (30 Seconds)
-- *"If we click **View** on any complaint, we open the Case File. Here municipal staff can assign departments (e.g., 'Electrical' or 'Water Supply') and update the status from 'Pending' to 'In Progress' or 'Resolved'."*
-- *"The dashboard metrics and priority queue update instantly to reflect these changes."*
-- *"This completes our functional 30% prototype demonstration for today. Thank you!"*
+### Test 5: Verify Live Sync on Citizen Portal
+1. Logout of Staff Portal.
+2. Login as Citizen `ramesh@example.com` / `password123`.
+3. Citizen Dashboard shows **Total: 1**, **Resolved: 1**.
+4. Click **Track Case** on `GRV-2026-0001`.
+5. The timeline graph shows all steps completed (`Submitted` $\checkmark$, `Assigned` $\checkmark$, `In Progress` $\checkmark$, `Resolved` $\checkmark$) and displays the resolution description notes recorded by the staff officer!

@@ -1,0 +1,10 @@
+{
+  "users": [
+    {"id":"USR848B560C","name":"Kalai","email":"kalai@gmail.com","mobile":"1234567895","passwordHash":"8d969eef6ecad3c29a3a629280e686cf0c3f5d5a86aff3ca12020c923adc6c92","role":"CITIZEN","department":"","createdAt":"2026-09-14 12:00:00"},
+    {"id":"STF1001","name":"Municipal Officer","email":"admin@makkal.gov.in","mobile":"9876543210","passwordHash":"240be518fabd2724ddb6f04eeb1da5967448d7e831c08c8fa822809f74c720a9","role":"STAFF","department":"General Administration","createdAt":"2026-09-14 00:00:00"}
+  ],
+  "complaints": [
+    {"id":"GRV-GUID-7cc898a0","complaintId":"GRV-2026-0001","citizenId":"USR848B560C","citizenName":"Kalai","citizenMobile":"1234567895","category":"Streetlight","description":"fix it","location":"bgiuerg nagar","department":"Electrical","priority":"HIGH","status":"IN_PROGRESS","assignedStaff":"Unassigned","resolutionNotes":"","createdAt":"2026-09-14 23:47:25","updatedAt":"2026-09-14 23:47:50","resolvedAt":""}
+  ],
+  "complaintCounter": 1
+}

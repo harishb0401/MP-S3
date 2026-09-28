@@ -1,0 +1,409 @@
+package service;
+
+import com.sun.net.httpserver.HttpExchange;
+import com.sun.net.httpserver.HttpHandler;
+import com.sun.net.httpserver.HttpServer;
+import model.Complaint;
+import model.User;
+
+import java.io.InputStream;
+import java.io.OutputStream;
+import java.net.InetSocketAddress;
+import java.nio.charset.StandardCharsets;
+import java.util.List;
+import java.util.Map;
+
+public class ServerManager {
+    private int port;
+    private Database database;
+    private GrievanceManager manager;
+    private HttpServer server;
+
+    public ServerManager(int port, Database database, GrievanceManager manager) {
+        this.port = port;
+        this.database = database;
+        this.manager = manager;
+    }
+
+    public void start() {
+        try {
+            server = HttpServer.create(new InetSocketAddress(port), 0);
+            server.createContext("/api/", new ApiRouterHandler());
+            server.setExecutor(null); // default executor
+            server.start();
+            System.out.println("[SERVER SUCCESS] REST API Server running on http://localhost:" + port + "/api/");
+        } catch (Exception e) {
+            System.err.println("[SERVER ERROR] Could not start HTTP Server on port " + port + ": " + e.getMessage());
+        }
+    }
+
+    private class ApiRouterHandler implements HttpHandler {
+        @Override
+        public void handle(HttpExchange exchange) {
+            try {
+                // Add CORS Headers for browser requests
+                exchange.getResponseHeaders().add("Access-Control-Allow-Origin", "*");
+                exchange.getResponseHeaders().add("Access-Control-Allow-Methods", "GET, POST, PUT, PATCH, DELETE, OPTIONS");
+                exchange.getResponseHeaders().add("Access-Control-Allow-Headers", "Content-Type, Authorization");
+
+                String method = exchange.getRequestMethod();
+                if ("OPTIONS".equalsIgnoreCase(method)) {
+                    exchange.sendResponseHeaders(204, -1);
+                    return;
+                }
+
+                String path = exchange.getRequestURI().getPath();
+                String body = readRequestBody(exchange);
+
+                // Authentication Endpoints
+                if (path.equals("/api/auth/register") && "POST".equalsIgnoreCase(method)) {
+                    handleRegister(exchange, body);
+                    return;
+                }
+
+                if (path.equals("/api/auth/login") && "POST".equalsIgnoreCase(method)) {
+                    handleLogin(exchange, body);
+                    return;
+                }
+
+                if (path.equals("/api/auth/me") && "GET".equalsIgnoreCase(method)) {
+                    handleGetMe(exchange);
+                    return;
+                }
+
+                // Dashboard Stats
+                if (path.equals("/api/dashboard/stats") && "GET".equalsIgnoreCase(method)) {
+                    handleDashboardStats(exchange);
+                    return;
+                }
+
+                // Complaints Endpoints
+                if (path.equals("/api/complaints") && "POST".equalsIgnoreCase(method)) {
+                    handleCreateComplaint(exchange, body);
+                    return;
+                }
+
+                if (path.equals("/api/complaints") && "GET".equalsIgnoreCase(method)) {
+                    handleGetAllComplaints(exchange);
+                    return;
+                }
+
+                if (path.equals("/api/my-complaints") && "GET".equalsIgnoreCase(method)) {
+                    handleGetMyComplaints(exchange);
+                    return;
+                }
+
+                if (path.equals("/api/complaints/priority-queue") && "GET".equalsIgnoreCase(method)) {
+                    handleGetPriorityQueue(exchange);
+                    return;
+                }
+
+                // Dynamic complaint ID routes (e.g., /api/complaints/GRV-2026-0001)
+                if (path.startsWith("/api/complaints/")) {
+                    String subPath = path.substring("/api/complaints/".length());
+                    
+                    if (subPath.endsWith("/status") && ("PUT".equalsIgnoreCase(method) || "PATCH".equalsIgnoreCase(method))) {
+                        String id = subPath.replace("/status", "");
+                        handleUpdateStatus(exchange, id, body);
+                        return;
+                    }
+
+                    if (subPath.endsWith("/assign") && "POST".equalsIgnoreCase(method)) {
+                        String id = subPath.replace("/assign", "");
+                        handleAssignDepartment(exchange, id, body);
+                        return;
+                    }
+
+                    if (subPath.endsWith("/resolve") && "POST".equalsIgnoreCase(method)) {
+                        String id = subPath.replace("/resolve", "");
+                        handleResolveComplaint(exchange, id, body);
+                        return;
+                    }
+
+                    if ("GET".equalsIgnoreCase(method)) {
+                        handleGetComplaintById(exchange, subPath);
+                        return;
+                    }
+                }
+
+                // Not found
+                sendJsonResponse(exchange, 404, "{\"error\":\"Route not found: " + path + "\"}");
+
+            } catch (Exception e) {
+                System.err.println("[API ERROR] Error handling request: " + e.getMessage());
+                try {
+                    sendJsonResponse(exchange, 500, "{\"error\":\"Internal Server Error: " + e.getMessage() + "\"}");
+                } catch (Exception ignored) {}
+            }
+        }
+    }
+
+    // AUTH HANDLERS
+    private void handleRegister(HttpExchange exchange, String body) throws Exception {
+        String name = extractVal(body, "name");
+        String email = extractVal(body, "email");
+        String mobile = extractVal(body, "mobile");
+        String password = extractVal(body, "password");
+
+        if (name.isEmpty() || email.isEmpty() || password.isEmpty()) {
+            sendJsonResponse(exchange, 400, "{\"error\":\"Name, email, and password are required.\"}");
+            return;
+        }
+
+        User user = database.registerUser(name, email, mobile, password, "CITIZEN", "");
+        if (user == null) {
+            sendJsonResponse(exchange, 409, "{\"error\":\"Email is already registered.\"}");
+            return;
+        }
+
+        String token = database.createSession(user);
+        sendJsonResponse(exchange, 201, String.format(
+                "{\"message\":\"Registration successful\",\"token\":\"%s\",\"user\":%s}",
+                token, formatUserJson(user)
+        ));
+    }
+
+    private void handleLogin(HttpExchange exchange, String body) throws Exception {
+        String emailOrId = extractVal(body, "email");
+        if (emailOrId.isEmpty()) {
+            emailOrId = extractVal(body, "staffId");
+        }
+        String password = extractVal(body, "password");
+
+        if (emailOrId.isEmpty() || password.isEmpty()) {
+            sendJsonResponse(exchange, 400, "{\"error\":\"Email/Staff ID and password are required.\"}");
+            return;
+        }
+
+        User user = database.getUserByEmail(emailOrId);
+        if (user == null) {
+            user = database.getUserById(emailOrId);
+        }
+
+        if (user == null || !user.getPasswordHash().equals(Database.hashPassword(password))) {
+            sendJsonResponse(exchange, 401, "{\"error\":\"Invalid credentials. Check your ID/Email and password.\"}");
+            return;
+        }
+
+        String token = database.createSession(user);
+        sendJsonResponse(exchange, 200, String.format(
+                "{\"message\":\"Login successful\",\"token\":\"%s\",\"user\":%s}",
+                token, formatUserJson(user)
+        ));
+    }
+
+    private void handleGetMe(HttpExchange exchange) throws Exception {
+        User user = getAuthenticatedUser(exchange);
+        if (user == null) {
+            sendJsonResponse(exchange, 401, "{\"error\":\"Unauthorized token\"}");
+            return;
+        }
+        sendJsonResponse(exchange, 200, formatUserJson(user));
+    }
+
+    // DASHBOARD & COMPLAINT HANDLERS
+    private void handleDashboardStats(HttpExchange exchange) throws Exception {
+        Map<String, Integer> stats = manager.getDashboardStats();
+        sendJsonResponse(exchange, 200, String.format(
+                "{\"total\":%d,\"pending\":%d,\"inProgress\":%d,\"resolved\":%d,\"critical\":%d}",
+                stats.get("total"), stats.get("pending"), stats.get("inProgress"),
+                stats.get("resolved"), stats.get("critical")
+        ));
+    }
+
+    private void handleCreateComplaint(HttpExchange exchange, String body) throws Exception {
+        User user = getAuthenticatedUser(exchange);
+        if (user == null) {
+            sendJsonResponse(exchange, 401, "{\"error\":\"Unauthorized. Please log in to submit a complaint.\"}");
+            return;
+        }
+
+        String category = extractVal(body, "category");
+        String description = extractVal(body, "description");
+        String location = extractVal(body, "location");
+
+        if (category.isEmpty() || description.isEmpty() || location.isEmpty()) {
+            sendJsonResponse(exchange, 400, "{\"error\":\"Category, description, and location are required.\"}");
+            return;
+        }
+
+        Complaint created = manager.createComplaint(user, category, description, location);
+        sendJsonResponse(exchange, 201, formatComplaintJson(created));
+    }
+
+    private void handleGetAllComplaints(HttpExchange exchange) throws Exception {
+        User user = getAuthenticatedUser(exchange);
+        if (user == null) {
+            sendJsonResponse(exchange, 401, "{\"error\":\"Unauthorized access.\"}");
+            return;
+        }
+
+        List<Complaint> complaints = manager.getAllComplaints();
+        sendJsonResponse(exchange, 200, formatComplaintsListJson(complaints));
+    }
+
+    private void handleGetMyComplaints(HttpExchange exchange) throws Exception {
+        User user = getAuthenticatedUser(exchange);
+        if (user == null) {
+            sendJsonResponse(exchange, 401, "{\"error\":\"Unauthorized access.\"}");
+            return;
+        }
+
+        List<Complaint> complaints = manager.getCitizenComplaints(user.getId());
+        sendJsonResponse(exchange, 200, formatComplaintsListJson(complaints));
+    }
+
+    private void handleGetPriorityQueue(HttpExchange exchange) throws Exception {
+        List<Complaint> queueList = manager.getPriorityQueueList();
+        sendJsonResponse(exchange, 200, formatComplaintsListJson(queueList));
+    }
+
+    private void handleGetComplaintById(HttpExchange exchange, String id) throws Exception {
+        Complaint c = manager.getComplaintById(id);
+        if (c == null) {
+            sendJsonResponse(exchange, 404, "{\"error\":\"Complaint not found.\"}");
+            return;
+        }
+        sendJsonResponse(exchange, 200, formatComplaintJson(c));
+    }
+
+    private void handleUpdateStatus(HttpExchange exchange, String id, String body) throws Exception {
+        User user = getAuthenticatedUser(exchange);
+        if (user == null || !"STAFF".equalsIgnoreCase(user.getRole())) {
+            sendJsonResponse(exchange, 403, "{\"error\":\"Forbidden. Staff access required.\"}");
+            return;
+        }
+
+        String status = extractVal(body, "status");
+        if (status.isEmpty()) {
+            sendJsonResponse(exchange, 400, "{\"error\":\"Status field is required.\"}");
+            return;
+        }
+
+        boolean success = manager.updateStatus(id, status);
+        if (!success) {
+            sendJsonResponse(exchange, 404, "{\"error\":\"Complaint not found.\"}");
+            return;
+        }
+
+        Complaint updated = manager.getComplaintById(id);
+        sendJsonResponse(exchange, 200, formatComplaintJson(updated));
+    }
+
+    private void handleAssignDepartment(HttpExchange exchange, String id, String body) throws Exception {
+        User user = getAuthenticatedUser(exchange);
+        if (user == null || !"STAFF".equalsIgnoreCase(user.getRole())) {
+            sendJsonResponse(exchange, 403, "{\"error\":\"Forbidden. Staff access required.\"}");
+            return;
+        }
+
+        String department = extractVal(body, "department");
+        String staffName = extractVal(body, "staffName");
+
+        boolean success = manager.assignDepartmentAndStaff(id, department, staffName);
+        if (!success) {
+            sendJsonResponse(exchange, 404, "{\"error\":\"Complaint not found.\"}");
+            return;
+        }
+
+        Complaint updated = manager.getComplaintById(id);
+        sendJsonResponse(exchange, 200, formatComplaintJson(updated));
+    }
+
+    private void handleResolveComplaint(HttpExchange exchange, String id, String body) throws Exception {
+        User user = getAuthenticatedUser(exchange);
+        if (user == null || !"STAFF".equalsIgnoreCase(user.getRole())) {
+            sendJsonResponse(exchange, 403, "{\"error\":\"Forbidden. Staff access required.\"}");
+            return;
+        }
+
+        String resolutionNotes = extractVal(body, "resolutionNotes");
+        boolean success = manager.resolveComplaint(id, resolutionNotes);
+        if (!success) {
+            sendJsonResponse(exchange, 404, "{\"error\":\"Complaint not found.\"}");
+            return;
+        }
+
+        Complaint updated = manager.getComplaintById(id);
+        sendJsonResponse(exchange, 200, formatComplaintJson(updated));
+    }
+
+    // HELPER METHODS
+    private User getAuthenticatedUser(HttpExchange exchange) {
+        String authHeader = exchange.getRequestHeaders().getFirst("Authorization");
+        if (authHeader != null && !authHeader.isEmpty()) {
+            return database.getUserByToken(authHeader);
+        }
+        return null;
+    }
+
+    private String readRequestBody(HttpExchange exchange) throws Exception {
+        InputStream is = exchange.getRequestBody();
+        StringBuilder sb = new StringBuilder();
+        byte[] buffer = new byte[1024];
+        int bytesRead;
+        while ((bytesRead = is.read(buffer)) != -1) {
+            sb.append(new String(buffer, 0, bytesRead, StandardCharsets.UTF_8));
+        }
+        return sb.toString();
+    }
+
+    private void sendJsonResponse(HttpExchange exchange, int statusCode, String jsonResponse) throws Exception {
+        byte[] responseBytes = jsonResponse.getBytes(StandardCharsets.UTF_8);
+        exchange.getResponseHeaders().set("Content-Type", "application/json; charset=UTF-8");
+        exchange.sendResponseHeaders(statusCode, responseBytes.length);
+        OutputStream os = exchange.getResponseBody();
+        os.write(responseBytes);
+        os.close();
+    }
+
+    private String extractVal(String json, String key) {
+        String pattern = "\"" + key + "\":\"";
+        int start = json.indexOf(pattern);
+        if (start == -1) {
+            pattern = "\"" + key + "\":";
+            start = json.indexOf(pattern);
+            if (start == -1) return "";
+            start += pattern.length();
+            int end = json.indexOf(",", start);
+            if (end == -1) end = json.indexOf("}", start);
+            return json.substring(start, end).replaceAll("[\"\\}]", "").trim();
+        }
+        start += pattern.length();
+        int end = json.indexOf("\"", start);
+        if (end == -1) return "";
+        return json.substring(start, end).replace("\\\"", "\"").replace("\\n", "\n");
+    }
+
+    private String formatUserJson(User u) {
+        return String.format(
+                "{\"id\":\"%s\",\"name\":\"%s\",\"email\":\"%s\",\"mobile\":\"%s\",\"role\":\"%s\",\"department\":\"%s\"}",
+                esc(u.getId()), esc(u.getName()), esc(u.getEmail()), esc(u.getMobile()), esc(u.getRole()), esc(u.getDepartment())
+        );
+    }
+
+    private String formatComplaintJson(Complaint c) {
+        return String.format(
+                "{\"id\":\"%s\",\"complaintId\":\"%s\",\"citizenId\":\"%s\",\"citizenName\":\"%s\",\"citizenMobile\":\"%s\",\"category\":\"%s\",\"description\":\"%s\",\"location\":\"%s\",\"department\":\"%s\",\"priority\":\"%s\",\"status\":\"%s\",\"assignedStaff\":\"%s\",\"resolutionNotes\":\"%s\",\"createdAt\":\"%s\",\"updatedAt\":\"%s\",\"resolvedAt\":\"%s\"}",
+                esc(c.getId()), esc(c.getComplaintId()), esc(c.getCitizenId()), esc(c.getCitizenName()),
+                esc(c.getCitizenMobile()), esc(c.getCategory()), esc(c.getDescription()), esc(c.getLocation()),
+                esc(c.getDepartment()), esc(c.getPriority()), esc(c.getStatus()), esc(c.getAssignedStaff()),
+                esc(c.getResolutionNotes()), esc(c.getCreatedAt()), esc(c.getUpdatedAt()), esc(c.getResolvedAt())
+        );
+    }
+
+    private String formatComplaintsListJson(List<Complaint> list) {
+        StringBuilder sb = new StringBuilder("[");
+        for (int i = 0; i < list.size(); i++) {
+            sb.append(formatComplaintJson(list.get(i)));
+            if (i < list.size() - 1) sb.append(",");
+        }
+        sb.append("]");
+        return sb.toString();
+    }
+
+    private String esc(String str) {
+        if (str == null) return "";
+        return str.replace("\\", "\\\\").replace("\"", "\\\"").replace("\n", "\\n").replace("\r", "");
+    }
+}

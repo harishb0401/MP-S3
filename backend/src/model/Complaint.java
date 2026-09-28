@@ -4,127 +4,117 @@ import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 
 public class Complaint implements Comparable<Complaint> {
+    private String id;
     private String complaintId;
-    private Citizen citizen;
-    private String complaintType;
+    private String citizenId;
+    private String citizenName;
+    private String citizenMobile;
+    private String category;
     private String description;
     private String location;
-    private String priority; // Emergency, High, Medium, Low
-    private String status;   // Pending, In Progress, Resolved, Rejected
-    private String assignedDepartment;
-    private String createdDate;
+    private String department;
+    private String priority; // CRITICAL, HIGH, MEDIUM, LOW
+    private String status;   // PENDING, ASSIGNED, IN_PROGRESS, RESOLVED, CLOSED
+    private String assignedStaff;
+    private String resolutionNotes;
+    private String createdAt;
+    private String updatedAt;
+    private String resolvedAt;
 
-    public Complaint(String complaintId, Citizen citizen, String complaintType, 
-                     String description, String location, String priority, 
-                     String status, String assignedDepartment) {
+    public Complaint() {}
+
+    public Complaint(String id, String complaintId, String citizenId, String citizenName, String citizenMobile,
+                     String category, String description, String location, String department,
+                     String priority, String status) {
+        this.id = id;
         this.complaintId = complaintId;
-        this.citizen = citizen;
-        this.complaintType = complaintType;
+        this.citizenId = citizenId;
+        this.citizenName = citizenName;
+        this.citizenMobile = citizenMobile;
+        this.category = category;
         this.description = description;
         this.location = location;
+        this.department = department;
         this.priority = priority;
         this.status = status;
-        this.assignedDepartment = assignedDepartment;
-        this.createdDate = LocalDateTime.now().format(DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm"));
+        this.assignedStaff = "Unassigned";
+        this.resolutionNotes = "";
+        
+        String now = LocalDateTime.now().format(DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss"));
+        this.createdAt = now;
+        this.updatedAt = now;
+        this.resolvedAt = "";
     }
 
-    public String getComplaintId() {
-        return complaintId;
-    }
+    public String getId() { return id; }
+    public void setId(String id) { this.id = id; }
 
-    public void setComplaintId(String complaintId) {
-        this.complaintId = complaintId;
-    }
+    public String getComplaintId() { return complaintId; }
+    public void setComplaintId(String complaintId) { this.complaintId = complaintId; }
 
-    public Citizen getCitizen() {
-        return citizen;
-    }
+    public String getCitizenId() { return citizenId; }
+    public void setCitizenId(String citizenId) { this.citizenId = citizenId; }
 
-    public void setCitizen(Citizen citizen) {
-        this.citizen = citizen;
-    }
+    public String getCitizenName() { return citizenName; }
+    public void setCitizenName(String citizenName) { this.citizenName = citizenName; }
 
-    public String getComplaintType() {
-        return complaintType;
-    }
+    public String getCitizenMobile() { return citizenMobile; }
+    public void setCitizenMobile(String citizenMobile) { this.citizenMobile = citizenMobile; }
 
-    public void setComplaintType(String complaintType) {
-        this.complaintType = complaintType;
-    }
+    public String getCategory() { return category; }
+    public void setCategory(String category) { this.category = category; }
 
-    public String getDescription() {
-        return description;
-    }
+    public String getDescription() { return description; }
+    public void setDescription(String description) { this.description = description; }
 
-    public void setDescription(String description) {
-        this.description = description;
-    }
+    public String getLocation() { return location; }
+    public void setLocation(String location) { this.location = location; }
 
-    public String getLocation() {
-        return location;
-    }
+    public String getDepartment() { return department; }
+    public void setDepartment(String department) { this.department = department; }
 
-    public void setLocation(String location) {
-        this.location = location;
-    }
+    public String getPriority() { return priority; }
+    public void setPriority(String priority) { this.priority = priority; }
 
-    public String getPriority() {
-        return priority;
-    }
+    public String getStatus() { return status; }
+    public void setStatus(String status) { this.status = status; }
 
-    public void setPriority(String priority) {
-        this.priority = priority;
-    }
+    public String getAssignedStaff() { return assignedStaff; }
+    public void setAssignedStaff(String assignedStaff) { this.assignedStaff = assignedStaff; }
 
-    public String getStatus() {
-        return status;
-    }
+    public String getResolutionNotes() { return resolutionNotes; }
+    public void setResolutionNotes(String resolutionNotes) { this.resolutionNotes = resolutionNotes; }
 
-    public void setStatus(String status) {
-        this.status = status;
-    }
+    public String getCreatedAt() { return createdAt; }
+    public void setCreatedAt(String createdAt) { this.createdAt = createdAt; }
 
-    public String getAssignedDepartment() {
-        return assignedDepartment;
-    }
+    public String getUpdatedAt() { return updatedAt; }
+    public void setUpdatedAt(String updatedAt) { this.updatedAt = updatedAt; }
 
-    public void setAssignedDepartment(String assignedDepartment) {
-        this.assignedDepartment = assignedDepartment;
-    }
+    public String getResolvedAt() { return resolvedAt; }
+    public void setResolvedAt(String resolvedAt) { this.resolvedAt = resolvedAt; }
 
-    public String getCreatedDate() {
-        return createdDate;
-    }
-
-    public void setCreatedDate(String createdDate) {
-        this.createdDate = createdDate;
-    }
-
-    // Convert priority string to numerical weight for PriorityQueue ordering
+    // Numerical weight for PriorityQueue ordering
     public int getPriorityWeight() {
-        switch (priority != null ? priority.toLowerCase() : "") {
-            case "emergency":
-                return 1;
-            case "high":
-                return 2;
-            case "medium":
-                return 3;
-            case "low":
-                return 4;
-            default:
-                return 5;
+        if (priority == null) return 5;
+        switch (priority.toUpperCase()) {
+            case "CRITICAL": return 1;
+            case "HIGH": return 2;
+            case "MEDIUM": return 3;
+            case "LOW": return 4;
+            default: return 5;
         }
     }
 
     @Override
     public int compareTo(Complaint other) {
-        // Lower weight means higher priority (Emergency=1 comes before Low=4)
-        return Integer.compare(this.getPriorityWeight(), other.getPriorityWeight());
-    }
-
-    @Override
-    public String toString() {
-        return String.format("[%s] %s | Type: %s | Loc: %s | Priority: %s | Status: %s | Dept: %s",
-                complaintId, citizen.getName(), complaintType, location, priority, status, assignedDepartment);
+        int weightCompare = Integer.compare(this.getPriorityWeight(), other.getPriorityWeight());
+        if (weightCompare != 0) {
+            return weightCompare;
+        }
+        // If weights are equal, older complaints come first (FIFO)
+        String t1 = this.createdAt != null ? this.createdAt : "";
+        String t2 = other.createdAt != null ? other.createdAt : "";
+        return t1.compareTo(t2);
     }
 }

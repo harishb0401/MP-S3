@@ -4,414 +4,768 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Government Grievance Management System | Makkal Nagar Municipal Office</title>
-    <!-- FontAwesome for Icons -->
+    <!-- Google Fonts Inter -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+    <!-- FontAwesome Icons CDN -->
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <link rel="stylesheet" href="css/style.css">
 </head>
 <body>
 
-    <!-- Sidebar Navigation -->
-    <aside class="sidebar">
-        <div class="brand-header">
-            <div class="brand-emblem">
-                <i class="fa-solid fa-building-columns"></i>
+    <!-- 1. AUTHENTICATION & LANDING PORTAL (LIGHT THEME) -->
+    <div id="auth-view" class="auth-wrapper">
+        <div class="auth-card">
+            <div style="text-align: center; margin-bottom: 24px;">
+                <div class="brand-emblem" style="margin: 0 auto 12px auto; width: 56px; height: 56px; font-size: 28px;">
+                    <i class="fa-solid fa-building-columns"></i>
+                </div>
+                <h2 style="font-size: 22px; font-weight: 700; color: var(--text-main);">Makkal Nagar Municipal Office</h2>
+                <p style="font-size: 13px; color: var(--text-muted); margin-top: 4px;">Government Grievance Management & Priority Resolution Portal</p>
             </div>
-            <div class="brand-title">
-                <h2>Makkal Nagar</h2>
-                <p>Municipal Office</p>
+
+            <!-- Auth Mode Switcher Tabs -->
+            <div class="auth-tabs">
+                <button class="auth-tab-btn active" onclick="switchAuthTab('citizen-login')">Citizen Login</button>
+                <button class="auth-tab-btn" onclick="switchAuthTab('citizen-register')">Register Citizen</button>
+                <button class="auth-tab-btn" onclick="switchAuthTab('staff-login')">Municipal Staff</button>
             </div>
+
+            <!-- Citizen Login Form -->
+            <form id="citizen-login-form" class="auth-form active" onsubmit="handleCitizenLogin(event)">
+                <div class="form-group">
+                    <label class="form-label">Email Address *</label>
+                    <input type="email" id="c-login-email" class="form-control" placeholder="citizen@example.com" required>
+                </div>
+                <div class="form-group">
+                    <label class="form-label">Password *</label>
+                    <input type="password" id="c-login-password" class="form-control" placeholder="••••••••" required>
+                </div>
+                <button type="submit" class="btn btn-primary" style="width: 100%; justify-content: center; margin-top: 8px;">
+                    <i class="fa-solid fa-right-to-bracket"></i> Login as Citizen
+                </button>
+            </form>
+
+            <!-- Citizen Registration Form -->
+            <form id="citizen-register-form" class="auth-form" onsubmit="handleCitizenRegister(event)">
+                <div class="form-group">
+                    <label class="form-label">Full Name *</label>
+                    <input type="text" id="c-reg-name" class="form-control" placeholder="e.g. Ramesh Kumar" required>
+                </div>
+                <div class="form-group">
+                    <label class="form-label">Email Address *</label>
+                    <input type="email" id="c-reg-email" class="form-control" placeholder="ramesh@example.com" required>
+                </div>
+                <div class="form-group">
+                    <label class="form-label">Mobile Number *</label>
+                    <input type="tel" id="c-reg-mobile" class="form-control" placeholder="e.g. 9876543210" required>
+                </div>
+                <div class="form-group">
+                    <label class="form-label">Password *</label>
+                    <input type="password" id="c-reg-password" class="form-control" placeholder="Min 6 characters" required>
+                </div>
+                <div class="form-group">
+                    <label class="form-label">Confirm Password *</label>
+                    <input type="password" id="c-reg-confirm" class="form-control" placeholder="Re-enter password" required>
+                </div>
+                <button type="submit" class="btn btn-primary" style="width: 100%; justify-content: center; margin-top: 8px;">
+                    <i class="fa-solid fa-user-plus"></i> Create Citizen Account
+                </button>
+            </form>
+
+            <!-- Staff Login Form -->
+            <form id="staff-login-form" class="auth-form" onsubmit="handleStaffLogin(event)">
+                <div class="form-group">
+                    <label class="form-label">Staff ID or Officer Email *</label>
+                    <input type="text" id="s-login-id" class="form-control" placeholder="STF1001 or admin@makkal.gov.in" value="STF1001" required>
+                </div>
+                <div class="form-group">
+                    <label class="form-label">Password *</label>
+                    <input type="password" id="s-login-password" class="form-control" placeholder="••••••••" value="admin123" required>
+                </div>
+                <div style="background: var(--status-pending-bg); border: 1px solid #fde68a; padding: 10px; border-radius: var(--radius-sm); font-size: 12px; color: var(--accent-gold);">
+                    <i class="fa-solid fa-key"></i> <strong>Initial Seeded Credentials:</strong><br>
+                    ID/Email: <code>STF1001</code> / <code>admin@makkal.gov.in</code> | Password: <code>admin123</code>
+                </div>
+                <button type="submit" class="btn btn-primary" style="width: 100%; justify-content: center; margin-top: 8px; background: #1d4ed8;">
+                    <i class="fa-solid fa-shield-halved"></i> Staff / Admin Portal Login
+                </button>
+            </form>
         </div>
+    </div>
 
-        <ul class="nav-list">
-            <li>
-                <a class="nav-link active" data-view="dashboard">
-                    <i class="fa-solid fa-chart-pie"></i>
-                    <span>Dashboard</span>
-                </a>
-            </li>
-            <li>
-                <a class="nav-link" data-view="complaints">
-                    <i class="fa-solid fa-list-check"></i>
-                    <span>Complaints</span>
-                </a>
-            </li>
-            <li>
-                <a class="nav-link" data-view="register">
-                    <i class="fa-solid fa-file-circle-plus"></i>
-                    <span>Register Complaint</span>
-                </a>
-            </li>
-            <li>
-                <a class="nav-link" data-view="priority-queue">
-                    <i class="fa-solid fa-layer-group"></i>
-                    <span>Priority Queue</span>
-                </a>
-            </li>
-            <li>
-                <a class="nav-link" data-view="departments">
-                    <i class="fa-solid fa-sitemap"></i>
-                    <span>Departments</span>
-                </a>
-            </li>
-        </ul>
 
-        <div class="sidebar-footer">
-            <p><strong>Version 1.0 (30% Prototype)</strong></p>
-            <p>Mini-Project Demo</p>
+    <!-- 2. MAIN APPLICATION CONTAINER -->
+    <div id="app-view" class="app-container" style="display: none;">
+
+        <!-- Collapsible Sidebar -->
+        <aside class="sidebar" id="main-sidebar">
+            <div class="brand-header">
+                <div class="brand-emblem">
+                    <i class="fa-solid fa-building-columns"></i>
+                </div>
+                <div class="brand-title">
+                    <h2>Makkal Nagar</h2>
+                    <p>Municipal Portal</p>
+                </div>
+            </div>
+
+            <button class="sidebar-toggle-btn" onclick="toggleSidebar()" title="Collapse/Expand Sidebar">
+                <i class="fa-solid fa-chevron-left" id="sidebar-toggle-icon"></i>
+            </button>
+
+            <!-- Navigation Links -->
+            <div class="nav-section-label">Main Navigation</div>
+            <ul class="nav-list" id="sidebar-nav">
+                <!-- Injected dynamically based on Role -->
+            </ul>
+
+            <!-- Profile Widget -->
+            <div class="user-profile-widget">
+                <div class="user-avatar" id="user-avatar-initials">U</div>
+                <div class="user-info-text">
+                    <strong id="user-display-name">User</strong>
+                    <span id="user-display-role">Role</span>
+                </div>
+                <button class="btn btn-secondary btn-sm" onclick="handleLogout()" title="Logout">
+                    <i class="fa-solid fa-right-from-bracket"></i>
+                </button>
+            </div>
+        </aside>
+
+        <!-- Main Wrapper -->
+        <div class="main-wrapper">
+            <!-- Top Header Bar -->
+            <header class="top-header">
+                <div class="header-left">
+                    <div class="header-title-box">
+                        <h1 id="header-page-title">Municipal Administrative Portal</h1>
+                        <p id="header-page-subtitle">Government Grievance Management & Resolution System</p>
+                    </div>
+                </div>
+
+                <div class="header-right">
+                    <!-- Notification Bell Drawer Button -->
+                    <button class="header-icon-btn" onclick="toggleNotificationDrawer()" title="Notifications">
+                        <i class="fa-solid fa-bell"></i>
+                        <span class="notification-badge" id="noti-badge-count">3</span>
+                    </button>
+
+                    <!-- Help Trigger -->
+                    <button class="header-icon-btn" onclick="showHelpModal()" title="Help & Support">
+                        <i class="fa-solid fa-circle-question"></i>
+                    </button>
+
+                    <!-- User Profile Dropdown -->
+                    <div class="profile-menu-container">
+                        <div class="profile-trigger" onclick="toggleProfileMenu()">
+                            <div class="user-avatar" id="header-avatar-initials" style="width: 28px; height: 28px; font-size: 12px;">U</div>
+                            <span id="header-user-name" style="font-size: 13px; font-weight: 600;">User</span>
+                            <i class="fa-solid fa-chevron-down" style="font-size: 10px; color: var(--text-muted);"></i>
+                        </div>
+                        <div class="profile-dropdown" id="profile-dropdown-menu">
+                            <div class="dropdown-item" onclick="switchView('profile-settings')">
+                                <i class="fa-solid fa-user-gear"></i> Profile & Settings
+                            </div>
+                            <div class="dropdown-item" onclick="handleLogout()" style="color: #dc2626;">
+                                <i class="fa-solid fa-right-from-bracket"></i> Sign Out
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </header>
+
+            <!-- Main Content Area -->
+            <main class="content-container">
+
+                <!-- ------------------- CITIZEN PORTAL VIEWS ------------------- -->
+
+                <!-- Citizen Dashboard View -->
+                <section id="citizen-dashboard" class="page-view">
+                    <div class="page-header">
+                        <div>
+                            <h2>Good Day, <span id="citizen-welcome-name">Citizen</span> 👋</h2>
+                            <p>Here is the live status of your reported municipal complaints</p>
+                        </div>
+                        <button class="btn btn-primary" onclick="switchView('citizen-submit')">
+                            <i class="fa-solid fa-plus"></i> Submit New Complaint
+                        </button>
+                    </div>
+
+                    <!-- Personal Stats -->
+                    <div class="stats-grid">
+                        <div class="stat-card">
+                            <div class="stat-icon total"><i class="fa-solid fa-folder-open"></i></div>
+                            <div class="stat-info">
+                                <div class="stat-value" id="c-stat-total">0</div>
+                                <div class="stat-label">Total Complaints</div>
+                            </div>
+                        </div>
+                        <div class="stat-card">
+                            <div class="stat-icon pending"><i class="fa-solid fa-clock"></i></div>
+                            <div class="stat-info">
+                                <div class="stat-value" id="c-stat-pending">0</div>
+                                <div class="stat-label">Pending Action</div>
+                            </div>
+                        </div>
+                        <div class="stat-card">
+                            <div class="stat-icon progress"><i class="fa-solid fa-gears"></i></div>
+                            <div class="stat-info">
+                                <div class="stat-value" id="c-stat-progress">0</div>
+                                <div class="stat-label">In Progress</div>
+                            </div>
+                        </div>
+                        <div class="stat-card">
+                            <div class="stat-icon resolved"><i class="fa-solid fa-circle-check"></i></div>
+                            <div class="stat-info">
+                                <div class="stat-value" id="c-stat-resolved">0</div>
+                                <div class="stat-label">Resolved</div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Citizen Complaints Table -->
+                    <div class="content-card">
+                        <div class="card-title-bar">
+                            <h3>My Submitted Grievances</h3>
+                        </div>
+                        <div class="table-responsive">
+                            <table class="custom-table">
+                                <thead>
+                                    <tr>
+                                        <th>Complaint ID</th>
+                                        <th>Category</th>
+                                        <th>Location</th>
+                                        <th>Priority</th>
+                                        <th>Department</th>
+                                        <th>Status</th>
+                                        <th>Submitted Date</th>
+                                        <th>Action</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="citizen-complaints-tbody">
+                                    <!-- Populated dynamically -->
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </section>
+
+                <!-- Citizen Multi-Step Registration Wizard View -->
+                <section id="citizen-submit" class="page-view">
+                    <div class="page-header">
+                        <div>
+                            <h2>Register Municipal Grievance</h2>
+                            <p>Follow our guided 4-step wizard to file an official complaint</p>
+                        </div>
+                    </div>
+
+                    <div class="content-card" style="max-width: 800px; margin: 0 auto;">
+                        <!-- Wizard Step Bar -->
+                        <div class="wizard-header">
+                            <div class="wizard-step active" id="w-step-1">
+                                <div class="wizard-step-num">1</div>
+                                <div class="wizard-step-title">Citizen Details</div>
+                            </div>
+                            <div class="wizard-step" id="w-step-2">
+                                <div class="wizard-step-num">2</div>
+                                <div class="wizard-step-title">Complaint Info</div>
+                            </div>
+                            <div class="wizard-step" id="w-step-3">
+                                <div class="wizard-step-num">3</div>
+                                <div class="wizard-step-title">Evidence & Photo</div>
+                            </div>
+                            <div class="wizard-step" id="w-step-4">
+                                <div class="wizard-step-num">4</div>
+                                <div class="wizard-step-title">Review & Submit</div>
+                            </div>
+                        </div>
+
+                        <form id="wizard-form" onsubmit="handleWizardSubmit(event)">
+                            <!-- Pane 1: Citizen Info -->
+                            <div class="wizard-pane active" id="w-pane-1">
+                                <h3 style="font-size: 16px; margin-bottom: 16px; color: var(--primary);">Step 1: Contact Verification</h3>
+                                <div class="form-grid">
+                                    <div class="form-group">
+                                        <label class="form-label">Full Name</label>
+                                        <input type="text" id="w-name" class="form-control" readonly>
+                                    </div>
+                                    <div class="form-group">
+                                        <label class="form-label">Mobile Number</label>
+                                        <input type="tel" id="w-mobile" class="form-control" readonly>
+                                    </div>
+                                    <div class="form-group full-width">
+                                        <label class="form-label">Registered Email</label>
+                                        <input type="email" id="w-email" class="form-control" readonly>
+                                    </div>
+                                </div>
+                                <div style="margin-top: 24px; text-align: right;">
+                                    <button type="button" class="btn btn-primary" onclick="nextWizardStep(2)">
+                                        Next: Complaint Info <i class="fa-solid fa-arrow-right"></i>
+                                    </button>
+                                </div>
+                            </div>
+
+                            <!-- Pane 2: Complaint Details -->
+                            <div class="wizard-pane" id="w-pane-2">
+                                <h3 style="font-size: 16px; margin-bottom: 16px; color: var(--primary);">Step 2: Complaint Specifics</h3>
+                                <div class="form-grid">
+                                    <div class="form-group full-width">
+                                        <label class="form-label">Complaint Category *</label>
+                                        <select id="w-category" class="form-control" required onchange="updatePriorityHint()">
+                                            <option value="">Select Category...</option>
+                                            <option value="Streetlight">Streetlight</option>
+                                            <option value="Waste Management">Waste Management</option>
+                                            <option value="Road Damage">Road Damage</option>
+                                            <option value="Water Supply">Water Supply</option>
+                                            <option value="Drainage">Drainage</option>
+                                            <option value="Public Sanitation">Public Sanitation</option>
+                                            <option value="Other">Other</option>
+                                        </select>
+                                    </div>
+
+                                    <div class="form-group full-width">
+                                        <label class="form-label">Location / Landmark *</label>
+                                        <input type="text" id="w-location" class="form-control" placeholder="e.g. 5th Main Road, Opposite Govt School" required>
+                                    </div>
+
+                                    <div class="form-group full-width">
+                                        <label class="form-label">Detailed Problem Description *</label>
+                                        <textarea id="w-description" class="form-control" placeholder="Describe the hazard, pipe burst, garbage overflow, or defect..." required></textarea>
+                                    </div>
+                                </div>
+                                <div style="margin-top: 24px; display: flex; justify-content: space-between;">
+                                    <button type="button" class="btn btn-secondary" onclick="nextWizardStep(1)">
+                                        <i class="fa-solid fa-arrow-left"></i> Back
+                                    </button>
+                                    <button type="button" class="btn btn-primary" onclick="nextWizardStep(3)">
+                                        Next: Evidence <i class="fa-solid fa-arrow-right"></i>
+                                    </button>
+                                </div>
+                            </div>
+
+                            <!-- Pane 3: Evidence & Upload -->
+                            <div class="wizard-pane" id="w-pane-3">
+                                <h3 style="font-size: 16px; margin-bottom: 16px; color: var(--primary);">Step 3: Attach Photos / Documents</h3>
+                                <div class="form-group full-width">
+                                    <label class="form-label">Upload Photo Evidence (Optional)</label>
+                                    <input type="file" id="w-file-input" class="form-control" accept="image/*,.pdf" onchange="previewFile(event)">
+                                    <div id="file-preview-box" style="margin-top: 12px; font-size: 13px; color: var(--text-muted);">
+                                        No file attached.
+                                    </div>
+                                </div>
+
+                                <div style="background: var(--primary-light); border: 1px solid var(--primary-border); padding: 16px; border-radius: var(--radius-sm); margin-top: 16px;">
+                                    <h4 style="font-size: 14px; color: var(--primary); margin-bottom: 4px;">
+                                        <i class="fa-solid fa-wand-magic-sparkles"></i> Automated Backend Priority Evaluation
+                                    </h4>
+                                    <p style="font-size: 13px; color: var(--text-main);" id="priority-hint-text">
+                                        Category selected will determine starting queue priority (Emergency keywords rise automatically).
+                                    </p>
+                                </div>
+
+                                <div style="margin-top: 24px; display: flex; justify-content: space-between;">
+                                    <button type="button" class="btn btn-secondary" onclick="nextWizardStep(2)">
+                                        <i class="fa-solid fa-arrow-left"></i> Back
+                                    </button>
+                                    <button type="button" class="btn btn-primary" onclick="nextWizardStep(4)">
+                                        Next: Summary & Review <i class="fa-solid fa-arrow-right"></i>
+                                    </button>
+                                </div>
+                            </div>
+
+                            <!-- Pane 4: Summary & Review -->
+                            <div class="wizard-pane" id="w-pane-4">
+                                <h3 style="font-size: 16px; margin-bottom: 16px; color: var(--primary);">Step 4: Review Complaint Summary</h3>
+                                <div style="background: var(--bg-surface-secondary); border: 1px solid var(--border-color); padding: 20px; border-radius: var(--radius-md); font-size: 14px; display: flex; flex-direction: column; gap: 12px;">
+                                    <div><strong>Category:</strong> <span id="rev-category">-</span></div>
+                                    <div><strong>Location:</strong> <span id="rev-location">-</span></div>
+                                    <div><strong>Description:</strong> <span id="rev-description">-</span></div>
+                                    <div><strong>Attachment:</strong> <span id="rev-attachment">None</span></div>
+                                </div>
+
+                                <div style="margin-top: 24px; display: flex; justify-content: space-between;">
+                                    <button type="button" class="btn btn-secondary" onclick="nextWizardStep(3)">
+                                        <i class="fa-solid fa-arrow-left"></i> Back
+                                    </button>
+                                    <button type="submit" class="btn btn-primary" style="background: #059669;">
+                                        <i class="fa-solid fa-check"></i> Confirm & Submit Complaint
+                                    </button>
+                                </div>
+                            </div>
+                        </form>
+                    </div>
+                </section>
+
+
+                <!-- ------------------- MUNICIPAL STAFF / ADMIN VIEWS ------------------- -->
+
+                <!-- Staff Dashboard View -->
+                <section id="staff-dashboard" class="page-view">
+                    <div class="page-header">
+                        <div>
+                            <h2>Executive Municipal Dashboard</h2>
+                            <p>Real-time grievance summary and statistics for Makkal Nagar Zone</p>
+                        </div>
+                        <button class="btn btn-primary" onclick="switchView('analytics')">
+                            <i class="fa-solid fa-chart-line"></i> View Detailed Analytics
+                        </button>
+                    </div>
+
+                    <!-- Real Database Stats Cards -->
+                    <div class="stats-grid">
+                        <div class="stat-card">
+                            <div class="stat-icon total"><i class="fa-solid fa-folder-open"></i></div>
+                            <div class="stat-info">
+                                <div class="stat-value" id="s-stat-total">0</div>
+                                <div class="stat-label">Total Complaints</div>
+                            </div>
+                        </div>
+                        <div class="stat-card">
+                            <div class="stat-icon pending"><i class="fa-solid fa-clock"></i></div>
+                            <div class="stat-info">
+                                <div class="stat-value" id="s-stat-pending">0</div>
+                                <div class="stat-label">Pending Action</div>
+                            </div>
+                        </div>
+                        <div class="stat-card">
+                            <div class="stat-icon progress"><i class="fa-solid fa-gears"></i></div>
+                            <div class="stat-info">
+                                <div class="stat-value" id="s-stat-progress">0</div>
+                                <div class="stat-label">In Progress</div>
+                            </div>
+                        </div>
+                        <div class="stat-card">
+                            <div class="stat-icon resolved"><i class="fa-solid fa-circle-check"></i></div>
+                            <div class="stat-info">
+                                <div class="stat-value" id="s-stat-resolved">0</div>
+                                <div class="stat-label">Resolved</div>
+                            </div>
+                        </div>
+                        <div class="stat-card">
+                            <div class="stat-icon critical"><i class="fa-solid fa-triangle-exclamation"></i></div>
+                            <div class="stat-info">
+                                <div class="stat-value" id="s-stat-critical">0</div>
+                                <div class="stat-label">Critical Priority</div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Master Directory Table -->
+                    <div class="content-card">
+                        <div class="card-title-bar">
+                            <h3>Master Grievances Register</h3>
+                        </div>
+
+                        <!-- Toolbar Filters -->
+                        <div class="toolbar">
+                            <div class="search-box">
+                                <i class="fa-solid fa-magnifying-glass"></i>
+                                <input type="text" id="staff-search" class="form-control" placeholder="Search ID, Citizen, Location, Description...">
+                            </div>
+                            <div class="filter-group">
+                                <select id="staff-filter-category" class="form-control">
+                                    <option value="">All Categories</option>
+                                    <option value="Streetlight">Streetlight</option>
+                                    <option value="Waste Management">Waste Management</option>
+                                    <option value="Road Damage">Road Damage</option>
+                                    <option value="Water Supply">Water Supply</option>
+                                    <option value="Drainage">Drainage</option>
+                                    <option value="Public Sanitation">Public Sanitation</option>
+                                    <option value="Other">Other</option>
+                                </select>
+                                <select id="staff-filter-priority" class="form-control">
+                                    <option value="">All Priorities</option>
+                                    <option value="CRITICAL">Critical</option>
+                                    <option value="HIGH">High</option>
+                                    <option value="MEDIUM">Medium</option>
+                                    <option value="LOW">Low</option>
+                                </select>
+                                <select id="staff-filter-status" class="form-control">
+                                    <option value="">All Statuses</option>
+                                    <option value="PENDING">Pending</option>
+                                    <option value="ASSIGNED">Assigned</option>
+                                    <option value="IN_PROGRESS">In Progress</option>
+                                    <option value="RESOLVED">Resolved</option>
+                                    <option value="CLOSED">Closed</option>
+                                </select>
+                            </div>
+                        </div>
+
+                        <div class="table-responsive">
+                            <table class="custom-table">
+                                <thead>
+                                    <tr>
+                                        <th>Complaint ID</th>
+                                        <th>Citizen</th>
+                                        <th>Category</th>
+                                        <th>Location</th>
+                                        <th>Priority</th>
+                                        <th>Department</th>
+                                        <th>Status</th>
+                                        <th>Date</th>
+                                        <th>Action</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="staff-complaints-tbody">
+                                    <!-- Populated dynamically -->
+                                </tbody>
+                            </table>
+                        </div>
+
+                        <!-- Pagination Controls -->
+                        <div class="pagination-container">
+                            <div class="pagination-info" id="pagination-info">Showing 0 to 0 of 0 complaints</div>
+                            <div class="pagination-buttons">
+                                <button class="btn btn-secondary btn-sm" id="btn-prev-page" onclick="prevPage()"><i class="fa-solid fa-chevron-left"></i> Previous</button>
+                                <span id="current-page-num" style="font-size: 13px; font-weight: 600; padding: 6px 12px;">Page 1</span>
+                                <button class="btn btn-secondary btn-sm" id="btn-next-page" onclick="nextPage()">Next <i class="fa-solid fa-chevron-right"></i></button>
+                            </div>
+                        </div>
+                    </div>
+                </section>
+
+                <!-- Priority Queue View -->
+                <section id="priority-queue" class="page-view">
+                    <div class="page-header">
+                        <div>
+                            <h2>Priority Resolution Queue Visualizer</h2>
+                            <p>Complaints ordered strictly by priority using Java PriorityQueue algorithm</p>
+                        </div>
+                    </div>
+
+                    <div class="ds-banner">
+                        <div class="ds-icon">
+                            <i class="fa-solid fa-diagram-project"></i>
+                        </div>
+                        <div class="ds-content">
+                            <h4>Java Data Structure: PriorityQueue&lt;Complaint&gt;</h4>
+                            <p>Priority ranking: <strong>CRITICAL &rarr; HIGH &rarr; MEDIUM &rarr; LOW</strong>. High severity civic hazards rise to Rank #1 automatically.</p>
+                        </div>
+                    </div>
+
+                    <div class="content-card">
+                        <div class="pq-list" id="priority-queue-container">
+                            <!-- Populated dynamically -->
+                        </div>
+                    </div>
+                </section>
+
+                <!-- Analytics Dashboard View -->
+                <section id="analytics" class="page-view">
+                    <div class="page-header">
+                        <div>
+                            <h2>Municipal Grievance Analytics & Intelligence</h2>
+                            <p>Visual workload distribution, priority statistics, and resolution metrics</p>
+                        </div>
+                    </div>
+
+                    <div class="charts-grid">
+                        <div class="chart-card">
+                            <h3>Complaints by Category</h3>
+                            <div class="bar-chart-container" id="chart-category-container">
+                                <!-- Rendered dynamically -->
+                            </div>
+                        </div>
+
+                        <div class="chart-card">
+                            <h3>Department Workload Allocation</h3>
+                            <div class="bar-chart-container" id="chart-department-container">
+                                <!-- Rendered dynamically -->
+                            </div>
+                        </div>
+
+                        <div class="chart-card">
+                            <h3>Priority Distribution</h3>
+                            <div class="bar-chart-container" id="chart-priority-container">
+                                <!-- Rendered dynamically -->
+                            </div>
+                        </div>
+
+                        <div class="chart-card">
+                            <h3>Resolution Status Ratio</h3>
+                            <div class="bar-chart-container" id="chart-status-container">
+                                <!-- Rendered dynamically -->
+                            </div>
+                        </div>
+                    </div>
+                </section>
+
+                <!-- Department Workload View -->
+                <section id="departments" class="page-view">
+                    <div class="page-header">
+                        <div>
+                            <h2>Department Workload Overview</h2>
+                            <p>Current grievance task allocation across municipal departments</p>
+                        </div>
+                    </div>
+
+                    <div class="stats-grid" id="departments-grid">
+                        <!-- Populated dynamically -->
+                    </div>
+                </section>
+
+                <!-- Settings / Profile View -->
+                <section id="profile-settings" class="page-view">
+                    <div class="page-header">
+                        <div>
+                            <h2>User Account & Portal Settings</h2>
+                            <p>Manage your contact profile information and preferences</p>
+                        </div>
+                    </div>
+
+                    <div class="content-card" style="max-width: 600px; margin: 0 auto;">
+                        <h3 style="font-size: 18px; margin-bottom: 16px;">Profile Information</h3>
+                        <div class="form-grid">
+                            <div class="form-group full-width">
+                                <label class="form-label">Full Name</label>
+                                <input type="text" id="setting-name" class="form-control" readonly>
+                            </div>
+                            <div class="form-group">
+                                <label class="form-label">Email Address</label>
+                                <input type="email" id="setting-email" class="form-control" readonly>
+                            </div>
+                            <div class="form-group">
+                                <label class="form-label">Mobile Number</label>
+                                <input type="text" id="setting-mobile" class="form-control" readonly>
+                            </div>
+                            <div class="form-group full-width">
+                                <label class="form-label">Account Role</label>
+                                <input type="text" id="setting-role" class="form-control" readonly>
+                            </div>
+                        </div>
+                    </div>
+                </section>
+
+            </main>
+        </div>
+    </div>
+
+    <!-- 3. SLIDE-OUT NOTIFICATION DRAWER -->
+    <div class="notification-drawer-overlay" id="noti-drawer-overlay" onclick="toggleNotificationDrawer()"></div>
+    <aside class="notification-drawer" id="noti-drawer">
+        <div class="drawer-header">
+            <h3 style="font-size: 16px; font-weight: 700;"><i class="fa-solid fa-bell"></i> Notifications Center</h3>
+            <button class="close-btn" onclick="toggleNotificationDrawer()"><i class="fa-solid fa-xmark"></i></button>
+        </div>
+        <div class="drawer-body" id="noti-drawer-body">
+            <!-- Populated dynamically -->
         </div>
     </aside>
 
-    <!-- Main Wrapper -->
-    <div class="main-wrapper">
-        <!-- Top Bar Header -->
-        <header class="top-header">
-            <h1>Government Grievance Management & Priority Resolution</h1>
-            <div class="header-right">
-                <span class="gov-badge">
-                    <i class="fa-solid fa-shield-halved"></i> Official Portal
-                </span>
-            </div>
-        </header>
-
-        <!-- Main Content Area -->
-        <main class="content-container">
-
-            <!-- 1. DASHBOARD VIEW -->
-            <section id="dashboard" class="page-view active">
-                <div class="page-header">
-                    <div>
-                        <h2>Municipal Administrative Dashboard</h2>
-                        <p>Real-time grievance summary and statistics for Makkal Nagar Zone</p>
-                    </div>
-                    <button class="btn btn-primary" onclick="switchView('register')">
-                        <i class="fa-solid fa-plus"></i> New Complaint
-                    </button>
-                </div>
-
-                <!-- Stats Cards -->
-                <div class="stats-grid">
-                    <div class="stat-card">
-                        <div class="stat-icon total"><i class="fa-solid fa-folder-open"></i></div>
-                        <div class="stat-info">
-                            <div class="stat-value" id="stat-total">0</div>
-                            <div class="stat-label">Total Complaints</div>
-                        </div>
-                    </div>
-                    <div class="stat-card">
-                        <div class="stat-icon pending"><i class="fa-solid fa-clock"></i></div>
-                        <div class="stat-info">
-                            <div class="stat-value" id="stat-pending">0</div>
-                            <div class="stat-label">Pending Complaints</div>
-                        </div>
-                    </div>
-                    <div class="stat-card">
-                        <div class="stat-icon progress"><i class="fa-solid fa-gears"></i></div>
-                        <div class="stat-info">
-                            <div class="stat-value" id="stat-progress">0</div>
-                            <div class="stat-label">In Progress</div>
-                        </div>
-                    </div>
-                    <div class="stat-card">
-                        <div class="stat-icon resolved"><i class="fa-solid fa-circle-check"></i></div>
-                        <div class="stat-info">
-                            <div class="stat-value" id="stat-resolved">0</div>
-                            <div class="stat-label">Resolved Complaints</div>
-                        </div>
-                    </div>
-                    <div class="stat-card">
-                        <div class="stat-icon high"><i class="fa-solid fa-triangle-exclamation"></i></div>
-                        <div class="stat-info">
-                            <div class="stat-value" id="stat-high">0</div>
-                            <div class="stat-label">High / Emergency</div>
-                        </div>
-                    </div>
-                </div>
-
-                <!-- Recent Complaints Table -->
-                <div class="content-card">
-                    <div class="card-title-bar">
-                        <h3>Recent Grievances Register</h3>
-                        <button class="btn btn-secondary btn-sm" onclick="switchView('complaints')">View All</button>
-                    </div>
-                    <div class="table-responsive">
-                        <table class="custom-table">
-                            <thead>
-                                <tr>
-                                    <th>Complaint ID</th>
-                                    <th>Citizen</th>
-                                    <th>Type</th>
-                                    <th>Location</th>
-                                    <th>Priority</th>
-                                    <th>Status</th>
-                                    <th>Action</th>
-                                </tr>
-                            </thead>
-                            <tbody id="recent-complaints-tbody">
-                                <!-- Populated dynamically by JS -->
-                            </tbody>
-                        </table>
-                    </div>
-                </div>
-            </section>
-
-            <!-- 2. COMPLAINT LIST VIEW -->
-            <section id="complaints" class="page-view">
-                <div class="page-header">
-                    <div>
-                        <h2>Grievance Master Directory</h2>
-                        <p>Search, filter, and review all citizen submitted complaints</p>
-                    </div>
-                </div>
-
-                <div class="content-card">
-                    <!-- Search & Filters Toolbar -->
-                    <div class="toolbar">
-                        <div class="search-box">
-                            <i class="fa-solid fa-magnifying-glass"></i>
-                            <input type="text" id="search-input" class="form-control" placeholder="Search by Complaint ID, Citizen Name, Location, Description...">
-                        </div>
-                        <div class="filter-group">
-                            <select id="filter-type" class="form-control">
-                                <option value="">All Complaint Types</option>
-                                <option value="Streetlight">Streetlight</option>
-                                <option value="Waste Management">Waste Management</option>
-                                <option value="Road">Road</option>
-                                <option value="Water Supply">Water Supply</option>
-                                <option value="Drainage">Drainage</option>
-                                <option value="Sanitation">Sanitation</option>
-                                <option value="Other">Other</option>
-                            </select>
-                            <select id="filter-priority" class="form-control">
-                                <option value="">All Priorities</option>
-                                <option value="Emergency">Emergency</option>
-                                <option value="High">High</option>
-                                <option value="Medium">Medium</option>
-                                <option value="Low">Low</option>
-                            </select>
-                            <select id="filter-status" class="form-control">
-                                <option value="">All Statuses</option>
-                                <option value="Pending">Pending</option>
-                                <option value="In Progress">In Progress</option>
-                                <option value="Resolved">Resolved</option>
-                                <option value="Rejected">Rejected</option>
-                            </select>
-                        </div>
-                    </div>
-
-                    <div class="table-responsive">
-                        <table class="custom-table">
-                            <thead>
-                                <tr>
-                                    <th>Complaint ID</th>
-                                    <th>Citizen</th>
-                                    <th>Type</th>
-                                    <th>Location</th>
-                                    <th>Priority</th>
-                                    <th>Status</th>
-                                    <th>Date</th>
-                                    <th>Action</th>
-                                </tr>
-                            </thead>
-                            <tbody id="all-complaints-tbody">
-                                <!-- Populated dynamically -->
-                            </tbody>
-                        </table>
-                    </div>
-                </div>
-            </section>
-
-            <!-- 3. REGISTER COMPLAINT VIEW -->
-            <section id="register" class="page-view">
-                <div class="page-header">
-                    <div>
-                        <h2>Register New Citizen Complaint</h2>
-                        <p>File a new municipal grievance into the central resolution queue</p>
-                    </div>
-                </div>
-
-                <div class="content-card" style="max-width: 800px; margin: 0 auto;">
-                    <form id="register-form" onsubmit="handleRegisterSubmit(event)">
-                        <div class="form-grid">
-                            <div class="form-group">
-                                <label class="form-label">Citizen Name *</label>
-                                <input type="text" id="citizen-name" class="form-control" placeholder="e.g. Ravi Kumar" required>
-                            </div>
-
-                            <div class="form-group">
-                                <label class="form-label">Mobile Number *</label>
-                                <input type="tel" id="citizen-mobile" class="form-control" placeholder="e.g. 9876543210" required>
-                            </div>
-
-                            <div class="form-group">
-                                <label class="form-label">Complaint Type *</label>
-                                <select id="complaint-type" class="form-control" required>
-                                    <option value="">Select Type...</option>
-                                    <option value="Streetlight">Streetlight</option>
-                                    <option value="Waste Management">Waste Management</option>
-                                    <option value="Road">Road</option>
-                                    <option value="Water Supply">Water Supply</option>
-                                    <option value="Drainage">Drainage</option>
-                                    <option value="Sanitation">Sanitation</option>
-                                    <option value="Other">Other</option>
-                                </select>
-                            </div>
-
-                            <div class="form-group">
-                                <label class="form-label">Priority Level *</label>
-                                <select id="complaint-priority" class="form-control" required>
-                                    <option value="">Select Priority...</option>
-                                    <option value="Low">Low</option>
-                                    <option value="Medium">Medium</option>
-                                    <option value="High">High</option>
-                                    <option value="Emergency">Emergency</option>
-                                </select>
-                            </div>
-
-                            <div class="form-group full-width">
-                                <label class="form-label">Location / Landmark *</label>
-                                <input type="text" id="complaint-location" class="form-control" placeholder="e.g. Makkal Nagar 2nd Street, Near Water Tank" required>
-                            </div>
-
-                            <div class="form-group full-width">
-                                <label class="form-label">Detailed Complaint Description *</label>
-                                <textarea id="complaint-desc" class="form-control" placeholder="Provide full details about the issue..." required></textarea>
-                            </div>
-                        </div>
-
-                        <div style="margin-top: 24px; text-align: right;">
-                            <button type="reset" class="btn btn-secondary">Reset</button>
-                            <button type="submit" class="btn btn-primary" style="margin-left: 10px;">
-                                <i class="fa-solid fa-paper-plane"></i> Submit Complaint
-                            </button>
-                        </div>
-                    </form>
-                </div>
-            </section>
-
-            <!-- 4. PRIORITY RESOLUTION QUEUE VIEW -->
-            <section id="priority-queue" class="page-view">
-                <div class="page-header">
-                    <div>
-                        <h2>Priority Resolution Queue Visualizer</h2>
-                        <p>Complaints waiting for department action ordered by priority structure</p>
-                    </div>
-                </div>
-
-                <!-- Data Structure Explanation Banner -->
-                <div class="ds-banner">
-                    <div class="ds-icon">
-                        <i class="fa-solid fa-diagram-project"></i>
-                    </div>
-                    <div class="ds-content">
-                        <h4>Java Data Structure Implementation: PriorityQueue&lt;Complaint&gt;</h4>
-                        <p>This queue automatically orders complaints according to severity: <strong>Emergency &rarr; High &rarr; Medium &rarr; Low</strong>. Critical public hazards rise to rank #1 instantly, ensuring municipal teams resolve urgent cases first.</p>
-                    </div>
-                </div>
-
-                <div class="content-card">
-                    <div class="card-title-bar">
-                        <h3>Active Queue Dispatch List</h3>
-                        <span class="badge badge-emergency" id="active-queue-count">0 Complaints in Queue</span>
-                    </div>
-
-                    <div class="pq-list" id="pq-container">
-                        <!-- Populated dynamically -->
-                    </div>
-                </div>
-            </section>
-
-            <!-- 5. DEPARTMENTS VIEW -->
-            <section id="departments" class="page-view">
-                <div class="page-header">
-                    <div>
-                        <h2>Municipal Department Allocation</h2>
-                        <p>Overview of active departments and workload distribution</p>
-                    </div>
-                </div>
-
-                <div class="stats-grid" id="departments-grid">
-                    <!-- Populated dynamically -->
-                </div>
-            </section>
-
-        </main>
-    </div>
-
-    <!-- COMPLAINT DETAILS MODAL -->
-    <div class="modal-overlay" id="details-modal">
+    <!-- 4. COMPLAINT DETAILS & STEP TIMELINE MODAL -->
+    <div class="modal-overlay" id="complaint-modal">
         <div class="modal-card">
             <div class="modal-header">
-                <h3>Complaint Case File: <span id="modal-cmp-id" style="color: var(--primary);">CMP1001</span></h3>
+                <h3>Complaint Case File: <span id="m-comp-id" style="color: var(--primary);">GRV-2026-0001</span></h3>
                 <button class="close-btn" onclick="closeModal()"><i class="fa-solid fa-xmark"></i></button>
             </div>
 
-            <div class="modal-body-grid">
-                <div class="modal-detail-item">
-                    <div class="modal-detail-label">Citizen Name</div>
-                    <div id="modal-citizen-name" style="font-weight: 600;">-</div>
+            <!-- Tracking Step Timeline Graphic -->
+            <div class="tracking-timeline" id="tracking-timeline-box">
+                <div class="timeline-step" id="step-submitted">
+                    <div class="step-icon"><i class="fa-solid fa-file-export"></i></div>
+                    <div class="step-label">Submitted</div>
                 </div>
-                <div class="modal-detail-item">
-                    <div class="modal-detail-label">Mobile Number</div>
-                    <div id="modal-citizen-mobile">-</div>
+                <div class="timeline-step" id="step-assigned">
+                    <div class="step-icon"><i class="fa-solid fa-user-gear"></i></div>
+                    <div class="step-label">Assigned</div>
                 </div>
-                <div class="modal-detail-item">
-                    <div class="modal-detail-label">Complaint Type</div>
-                    <div id="modal-type" style="font-weight: 600;">-</div>
+                <div class="timeline-step" id="step-progress">
+                    <div class="step-icon"><i class="fa-solid fa-gears"></i></div>
+                    <div class="step-label">In Progress</div>
                 </div>
-                <div class="modal-detail-item">
-                    <div class="modal-detail-label">Priority Level</div>
-                    <div id="modal-priority">-</div>
-                </div>
-                <div class="modal-detail-item full">
-                    <div class="modal-detail-label">Location / Address</div>
-                    <div id="modal-location">-</div>
-                </div>
-                <div class="modal-detail-item full">
-                    <div class="modal-detail-label">Description</div>
-                    <div id="modal-description" style="line-height: 1.5; color: var(--text-main);">-</div>
-                </div>
-                <div class="modal-detail-item">
-                    <div class="modal-detail-label">Filing Date</div>
-                    <div id="modal-date">-</div>
-                </div>
-                <div class="modal-detail-item">
-                    <div class="modal-detail-label">Current Status</div>
-                    <div id="modal-status">-</div>
-                </div>
-                <div class="modal-detail-item full">
-                    <div class="modal-detail-label">Assigned Department</div>
-                    <div id="modal-dept" style="font-weight: 600; color: var(--accent-gold);">-</div>
+                <div class="timeline-step" id="step-resolved">
+                    <div class="step-icon"><i class="fa-solid fa-circle-check"></i></div>
+                    <div class="step-label">Resolved</div>
                 </div>
             </div>
 
-            <!-- Actions Box -->
-            <div class="modal-actions-box">
-                <h4 style="font-size: 14px; color: var(--text-muted);">MUNICIPAL ACTION CONTROLS</h4>
+            <!-- Case File Grid -->
+            <div class="form-grid" style="margin-bottom: 20px;">
+                <div class="form-group">
+                    <label class="form-label">Citizen Name</label>
+                    <div id="m-citizen-name" style="font-weight: 600;">-</div>
+                </div>
+                <div class="form-group">
+                    <label class="form-label">Mobile Number</label>
+                    <div id="m-citizen-mobile">-</div>
+                </div>
+                <div class="form-group">
+                    <label class="form-label">Category</label>
+                    <div id="m-category" style="font-weight: 600;">-</div>
+                </div>
+                <div class="form-group">
+                    <label class="form-label">Calculated Priority</label>
+                    <div id="m-priority">-</div>
+                </div>
+                <div class="form-group full-width">
+                    <label class="form-label">Location / Landmark</label>
+                    <div id="m-location">-</div>
+                </div>
+                <div class="form-group full-width">
+                    <label class="form-label">Description</label>
+                    <div id="m-description" style="line-height: 1.5; color: var(--text-main);">-</div>
+                </div>
+                <div class="form-group">
+                    <label class="form-label">Assigned Department</label>
+                    <div id="m-department" style="font-weight: 600; color: var(--accent-gold);">-</div>
+                </div>
+                <div class="form-group">
+                    <label class="form-label">Assigned Staff Officer</label>
+                    <div id="m-assigned-staff" style="font-weight: 600;">-</div>
+                </div>
+                <div class="form-group full-width">
+                    <label class="form-label">Resolution Description Notes</label>
+                    <div id="m-resolution-notes" style="background: var(--bg-surface-secondary); padding: 12px; border-radius: var(--radius-sm); border: 1px solid var(--border-color); color: var(--status-resolved);">
+                        No resolution notes recorded yet.
+                    </div>
+                </div>
+            </div>
+
+            <!-- Staff Action Controls Box -->
+            <div id="staff-controls-box" style="background: var(--bg-surface-secondary); border: 1px solid var(--border-color); padding: 16px; border-radius: var(--radius-md); display: none; flex-direction: column; gap: 16px;">
+                <h4 style="font-size: 14px; color: var(--primary);">MUNICIPAL STAFF ACTION CONTROLS</h4>
+                
                 <div class="form-grid">
                     <div class="form-group">
-                        <label class="form-label">Assign Department</label>
+                        <label class="form-label">Assign Department & Staff Officer</label>
                         <div style="display: flex; gap: 8px;">
-                            <select id="assign-dept-select" class="form-control" style="flex: 1;">
+                            <select id="s-assign-dept-select" class="form-control" style="flex: 1;">
                                 <option value="Electrical">Electrical</option>
                                 <option value="Sanitation">Sanitation</option>
                                 <option value="Roads">Roads</option>
                                 <option value="Water Supply">Water Supply</option>
                                 <option value="Drainage">Drainage</option>
+                                <option value="General Administration">General Admin</option>
                             </select>
-                            <button class="btn btn-secondary btn-sm" onclick="handleAssignDept()">Assign</button>
+                            <input type="text" id="s-assign-staff-input" class="form-control" placeholder="Staff Name" style="flex: 1;">
+                            <button class="btn btn-secondary btn-sm" onclick="handleStaffAssign()">Assign</button>
                         </div>
                     </div>
 
                     <div class="form-group">
-                        <label class="form-label">Update Status</label>
+                        <label class="form-label">Transition Complaint Status</label>
                         <div style="display: flex; gap: 8px;">
-                            <select id="update-status-select" class="form-control" style="flex: 1;">
-                                <option value="Pending">Pending</option>
-                                <option value="In Progress">In Progress</option>
-                                <option value="Resolved">Resolved</option>
-                                <option value="Rejected">Rejected</option>
+                            <select id="s-update-status-select" class="form-control" style="flex: 1;">
+                                <option value="PENDING">Pending</option>
+                                <option value="ASSIGNED">Assigned</option>
+                                <option value="IN_PROGRESS">In Progress</option>
+                                <option value="RESOLVED">Resolved</option>
+                                <option value="CLOSED">Closed</option>
                             </select>
-                            <button class="btn btn-primary btn-sm" onclick="handleUpdateStatus()">Update</button>
+                            <button class="btn btn-primary btn-sm" onclick="handleStaffUpdateStatus()">Update</button>
+                        </div>
+                    </div>
+
+                    <div class="form-group full-width">
+                        <label class="form-label">Resolution Description Notes</label>
+                        <div style="display: flex; gap: 8px;">
+                            <input type="text" id="s-resolution-input" class="form-control" placeholder="e.g. Faulty streetlight bulb replaced and tested successfully." style="flex: 1;">
+                            <button class="btn btn-primary btn-sm" style="background: #059669;" onclick="handleStaffResolve()">
+                                <i class="fa-solid fa-check"></i> Mark Resolved
+                            </button>
                         </div>
                     </div>
                 </div>
@@ -422,6 +776,7 @@
     <!-- Toast Notification Container -->
     <div class="toast-container" id="toast-container"></div>
 
+    <script src="js/api.js"></script>
     <script src="js/app.js"></script>
 </body>
 </html>
