@@ -192,11 +192,13 @@ public class SystemTest {
 
         // TEST 7: DUPLICATE COMPLAINT DETECTION & MERGE
         System.out.print("[TEST 7/8] Verifying Duplicate Detection (Category + Location)... ");
-        Complaint orig = manager.createComplaint(citizenUser, "Streetlight", "Bulb broken", "Gandhi Road 4th Cross", 10);
-        Complaint dup = manager.createComplaint(citizenUser, "Streetlight", "Light not glowing", "Gandhi Road 4th Cross", 15);
+        String testLoc = "Gandhi Road 4th Cross-" + System.currentTimeMillis();
+        Complaint orig = manager.createComplaint(citizenUser, "Streetlight", "Bulb broken", testLoc, 10);
+        Complaint dup = manager.createComplaint(citizenUser, "Streetlight", "Light not glowing", testLoc, 15);
 
         boolean dupDetected = dup.isDuplicate() && orig.getComplaintId().equals(dup.getDuplicateOfId());
         boolean mergeOk = manager.mergeDuplicate(dup.getComplaintId(), orig.getComplaintId(), adminUser, "Same streetlight confirmed");
+        manager.resolveComplaint(orig.getComplaintId(), "Streetlight fixture replaced");
 
         if (dupDetected && mergeOk && "Resolved".equalsIgnoreCase(dup.getStatus())) {
             System.out.println("PASSED (Duplicate flagged by Category+Location, merged with audit record)");

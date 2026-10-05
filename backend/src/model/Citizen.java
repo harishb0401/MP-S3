@@ -5,30 +5,60 @@ package model;
  * Inherits from User (OOP Inheritance).
  */
 public class Citizen extends User {
+
     private String name;
-    private String mobileNumber;
 
     public Citizen() {
         super();
         setRole("CITIZEN");
     }
 
-    public Citizen(String id, String username, String email, String mobile, String passwordHash, String createdAt) {
-        super(id, username, email, mobile, passwordHash, "CITIZEN", "", createdAt);
-        this.name = username;
-        this.mobileNumber = mobile;
+    public Citizen(
+            String id,
+            String name,
+            String email,
+            String mobile,
+            String passwordHash,
+            String createdAt) {
+
+        super(
+                id,
+                name,
+                email,
+                mobile,
+                passwordHash,
+                "CITIZEN",
+                "",
+                createdAt
+        );
+
+        this.name = name;
     }
 
-    // Convenience constructor matching legacy usage
+    /**
+     * Convenience constructor.
+     */
     public Citizen(String name, String mobileNumber) {
-        super(null, name, null, mobileNumber, null, "CITIZEN", "", null);
+
+        super(
+                null,
+                name,
+                null,
+                mobileNumber,
+                null,
+                "CITIZEN",
+                "",
+                null
+        );
+
         this.name = name;
-        this.mobileNumber = mobileNumber;
     }
 
     @Override
     public String getDisplayName() {
-        return (name != null && !name.isEmpty()) ? name : getUsername();
+        return (name != null && !name.isBlank())
+                ? name
+                : getUsername();
     }
 
     @Override
@@ -48,7 +78,9 @@ public class Citizen extends User {
 
     @Override
     public String getName() {
-        return name != null ? name : getUsername();
+        return (name != null)
+                ? name
+                : getUsername();
     }
 
     @Override
@@ -57,12 +89,14 @@ public class Citizen extends User {
         setUsername(name);
     }
 
+    /**
+     * Uses User.mobile as the single source of truth.
+     */
     public String getMobileNumber() {
-        return mobileNumber != null ? mobileNumber : getMobile();
+        return getMobile();
     }
 
     public void setMobileNumber(String mobileNumber) {
-        this.mobileNumber = mobileNumber;
         setMobile(mobileNumber);
     }
 
