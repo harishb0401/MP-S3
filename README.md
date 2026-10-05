@@ -1,6 +1,9 @@
 # Full-Stack Government Grievance Management and Priority Resolution System
 ### Municipal Case Study: Makkal Nagar Municipal Office
 
+[![Open in GitHub Codespaces](https://github.com/codespaces/badge.svg)](https://codespaces.new/harishb0401/MP-S3)
+[![Java CI Build & Verification](https://github.com/harishb0401/MP-S3/actions/workflows/ci.yml/badge.svg)](https://github.com/harishb0401/MP-S3/actions/workflows/ci.yml)
+
 A complete, working full-stack municipal grievance portal built using **Java (REST API + Data Structures)** and **Vanilla Web Technologies (HTML, CSS, JS)**.
 
 ---
@@ -85,27 +88,29 @@ All records are persisted to `backend/data/database.json`.
 
 ---
 
-## 5. How to Run the Project Locally
+## 5. How to Run the Project
 
-### Step 1: Start the Java Backend REST API Server
-Open Command Prompt / Terminal:
+### Option A: Run Directly in Git via GitHub Codespaces (1-Click)
+You can run this entire full-stack project in the cloud right from GitHub without installing Java on your local machine:
+1. Click the **[Open in GitHub Codespaces](https://codespaces.new/harishb0401/MP-S3)** button above (or on GitHub, click **Code** -> **Codespaces** -> **Create codespace on main**).
+2. GitHub automatically creates the environment, compiles Java, runs verification tests, and starts the server.
+3. Port **8080** is forwarded automatically — a popup will ask to **"Open in Browser"**, giving you the live Web Portal URL just like localhost!
 
-```cmd
-# Navigate to backend source directory
-cd c:\Project\MP-S3\01\backend\src
+### Option B: Run Locally (1-Click Scripts)
+- **Windows**: Double-click `start.bat` or run `.\start.bat` in PowerShell.
+- **Linux / macOS**: Run `./start.sh` in Terminal.
 
-# Compile Java source code
-javac -d ../bin model/*.java service/*.java Main.java
+### Option C: Manual Commands
+```bash
+# 1. Compile Java backend classes
+javac -d backend/bin $(find backend/src -name "*.java")
 
-# Run Java Backend REST Server
-java -cp ../bin Main
+# 2. Run Automated Verification Test Suite (8/8 Tests)
+java -cp backend/bin test.SystemTest
+
+# 3. Start Live Server (Web Portal + REST API on http://localhost:8080)
+java -cp backend/bin Main
 ```
-
-*(Server will start on `http://localhost:8080/api/`)*
-
-### Step 2: Open the Web Application
-Open your web browser (Chrome, Edge, Firefox) and open:
-👉 [`c:/Project/MP-S3/01/frontend/index.html`](file:///c:/Project/MP-S3/01/frontend/index.html)
 
 ---
 

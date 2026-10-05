@@ -3,9 +3,18 @@ import service.GrievanceManager;
 import service.ServerManager;
 
 public class Main {
-    private static final int PORT = 8080;
+    private static int getPort() {
+        String envPort = System.getenv("PORT");
+        if (envPort != null && !envPort.trim().isEmpty()) {
+            try {
+                return Integer.parseInt(envPort.trim());
+            } catch (NumberFormatException ignored) {}
+        }
+        return 8080;
+    }
 
     public static void main(String[] args) {
+        int port = getPort();
         System.out.println("===============================================================================");
         System.out.println("     MAKKAL NAGAR MUNICIPAL OFFICE - FULL-STACK BACKEND REST API SERVER");
         System.out.println("===============================================================================");
@@ -28,10 +37,10 @@ public class Main {
         System.out.println("-------------------------------------------------------------------------------\n");
 
         // Start REST API Server
-        ServerManager serverManager = new ServerManager(PORT, database, grievanceManager);
+        ServerManager serverManager = new ServerManager(port, database, grievanceManager);
         serverManager.start();
 
-        System.out.println("\n[SERVER ACTIVE] Standard JDK REST Endpoints Ready at http://localhost:8080/api/");
+        System.out.println("\n[SERVER ACTIVE] Standard JDK REST Endpoints Ready at http://localhost:" + port + "/api/");
         System.out.println("   -> POST /api/auth/register    (Citizen Registration)");
         System.out.println("   -> POST /api/auth/login       (Citizen & Staff Login)");
         System.out.println("   -> GET  /api/dashboard/stats  (Real DB Stats)");

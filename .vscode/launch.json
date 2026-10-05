@@ -1,0 +1,19 @@
+{
+  "version": "0.2.0",
+  "configurations": [
+    {
+      "type": "java",
+      "name": "Run Grievance Portal Server",
+      "request": "launch",
+      "mainClass": "Main",
+      "projectName": "MP-S3"
+    },
+    {
+      "type": "java",
+      "name": "Run Automated SystemTest Suite",
+      "request": "launch",
+      "mainClass": "test.SystemTest",
+      "projectName": "MP-S3"
+    }
+  ]
+}

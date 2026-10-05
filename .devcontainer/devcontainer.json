@@ -1,0 +1,21 @@
+{
+  "name": "Makkal Nagar Municipal Grievance Portal",
+  "image": "mcr.microsoft.com/devcontainers/java:1-21-bookworm",
+  "forwardPorts": [8080],
+  "portsAttributes": {
+    "8080": {
+      "label": "Grievance Web Portal & REST API",
+      "onAutoForward": "openBrowser",
+      "requireLocalPort": false
+    }
+  },
+  "postCreateCommand": "chmod +x start.sh && mkdir -p backend/bin && javac -d backend/bin $(find backend/src -name '*.java')",
+  "postStartCommand": "nohup ./start.sh > server.log 2>&1 &",
+  "customizations": {
+    "vscode": {
+      "extensions": [
+        "vscjava.vscode-java-pack"
+      ]
+    }
+  }
+}
