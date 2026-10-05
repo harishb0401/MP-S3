@@ -142,5 +142,52 @@ const ApiClient = {
             headers: this.getHeaders()
         });
         return this.handleResponse(response);
+    },
+
+    // 13. Admin Verify Complaint
+    async verifyComplaint(id, adminVerifiedImpact, verificationReason, severity = "MEDIUM") {
+        const response = await fetch(`${API_BASE_URL}/complaints/${id}/verify`, {
+            method: "POST",
+            headers: this.getHeaders(),
+            body: JSON.stringify({ adminVerifiedImpact, verificationReason, severity })
+        });
+        return this.handleResponse(response);
+    },
+
+    // 14. Get Complaint Timeline History
+    async getComplaintHistory(id) {
+        const response = await fetch(`${API_BASE_URL}/complaints/${id}/history`, {
+            method: "GET",
+            headers: this.getHeaders()
+        });
+        return this.handleResponse(response);
+    },
+
+    // 15. Get Citizen Notifications
+    async getNotifications() {
+        const response = await fetch(`${API_BASE_URL}/notifications/my`, {
+            method: "GET",
+            headers: this.getHeaders()
+        });
+        return this.handleResponse(response);
+    },
+
+    // 16. Get Department Capacity & Workload
+    async getDepartmentCapacity() {
+        const response = await fetch(`${API_BASE_URL}/departments/capacity`, {
+            method: "GET",
+            headers: this.getHeaders()
+        });
+        return this.handleResponse(response);
+    },
+
+    // 17. Duplicate Complaint Action (Merge / Separate)
+    async handleDuplicate(id, action, primaryComplaintId = "", reason = "") {
+        const response = await fetch(`${API_BASE_URL}/complaints/${id}/duplicate`, {
+            method: "POST",
+            headers: this.getHeaders(),
+            body: JSON.stringify({ action, primaryComplaintId, reason })
+        });
+        return this.handleResponse(response);
     }
 };

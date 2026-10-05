@@ -76,20 +76,37 @@ function toggleNotificationDrawer() {
     }
 }
 
-function renderNotificationDrawerItems() {
+async function renderNotificationDrawerItems() {
     const body = document.getElementById("noti-drawer-body");
     const badge = document.getElementById("noti-badge-count");
     if (!body) return;
 
-    const notis = [
-        { title: "🔴 Critical Priority Alert", desc: "Pipe burst in Ward 5 requires emergency dispatch.", time: "10 mins ago", type: "urgent" },
-        { title: "🟡 Pending SLA Warning", desc: "Complaint GRV-2026-0001 pending over 24 hours.", time: "1 hour ago", type: "warning" },
-        { title: "🟢 Issue Resolved", desc: "Streetlight fault resolved by Electrical Department.", time: "2 hours ago", type: "success" }
+    try {
+        const notis = await ApiClient.getNotifications();
+        if (notis && notis.length > 0) {
+            if (badge) badge.innerText = notis.length;
+            body.innerHTML = notis.map(n => `
+                <div class="noti-card success" onclick="toggleNotificationDrawer()">
+                    <div class="noti-title"><i class="fa-solid fa-circle-check"></i> ${escapeHtml(n.title)}</div>
+                    <div class="noti-desc">${escapeHtml(n.message)}</div>
+                    <div class="noti-time"><i class="fa-solid fa-clock"></i> ${escapeHtml(n.createdAt)}</div>
+                </div>
+            `).join("");
+            return;
+        }
+    } catch (e) {
+        // Fallback to static alerts if not authenticated
+    }
+
+    const defaultNotis = [
+        { title: "🔴 Priority Queue Monitor", desc: "Highest priority civic grievances ordered dynamically.", time: "Live", type: "urgent" },
+        { title: "🟡 Department SLA Tracking", desc: "Department capacity limits managed via PriorityQueue waiting buffer.", time: "Live", type: "warning" },
+        { title: "🟢 Impact Immutability Guard", desc: "Citizen reported impact values are preserved and locked upon review.", time: "Live", type: "success" }
     ];
 
-    if (badge) badge.innerText = notis.length;
+    if (badge) badge.innerText = defaultNotis.length;
 
-    body.innerHTML = notis.map(n => `
+    body.innerHTML = defaultNotis.map(n => `
         <div class="noti-card ${n.type}" onclick="toggleNotificationDrawer()">
             <div class="noti-title">${n.title}</div>
             <div class="noti-desc">${n.desc}</div>
@@ -388,9 +405,18 @@ async function loadCitizenDashboard() {
         currentComplaintsList = complaints;
 
         const total = complaints.length;
-        const pending = complaints.filter(c => c.status === "PENDING" || c.status === "ASSIGNED").length;
-        const progress = complaints.filter(c => c.status === "IN_PROGRESS").length;
-        const resolved = complaints.filter(c => c.status === "RESOLVED" || c.status === "CLOSED").length;
+        const pending = complaints.filter(c => {
+            const s = (c.status || "").toUpperCase();
+            return s === "REGISTERED" || s === "UNDER REVIEW" || s === "PENDING" || s === "ASSIGNED";
+        }).length;
+        const progress = complaints.filter(c => {
+            const s = (c.status || "").toUpperCase();
+            return s === "IN_PROGRESS" || s === "IN PROGRESS";
+        }).length;
+        const resolved = complaints.filter(c => {
+            const s = (c.status || "").toUpperCase();
+            return s === "RESOLVED" || s === "CLOSED";
+        }).length;
 
         document.getElementById("c-stat-total").innerText = total;
         document.getElementById("c-stat-pending").innerText = pending;
@@ -711,7 +737,17 @@ async function openComplaintModal(complaintId) {
         document.getElementById("m-category").innerText = c.category;
         document.getElementById("m-priority").innerHTML = getPriorityBadge(c.priority);
         document.getElementById("m-location").innerText = c.location;
-        document.getElementById("m-description").innerText = c.description;
+        let desc = c.description || "";
+        if (c.citizenReportedImpact) {
+            desc += `\n\n[Citizen Reported Impact: ${c.citizenReportedImpact} affected]`;
+        }
+        if (c.adminVerifiedImpact) {
+            desc += `\n[Admin Verified Impact: ${c.adminVerifiedImpact} affected | Verification Reason: "${c.verificationReason || 'Confirmed by field inspection'}"]`;
+        }
+        if (c.isDuplicate) {
+            desc += `\n[Duplicate Case - Linked Primary: ${c.duplicateOfId || 'Master'}]`;
+        }
+        document.getElementById("m-description").innerText = desc;
         document.getElementById("m-department").innerText = c.department || "Unassigned";
         document.getElementById("m-assigned-staff").innerText = c.assignedStaff || "Unassigned";
         
