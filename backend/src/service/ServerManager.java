@@ -9,10 +9,12 @@ import model.Department;
 import model.Notification;
 import model.User;
 
+import java.io.File;
 import java.io.InputStream;
 import java.io.OutputStream;
 import java.net.InetSocketAddress;
 import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
 import java.util.List;
 import java.util.Map;
 
@@ -32,9 +34,18 @@ public class ServerManager {
         try {
             server = HttpServer.create(new InetSocketAddress(port), 0);
             server.createContext("/api/", new ApiRouterHandler());
+
+            File frontendDir = resolveFrontendDir();
+            if (frontendDir != null && frontendDir.exists()) {
+                server.createContext("/", new StaticFileHandler(frontendDir));
+            }
+
             server.setExecutor(null);
             server.start();
             System.out.println("[SERVER SUCCESS] REST API Server running on http://localhost:" + port + "/api/");
+            if (frontendDir != null && frontendDir.exists()) {
+                System.out.println("[SERVER SUCCESS] Web Portal running at http://localhost:" + port + "/");
+            }
         } catch (Exception e) {
             System.err.println("[SERVER ERROR] Could not start HTTP Server on port " + port + ": " + e.getMessage());
         }
@@ -615,5 +626,64 @@ public class ServerManager {
     private String esc(String str) {
         if (str == null) return "";
         return str.replace("\\", "\\\\").replace("\"", "\\\"").replace("\n", "\\n").replace("\r", "");
+    }
+
+    private static File resolveFrontendDir() {
+        if (new File("frontend").isDirectory()) {
+            return new File("frontend");
+        }
+        if (new File("../frontend").isDirectory()) {
+            return new File("../frontend");
+        }
+        return null;
+    }
+
+    private static class StaticFileHandler implements HttpHandler {
+        private final File baseDir;
+
+        public StaticFileHandler(File baseDir) {
+            this.baseDir = baseDir;
+        }
+
+        @Override
+        public void handle(HttpExchange exchange) {
+            try {
+                String path = exchange.getRequestURI().getPath();
+                if (path == null || path.equals("/") || path.isEmpty()) {
+                    path = "/index.html";
+                }
+
+                File targetFile = new File(baseDir, path.replace("/", File.separator)).getCanonicalFile();
+                if (!targetFile.getPath().startsWith(baseDir.getCanonicalPath()) || !targetFile.exists() || targetFile.isDirectory()) {
+                    String notFound = "404 Not Found";
+                    exchange.sendResponseHeaders(404, notFound.length());
+                    try (OutputStream os = exchange.getResponseBody()) {
+                        os.write(notFound.getBytes(StandardCharsets.UTF_8));
+                    }
+                    return;
+                }
+
+                String contentType = "application/octet-stream";
+                String fileName = targetFile.getName().toLowerCase();
+                if (fileName.endsWith(".html")) contentType = "text/html; charset=UTF-8";
+                else if (fileName.endsWith(".css")) contentType = "text/css; charset=UTF-8";
+                else if (fileName.endsWith(".js")) contentType = "application/javascript; charset=UTF-8";
+                else if (fileName.endsWith(".json")) contentType = "application/json; charset=UTF-8";
+                else if (fileName.endsWith(".png")) contentType = "image/png";
+                else if (fileName.endsWith(".jpg") || fileName.endsWith(".jpeg")) contentType = "image/jpeg";
+                else if (fileName.endsWith(".svg")) contentType = "image/svg+xml";
+
+                byte[] bytes = Files.readAllBytes(targetFile.toPath());
+                exchange.getResponseHeaders().set("Content-Type", contentType);
+                exchange.sendResponseHeaders(200, bytes.length);
+                try (OutputStream os = exchange.getResponseBody()) {
+                    os.write(bytes);
+                }
+            } catch (Exception e) {
+                try {
+                    exchange.sendResponseHeaders(500, -1);
+                } catch (Exception ignored) {}
+            }
+        }
     }
 }

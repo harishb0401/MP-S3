@@ -36,8 +36,28 @@ import java.util.concurrent.ConcurrentHashMap;
  * - Thread-safe ConcurrentHashMap for sessions and in-memory caches.
  */
 public class Database {
-    private static final String DB_DIR = "../data";
-    private static final String DB_FILE = "../data/database.json";
+    public static String getDbDir() {
+        if (new File("backend/data").exists() || new File("backend").exists()) {
+            return "backend/data";
+        }
+        if (new File("data").exists()) {
+            return "data";
+        }
+        return "../data";
+    }
+
+    public static String getDbFile() {
+        if (new File("backend/data/database.json").exists()) {
+            return "backend/data/database.json";
+        }
+        if (new File("data/database.json").exists()) {
+            return "data/database.json";
+        }
+        if (new File("../data/database.json").exists()) {
+            return "../data/database.json";
+        }
+        return new File("backend").exists() ? "backend/data/database.json" : "data/database.json";
+    }
 
     private Map<String, User> userMap;                           // email/id -> User (HashMap)
     private List<Complaint> complaintList;                       // ArrayList of complaints
@@ -99,11 +119,11 @@ public class Database {
     }
 
     private void ensureDatabaseFile() {
-        File dir = new File(DB_DIR);
+        File dir = new File(getDbDir());
         if (!dir.exists()) {
             dir.mkdirs();
         }
-        File file = new File(DB_FILE);
+        File file = new File(getDbFile());
         if (!file.exists()) {
             try {
                 file.createNewFile();
@@ -199,7 +219,7 @@ public class Database {
 
     // Save full system state to JSON
     public synchronized void saveDatabase() {
-        try (FileWriter writer = new FileWriter(DB_FILE, false)) {
+        try (FileWriter writer = new FileWriter(getDbFile(), false)) {
             StringBuilder json = new StringBuilder();
             json.append("{\n");
 
@@ -286,7 +306,7 @@ public class Database {
 
     // Load state from disk
     public synchronized void loadDatabase() {
-        File file = new File(DB_FILE);
+        File file = new File(getDbFile());
         if (!file.exists() || file.length() == 0) return;
 
         try {
