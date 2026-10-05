@@ -314,12 +314,16 @@ function handleLogout() {
 // ------------------- CITIZEN WORKFLOW & MULTI-STEP WIZARD ------------------- //
 function initWizardForm() {
     currentWizardStep = 1;
-    document.getElementById("w-name").value = currentUser.name || "";
-    document.getElementById("w-mobile").value = currentUser.mobile || "";
-    document.getElementById("w-email").value = currentUser.email || "";
-    document.getElementById("wizard-form").reset();
+    const form = document.getElementById("wizard-form");
+    if (form) form.reset();
+    if (currentUser) {
+        if (document.getElementById("w-name")) document.getElementById("w-name").value = currentUser.name || currentUser.displayName || "";
+        if (document.getElementById("w-mobile")) document.getElementById("w-mobile").value = currentUser.mobile || "";
+        if (document.getElementById("w-email")) document.getElementById("w-email").value = currentUser.email || "";
+    }
     attachedFileName = null;
-    document.getElementById("file-preview-box").innerText = "No file attached.";
+    const previewBox = document.getElementById("file-preview-box");
+    if (previewBox) previewBox.innerText = "No file attached.";
     renderWizardStep(1);
 }
 

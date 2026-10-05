@@ -1,7 +1,12 @@
-// API Client connecting Frontend to Java REST API Backend (dynamically resolves origin for localhost, GitHub Codespaces, or cloud URLs)
-const API_BASE_URL = (typeof window !== "undefined" && window.location && window.location.origin && window.location.origin.startsWith("http"))
-    ? `${window.location.origin}/api`
-    : "http://localhost:8080/api";
+// API Client connecting Frontend to Java REST API Backend on Port 8080
+const API_BASE_URL = (() => {
+    if (typeof window !== "undefined" && window.location) {
+        if (window.location.hostname && !window.location.hostname.includes("localhost") && !window.location.hostname.includes("127.0.0.1") && window.location.origin.startsWith("http")) {
+            return `${window.location.origin}/api`;
+        }
+    }
+    return "http://localhost:8080/api";
+})();
 
 const ApiClient = {
     // Helper to get auth headers
