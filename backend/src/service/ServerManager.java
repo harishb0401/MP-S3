@@ -52,6 +52,12 @@ public class ServerManager {
         }
     }
 
+    public void stop() {
+        if (server != null) {
+            server.stop(0);
+        }
+    }
+
     private class ApiRouterHandler implements HttpHandler {
         @Override
         public void handle(HttpExchange exchange) {
@@ -81,21 +87,65 @@ public class ServerManager {
                     return;
                 }
 
+                if (path.equals("/api/auth/logout") && "POST".equalsIgnoreCase(method)) {
+                    handleLogout(exchange);
+                    return;
+                }
+
                 if (path.equals("/api/auth/me") && "GET".equalsIgnoreCase(method)) {
                     handleGetMe(exchange);
                     return;
                 }
 
-                // Dashboard Stats
+                // Dashboard Stats & Reports
                 if (path.equals("/api/dashboard/stats") && "GET".equalsIgnoreCase(method)) {
                     handleDashboardStats(exchange);
                     return;
                 }
 
-                // Department Capacity Info
+                if (path.equals("/api/reports/manager") && "GET".equalsIgnoreCase(method)) {
+                    handleGetManagerReport(exchange);
+                    return;
+                }
+
+                if (path.equals("/api/reports/admin") && "GET".equalsIgnoreCase(method)) {
+                    handleGetAdminReport(exchange);
+                    return;
+                }
+
+                // Department Capacity Info & Management
                 if (path.equals("/api/departments/capacity") && "GET".equalsIgnoreCase(method)) {
                     handleDepartmentCapacity(exchange);
                     return;
+                }
+
+                if (path.equals("/api/departments/capacity") && ("PUT".equalsIgnoreCase(method) || "POST".equalsIgnoreCase(method))) {
+                    handleUpdateDepartmentCapacity(exchange, body);
+                    return;
+                }
+
+                // Admin Worker Management
+                if (path.equals("/api/admin/workers") && "GET".equalsIgnoreCase(method)) {
+                    handleGetWorkers(exchange);
+                    return;
+                }
+
+                if (path.equals("/api/admin/workers") && "POST".equalsIgnoreCase(method)) {
+                    handleCreateWorker(exchange, body);
+                    return;
+                }
+
+                if (path.startsWith("/api/admin/workers/")) {
+                    String workerSub = path.substring("/api/admin/workers/".length());
+                    if (workerSub.endsWith("/reset-password") && "POST".equalsIgnoreCase(method)) {
+                        String workerId = workerSub.replace("/reset-password", "");
+                        handleResetWorkerPassword(exchange, workerId, body);
+                        return;
+                    }
+                    if ("PUT".equalsIgnoreCase(method)) {
+                        handleUpdateWorker(exchange, workerSub, body);
+                        return;
+                    }
                 }
 
                 // Notifications
@@ -117,6 +167,11 @@ public class ServerManager {
 
                 if (path.equals("/api/my-complaints") && "GET".equalsIgnoreCase(method)) {
                     handleGetMyComplaints(exchange);
+                    return;
+                }
+
+                if (path.equals("/api/worker/complaints") && "GET".equalsIgnoreCase(method)) {
+                    handleGetWorkerComplaints(exchange);
                     return;
                 }
 
@@ -162,7 +217,14 @@ public class ServerManager {
                         return;
                     }
 
-                    // Duplicate management: /api/complaints/:id/duplicate
+                    // Duplicate delete: DELETE /api/complaints/:id/duplicate
+                    if (subPath.endsWith("/duplicate") && "DELETE".equalsIgnoreCase(method)) {
+                        String id = subPath.replace("/duplicate", "");
+                        handleDeleteDuplicate(exchange, id, body);
+                        return;
+                    }
+
+                    // Duplicate management: POST /api/complaints/:id/duplicate
                     if (subPath.endsWith("/duplicate") && "POST".equalsIgnoreCase(method)) {
                         String id = subPath.replace("/duplicate", "");
                         handleDuplicateAction(exchange, id, body);
@@ -180,6 +242,13 @@ public class ServerManager {
                     if (subPath.endsWith("/status") && ("PUT".equalsIgnoreCase(method) || "PATCH".equalsIgnoreCase(method))) {
                         String id = subPath.replace("/status", "");
                         handleUpdateStatus(exchange, id, body);
+                        return;
+                    }
+
+                    // Risk Assessment: /api/complaints/:id/assess
+                    if (subPath.endsWith("/assess") && "POST".equalsIgnoreCase(method)) {
+                        String id = subPath.replace("/assess", "");
+                        handleAssessComplaint(exchange, id, body);
                         return;
                     }
 
@@ -269,11 +338,24 @@ public class ServerManager {
             return;
         }
 
+        if (!user.isActive()) {
+            sendJsonResponse(exchange, 403, "{\"error\":\"Account has been deactivated. Please contact your municipal administrator.\"}");
+            return;
+        }
+
         String token = database.createSession(user);
         sendJsonResponse(exchange, 200, String.format(
                 "{\"message\":\"Login successful\",\"token\":\"%s\",\"user\":%s}",
                 token, formatUserJson(user)
         ));
+    }
+
+    private void handleLogout(HttpExchange exchange) throws Exception {
+        String authHeader = exchange.getRequestHeaders().getFirst("Authorization");
+        if (authHeader != null && !authHeader.isEmpty()) {
+            database.invalidateSession(authHeader);
+        }
+        sendJsonResponse(exchange, 200, "{\"message\":\"Logged out successfully.\"}");
     }
 
     private void handleGetMe(HttpExchange exchange) throws Exception {
@@ -317,11 +399,13 @@ public class ServerManager {
             return;
         }
 
+        String title = extractVal(body, "title");
         String category = extractVal(body, "category");
         String description = extractVal(body, "description");
         String location = extractVal(body, "location");
         String impactStr = extractVal(body, "citizenReportedImpact");
         if (impactStr.isEmpty()) impactStr = extractVal(body, "impact");
+        if (impactStr.isEmpty()) impactStr = extractVal(body, "affectedPeople");
 
         int impact = 1;
         try {
@@ -333,11 +417,54 @@ public class ServerManager {
             return;
         }
 
-        String severity = extractVal(body, "severity");
-        if (severity.isEmpty()) severity = extractVal(body, "priority");
+        if (!title.isEmpty() && !description.startsWith("[" + title + "]")) {
+            description = "[" + title + "] " + description;
+        }
 
-        Complaint created = manager.createComplaint(user, category, description, location, impact, severity);
-        sendJsonResponse(exchange, 201, formatComplaintJson(created));
+        Double latitude = null;
+        Double longitude = null;
+        Double accuracy = null;
+
+        String latStr = extractVal(body, "latitude");
+        String lngStr = extractVal(body, "longitude");
+        String accStr = extractVal(body, "locationAccuracyMeters");
+        if (accStr.isEmpty()) accStr = extractVal(body, "accuracy");
+
+        if ("null".equalsIgnoreCase(latStr)) latStr = "";
+        if ("null".equalsIgnoreCase(lngStr)) lngStr = "";
+        if ("null".equalsIgnoreCase(accStr)) accStr = "";
+
+        if (!latStr.isEmpty() || !lngStr.isEmpty()) {
+            if (latStr.isEmpty() || lngStr.isEmpty()) {
+                sendJsonResponse(exchange, 400, "{\"error\":\"Both latitude and longitude must be provided together.\"}");
+                return;
+            }
+            try {
+                latitude = Double.parseDouble(latStr);
+                longitude = Double.parseDouble(lngStr);
+            } catch (Exception e) {
+                sendJsonResponse(exchange, 400, "{\"error\":\"Latitude and longitude must be valid decimal numbers.\"}");
+                return;
+            }
+            if (!accStr.isEmpty()) {
+                try {
+                    accuracy = Double.parseDouble(accStr);
+                } catch (Exception e) {
+                    sendJsonResponse(exchange, 400, "{\"error\":\"Location accuracy must be a valid number.\"}");
+                    return;
+                }
+            }
+            try {
+                Complaint.validateCoordinates(latitude, longitude, accuracy);
+            } catch (IllegalArgumentException iae) {
+                sendJsonResponse(exchange, 400, "{\"error\":\"" + esc(iae.getMessage()) + "\"}");
+                return;
+            }
+        }
+
+        // Newly registered complaints are explicitly unassessed. Client-supplied severity/priority is ignored.
+        Complaint created = manager.createComplaint(user, category, description, location, impact, latitude, longitude, accuracy, title);
+        sendJsonResponse(exchange, 201, formatComplaintJson(created, user));
     }
 
     private void handleGetAllComplaints(HttpExchange exchange) throws Exception {
@@ -347,8 +474,15 @@ public class ServerManager {
             return;
         }
 
-        List<Complaint> complaints = manager.getAllComplaints();
-        sendJsonResponse(exchange, 200, formatComplaintsListJson(complaints));
+        List<Complaint> complaints;
+        if (user.isCitizen()) {
+            complaints = manager.getCitizenComplaints(user.getId());
+        } else if (user.isWorker()) {
+            complaints = manager.getDepartmentComplaints(user.getDepartment());
+        } else {
+            complaints = manager.getAllComplaints();
+        }
+        sendJsonResponse(exchange, 200, formatComplaintsListJson(complaints, user));
     }
 
     private void handleGetMyComplaints(HttpExchange exchange) throws Exception {
@@ -359,21 +493,56 @@ public class ServerManager {
         }
 
         List<Complaint> complaints = manager.getCitizenComplaints(user.getId());
-        sendJsonResponse(exchange, 200, formatComplaintsListJson(complaints));
+        sendJsonResponse(exchange, 200, formatComplaintsListJson(complaints, user));
+    }
+
+    private void handleGetWorkerComplaints(HttpExchange exchange) throws Exception {
+        User user = getAuthenticatedUser(exchange);
+        if (user == null) {
+            sendJsonResponse(exchange, 401, "{\"error\":\"Unauthorized access.\"}");
+            return;
+        }
+        if (user.isCitizen()) {
+            sendJsonResponse(exchange, 403, "{\"error\":\"Forbidden: Worker or administrative role required.\"}");
+            return;
+        }
+
+        String dept = user.getDepartment();
+        List<Complaint> complaints = manager.getDepartmentComplaints(dept);
+        sendJsonResponse(exchange, 200, formatComplaintsListJson(complaints, user));
     }
 
     private void handleGetPriorityQueue(HttpExchange exchange) throws Exception {
+        User user = getAuthenticatedUser(exchange);
         List<Complaint> queueList = manager.getPriorityQueueList();
-        sendJsonResponse(exchange, 200, formatComplaintsListJson(queueList));
+        sendJsonResponse(exchange, 200, formatComplaintsListJson(queueList, user));
     }
 
     private void handleGetComplaintById(HttpExchange exchange, String id) throws Exception {
+        User user = getAuthenticatedUser(exchange);
+        if (user == null) {
+            sendJsonResponse(exchange, 401, "{\"error\":\"Unauthorized access.\"}");
+            return;
+        }
+
         Complaint c = manager.getComplaintById(id);
         if (c == null) {
             sendJsonResponse(exchange, 404, "{\"error\":\"Complaint not found.\"}");
             return;
         }
-        sendJsonResponse(exchange, 200, formatComplaintJson(c));
+
+        // Enforce IDOR protection:
+        if (user.isCitizen() && !c.getCitizenId().equals(user.getId())) {
+            sendJsonResponse(exchange, 403, "{\"error\":\"Forbidden: Citizens can only access their own complaints.\"}");
+            return;
+        }
+
+        if (user.isWorker() && !c.getDepartment().equalsIgnoreCase(user.getDepartment())) {
+            sendJsonResponse(exchange, 403, "{\"error\":\"Forbidden: Workers cannot access complaints from other departments.\"}");
+            return;
+        }
+
+        sendJsonResponse(exchange, 200, formatComplaintJson(c, user));
     }
 
     // ------------------- ADMIN VERIFICATION HANDLER -------------------
@@ -415,7 +584,7 @@ public class ServerManager {
             }
 
             Complaint updated = manager.getComplaintById(id);
-            sendJsonResponse(exchange, 200, formatComplaintJson(updated));
+            sendJsonResponse(exchange, 200, formatComplaintJson(updated, user));
         } catch (Exception e) {
             sendJsonResponse(exchange, 400, "{\"error\":\"" + e.getMessage() + "\"}");
         }
@@ -435,7 +604,7 @@ public class ServerManager {
         for (Complaint c : all) {
             if (c.isDuplicate()) {
                 if (count > 0) sb.append(",");
-                sb.append(formatComplaintJson(c));
+                sb.append(formatComplaintJson(c, user));
                 count++;
             }
         }
@@ -468,8 +637,8 @@ public class ServerManager {
 
     private void handleConfirmDuplicateLink(HttpExchange exchange, String id, String body) throws Exception {
         User user = getAuthenticatedUser(exchange);
-        if (user == null || !user.canManageDuplicates()) {
-            sendJsonResponse(exchange, 403, "{\"error\":\"Forbidden: Staff or Admin privileges required to confirm duplicate link.\"}");
+        if (user == null || !user.canConfirmDuplicateLink()) {
+            sendJsonResponse(exchange, 403, "{\"error\":\"Forbidden: Manager or Admin privileges required to confirm duplicate link.\"}");
             return;
         }
 
@@ -498,7 +667,7 @@ public class ServerManager {
     private void handleRejectDuplicateCandidate(HttpExchange exchange, String id, String body) throws Exception {
         User user = getAuthenticatedUser(exchange);
         if (user == null || !user.canManageDuplicates()) {
-            sendJsonResponse(exchange, 403, "{\"error\":\"Forbidden: Staff or Admin privileges required to reject duplicate candidate.\"}");
+            sendJsonResponse(exchange, 403, "{\"error\":\"Forbidden: Staff, Manager, or Admin privileges required to reject duplicate candidate.\"}");
             return;
         }
 
@@ -527,12 +696,21 @@ public class ServerManager {
     private void handleDuplicateAction(HttpExchange exchange, String id, String body) throws Exception {
         User user = getAuthenticatedUser(exchange);
         if (user == null || !user.canManageDuplicates()) {
-            sendJsonResponse(exchange, 403, "{\"error\":\"Forbidden: Staff or Admin privileges required.\"}");
+            sendJsonResponse(exchange, 403, "{\"error\":\"Forbidden: Staff, Manager, or Admin privileges required.\"}");
             return;
         }
 
-        String action = extractVal(body, "action"); // "confirm", "merge", "reject", or "separate"
+        String action = extractVal(body, "action"); // "confirm", "merge", "reject", "separate", or "delete"
+        if ("delete".equalsIgnoreCase(action)) {
+            handleDeleteDuplicate(exchange, id, body);
+            return;
+        }
+
         if ("confirm".equalsIgnoreCase(action)) {
+            if (!user.canConfirmDuplicateLink()) {
+                sendJsonResponse(exchange, 403, "{\"error\":\"Forbidden: Manager or Admin privileges required to confirm duplicate link.\"}");
+                return;
+            }
             String primaryId = extractVal(body, "primaryComplaintId");
             if (primaryId.isEmpty()) primaryId = extractVal(body, "candidateId");
             String remarks = extractVal(body, "remarks");
@@ -589,7 +767,35 @@ public class ServerManager {
                 sendJsonResponse(exchange, 400, "{\"error\":\"" + esc(e.getMessage()) + "\"}");
             }
         } else {
-            sendJsonResponse(exchange, 400, "{\"error\":\"Invalid duplicate action. Use 'confirm', 'reject', 'merge', or 'separate'.\"}");
+            sendJsonResponse(exchange, 400, "{\"error\":\"Invalid duplicate action. Use 'confirm', 'reject', 'merge', 'separate', or 'delete'.\"}");
+        }
+    }
+
+    private void handleDeleteDuplicate(HttpExchange exchange, String id, String body) throws Exception {
+        User user = getAuthenticatedUser(exchange);
+        if (user == null || !user.canDeleteDuplicate()) {
+            sendJsonResponse(exchange, 403, "{\"error\":\"Forbidden: Only administrators or managers can delete confirmed duplicates.\"}");
+            return;
+        }
+
+        String reason = extractVal(body, "confirmationReason");
+        if (reason.isEmpty()) reason = extractVal(body, "reason");
+        if (reason.isEmpty()) reason = extractVal(body, "remarks");
+
+        if (reason.isEmpty()) {
+            sendJsonResponse(exchange, 400, "{\"error\":\"A formal confirmation reason is required to delete a confirmed duplicate.\"}");
+            return;
+        }
+
+        try {
+            boolean success = manager.deleteConfirmedDuplicate(id, user, reason);
+            if (!success) {
+                sendJsonResponse(exchange, 404, "{\"error\":\"Complaint not found or could not be deleted.\"}");
+                return;
+            }
+            sendJsonResponse(exchange, 200, "{\"message\":\"Confirmed duplicate complaint " + esc(id) + " deleted successfully.\"}");
+        } catch (IllegalStateException | IllegalArgumentException | SecurityException e) {
+            sendJsonResponse(exchange, 400, "{\"error\":\"" + esc(e.getMessage()) + "\"}");
         }
     }
 
@@ -642,10 +848,28 @@ public class ServerManager {
             return;
         }
 
-        String status = extractVal(body, "status");
-        String remarks = extractVal(body, "remarks");
+        Complaint existing = manager.getComplaintById(id);
+        if (existing == null) {
+            sendJsonResponse(exchange, 404, "{\"error\":\"Complaint not found.\"}");
+            return;
+        }
+
+        // Workers can only update complaints within their assigned department
+        if (user.isWorker() && !existing.getDepartment().equalsIgnoreCase(user.getDepartment())) {
+            sendJsonResponse(exchange, 403, "{\"error\":\"Forbidden: Workers can only update complaints within their department.\"}");
+            return;
+        }
+
         boolean explicitCancellation = "true".equalsIgnoreCase(extractVal(body, "explicitCancellation"));
         boolean explicitReassignment = "true".equalsIgnoreCase(extractVal(body, "explicitReassignment"));
+
+        if (user.isWorker() && (explicitCancellation || explicitReassignment)) {
+            sendJsonResponse(exchange, 403, "{\"error\":\"Forbidden: Workers cannot cancel assignments or reassign complaints.\"}");
+            return;
+        }
+
+        String status = extractVal(body, "status");
+        String remarks = extractVal(body, "remarks");
 
         if (status.isEmpty()) {
             sendJsonResponse(exchange, 400, "{\"error\":\"Status field is required.\"}");
@@ -660,8 +884,38 @@ public class ServerManager {
             }
 
             Complaint updated = manager.getComplaintById(id);
-            sendJsonResponse(exchange, 200, formatComplaintJson(updated));
+            sendJsonResponse(exchange, 200, formatComplaintJson(updated, user));
         } catch (IllegalStateException | IllegalArgumentException e) {
+            sendJsonResponse(exchange, 400, "{\"error\":\"" + esc(e.getMessage()) + "\"}");
+        }
+    }
+
+    private void handleAssessComplaint(HttpExchange exchange, String id, String body) throws Exception {
+        User user = getAuthenticatedUser(exchange);
+        if (user == null || !user.canAssessSeverity()) {
+            sendJsonResponse(exchange, 403, "{\"error\":\"Forbidden: Only Managers or Administrators can assess complaint severity.\"}");
+            return;
+        }
+
+        String severity = extractVal(body, "severity");
+        String reason = extractVal(body, "reason");
+        if (reason.isEmpty()) reason = extractVal(body, "assessmentReason");
+        if (reason.isEmpty()) reason = extractVal(body, "remarks");
+
+        String department = extractVal(body, "department");
+        if (department.isEmpty()) department = extractVal(body, "departmentName");
+        String staffName = extractVal(body, "staffName");
+
+        try {
+            boolean success = manager.assessComplaint(id, severity, reason, department, staffName, user);
+            if (!success) {
+                sendJsonResponse(exchange, 404, "{\"error\":\"Complaint not found.\"}");
+                return;
+            }
+
+            Complaint updated = manager.getComplaintById(id);
+            sendJsonResponse(exchange, 200, formatComplaintJson(updated, user));
+        } catch (IllegalArgumentException | IllegalStateException | SecurityException e) {
             sendJsonResponse(exchange, 400, "{\"error\":\"" + esc(e.getMessage()) + "\"}");
         }
     }
@@ -669,12 +923,35 @@ public class ServerManager {
     private void handleAssignDepartment(HttpExchange exchange, String id, String body) throws Exception {
         User user = getAuthenticatedUser(exchange);
         if (user == null || !user.canAssignDepartment()) {
-            sendJsonResponse(exchange, 403, "{\"error\":\"Forbidden: Only Municipal Admin can assign departments.\"}");
+            sendJsonResponse(exchange, 403, "{\"error\":\"Forbidden: Manager or Admin access required to assign departments.\"}");
             return;
         }
 
+        String severity = extractVal(body, "severity");
         String department = extractVal(body, "department");
         String staffName = extractVal(body, "staffName");
+        String reason = extractVal(body, "reason");
+        if (reason.isEmpty()) reason = extractVal(body, "assessmentReason");
+        if (reason.isEmpty()) reason = extractVal(body, "remarks");
+
+        // If severity is supplied, route through risk assessment & assignment
+        if (!severity.isEmpty()) {
+            if (reason.isEmpty()) reason = "Assigned by " + user.getDisplayName();
+            try {
+                boolean success = manager.assessComplaint(id, severity, reason, department, staffName, user);
+                if (!success) {
+                    sendJsonResponse(exchange, 404, "{\"error\":\"Complaint not found.\"}");
+                    return;
+                }
+
+                Complaint updated = manager.getComplaintById(id);
+                sendJsonResponse(exchange, 200, formatComplaintJson(updated, user));
+                return;
+            } catch (IllegalArgumentException | IllegalStateException | SecurityException e) {
+                sendJsonResponse(exchange, 400, "{\"error\":\"" + esc(e.getMessage()) + "\"}");
+                return;
+            }
+        }
 
         try {
             boolean success = manager.assignDepartmentAndStaff(id, department, staffName, user);
@@ -684,7 +961,7 @@ public class ServerManager {
             }
 
             Complaint updated = manager.getComplaintById(id);
-            sendJsonResponse(exchange, 200, formatComplaintJson(updated));
+            sendJsonResponse(exchange, 200, formatComplaintJson(updated, user));
         } catch (IllegalStateException | IllegalArgumentException e) {
             sendJsonResponse(exchange, 400, "{\"error\":\"" + esc(e.getMessage()) + "\"}");
         }
@@ -693,7 +970,7 @@ public class ServerManager {
     private void handleReassignDepartment(HttpExchange exchange, String id, String body) throws Exception {
         User user = getAuthenticatedUser(exchange);
         if (user == null || !user.canAssignDepartment()) {
-            sendJsonResponse(exchange, 403, "{\"error\":\"Forbidden: Only Municipal Admin can reassign departments.\"}");
+            sendJsonResponse(exchange, 403, "{\"error\":\"Forbidden: Manager or Admin access required to reassign departments.\"}");
             return;
         }
 
@@ -709,7 +986,7 @@ public class ServerManager {
             }
 
             Complaint updated = manager.getComplaintById(id);
-            sendJsonResponse(exchange, 200, formatComplaintJson(updated));
+            sendJsonResponse(exchange, 200, formatComplaintJson(updated, user));
         } catch (IllegalStateException | IllegalArgumentException e) {
             sendJsonResponse(exchange, 400, "{\"error\":\"" + esc(e.getMessage()) + "\"}");
         }
@@ -722,6 +999,17 @@ public class ServerManager {
             return;
         }
 
+        Complaint existing = manager.getComplaintById(id);
+        if (existing == null) {
+            sendJsonResponse(exchange, 404, "{\"error\":\"Complaint not found.\"}");
+            return;
+        }
+
+        if (user.isWorker() && !existing.getDepartment().equalsIgnoreCase(user.getDepartment())) {
+            sendJsonResponse(exchange, 403, "{\"error\":\"Forbidden: Workers can only resolve complaints within their department.\"}");
+            return;
+        }
+
         String resolutionNotes = extractVal(body, "resolutionNotes");
         try {
             boolean success = manager.resolveComplaint(id, resolutionNotes, user);
@@ -731,10 +1019,188 @@ public class ServerManager {
             }
 
             Complaint updated = manager.getComplaintById(id);
-            sendJsonResponse(exchange, 200, formatComplaintJson(updated));
+            sendJsonResponse(exchange, 200, formatComplaintJson(updated, user));
         } catch (IllegalStateException | IllegalArgumentException e) {
             sendJsonResponse(exchange, 400, "{\"error\":\"" + esc(e.getMessage()) + "\"}");
         }
+    }
+
+    // ------------------- ADMIN WORKER MANAGEMENT HANDLERS -------------------
+    private void handleGetWorkers(HttpExchange exchange) throws Exception {
+        User user = getAuthenticatedUser(exchange);
+        if (user == null) {
+            sendJsonResponse(exchange, 401, "{\"error\":\"Unauthorized: Please log in.\"}");
+            return;
+        }
+        if (!user.canManageWorkers()) {
+            sendJsonResponse(exchange, 403, "{\"error\":\"Forbidden: Administrator privileges required to manage workers.\"}");
+            return;
+        }
+
+        List<model.DepartmentStaff> workers = database.getAllWorkers();
+        StringBuilder sb = new StringBuilder("[");
+        for (int i = 0; i < workers.size(); i++) {
+            model.DepartmentStaff w = workers.get(i);
+            sb.append(String.format(
+                    "{\"id\":\"%s\",\"name\":\"%s\",\"email\":\"%s\",\"mobile\":\"%s\",\"department\":\"%s\",\"role\":\"%s\",\"active\":%b,\"createdAt\":\"%s\"}",
+                    esc(w.getId()), esc(w.getDisplayName()), esc(w.getEmail()), esc(w.getMobile()),
+                    esc(w.getDepartment()), esc(w.getRole()), w.isActive(), esc(w.getCreatedAt())
+            ));
+            if (i < workers.size() - 1) sb.append(",");
+        }
+        sb.append("]");
+        sendJsonResponse(exchange, 200, sb.toString());
+    }
+
+    private void handleCreateWorker(HttpExchange exchange, String body) throws Exception {
+        User user = getAuthenticatedUser(exchange);
+        if (user == null) {
+            sendJsonResponse(exchange, 401, "{\"error\":\"Unauthorized: Please log in.\"}");
+            return;
+        }
+        if (!user.canManageWorkers()) {
+            sendJsonResponse(exchange, 403, "{\"error\":\"Forbidden: Administrator privileges required.\"}");
+            return;
+        }
+
+        String name = extractVal(body, "name");
+        String email = extractVal(body, "email");
+        String mobile = extractVal(body, "mobile");
+        String password = extractVal(body, "password");
+        String department = extractVal(body, "department");
+
+        if (name.isEmpty() || email.isEmpty() || password.isEmpty() || department.isEmpty()) {
+            sendJsonResponse(exchange, 400, "{\"error\":\"Name, email, password, and department are required.\"}");
+            return;
+        }
+
+        try {
+            User worker = database.createWorker(name, email, mobile, password, department, user);
+            sendJsonResponse(exchange, 201, String.format(
+                    "{\"message\":\"Worker created successfully\",\"worker\":{\"id\":\"%s\",\"name\":\"%s\",\"email\":\"%s\",\"department\":\"%s\",\"role\":\"%s\",\"active\":%b}}",
+                    esc(worker.getId()), esc(worker.getDisplayName()), esc(worker.getEmail()), esc(worker.getDepartment()), esc(worker.getRole()), worker.isActive()
+            ));
+        } catch (IllegalArgumentException e) {
+            sendJsonResponse(exchange, 400, "{\"error\":\"" + esc(e.getMessage()) + "\"}");
+        }
+    }
+
+    private void handleUpdateWorker(HttpExchange exchange, String workerId, String body) throws Exception {
+        User user = getAuthenticatedUser(exchange);
+        if (user == null) {
+            sendJsonResponse(exchange, 401, "{\"error\":\"Unauthorized: Please log in.\"}");
+            return;
+        }
+        if (!user.canManageWorkers()) {
+            sendJsonResponse(exchange, 403, "{\"error\":\"Forbidden: Administrator privileges required.\"}");
+            return;
+        }
+
+        String name = extractVal(body, "name");
+        String mobile = extractVal(body, "mobile");
+        String department = extractVal(body, "department");
+        String activeStr = extractVal(body, "active");
+        Boolean active = activeStr.isEmpty() ? null : "true".equalsIgnoreCase(activeStr);
+
+        try {
+            User updated = database.updateWorker(workerId, name, mobile, department, active, user);
+            sendJsonResponse(exchange, 200, String.format(
+                    "{\"message\":\"Worker updated successfully\",\"worker\":{\"id\":\"%s\",\"name\":\"%s\",\"email\":\"%s\",\"department\":\"%s\",\"role\":\"%s\",\"active\":%b}}",
+                    esc(updated.getId()), esc(updated.getDisplayName()), esc(updated.getEmail()), esc(updated.getDepartment()), esc(updated.getRole()), updated.isActive()
+            ));
+        } catch (IllegalArgumentException e) {
+            sendJsonResponse(exchange, 400, "{\"error\":\"" + esc(e.getMessage()) + "\"}");
+        }
+    }
+
+    private void handleResetWorkerPassword(HttpExchange exchange, String workerId, String body) throws Exception {
+        User user = getAuthenticatedUser(exchange);
+        if (user == null) {
+            sendJsonResponse(exchange, 401, "{\"error\":\"Unauthorized: Please log in.\"}");
+            return;
+        }
+        if (!user.canManageWorkers()) {
+            sendJsonResponse(exchange, 403, "{\"error\":\"Forbidden: Administrator privileges required.\"}");
+            return;
+        }
+
+        String newPassword = extractVal(body, "password");
+        if (newPassword.isEmpty()) newPassword = extractVal(body, "newPassword");
+
+        if (newPassword.isEmpty()) {
+            sendJsonResponse(exchange, 400, "{\"error\":\"New password is required.\"}");
+            return;
+        }
+
+        try {
+            boolean success = database.resetWorkerPassword(workerId, newPassword, user);
+            if (!success) {
+                sendJsonResponse(exchange, 404, "{\"error\":\"Worker not found.\"}");
+                return;
+            }
+            sendJsonResponse(exchange, 200, "{\"message\":\"Worker password reset successfully.\"}");
+        } catch (IllegalArgumentException e) {
+            sendJsonResponse(exchange, 400, "{\"error\":\"" + esc(e.getMessage()) + "\"}");
+        }
+    }
+
+    // ------------------- CAPACITY & REPORTS HANDLERS -------------------
+    private void handleUpdateDepartmentCapacity(HttpExchange exchange, String body) throws Exception {
+        User user = getAuthenticatedUser(exchange);
+        if (user == null || !user.isAdmin()) {
+            sendJsonResponse(exchange, 403, "{\"error\":\"Forbidden: Administrator privileges required.\"}");
+            return;
+        }
+
+        String dept = extractVal(body, "department");
+        if (dept.isEmpty()) dept = extractVal(body, "departmentId");
+        String capStr = extractVal(body, "capacity");
+
+        if (dept.isEmpty() || capStr.isEmpty()) {
+            sendJsonResponse(exchange, 400, "{\"error\":\"Department and capacity are required.\"}");
+            return;
+        }
+
+        int cap;
+        try {
+            cap = Integer.parseInt(capStr);
+        } catch (Exception e) {
+            sendJsonResponse(exchange, 400, "{\"error\":\"Capacity must be a positive integer.\"}");
+            return;
+        }
+
+        try {
+            boolean success = manager.updateDepartmentCapacity(dept, cap, user);
+            if (!success) {
+                sendJsonResponse(exchange, 404, "{\"error\":\"Department not found: " + esc(dept) + "\"}");
+                return;
+            }
+            sendJsonResponse(exchange, 200, "{\"message\":\"Department capacity updated successfully.\"}");
+        } catch (IllegalArgumentException | SecurityException e) {
+            sendJsonResponse(exchange, 400, "{\"error\":\"" + esc(e.getMessage()) + "\"}");
+        }
+    }
+
+    private void handleGetManagerReport(HttpExchange exchange) throws Exception {
+        User user = getAuthenticatedUser(exchange);
+        if (user == null || (!user.isManager() && !user.isAdmin())) {
+            sendJsonResponse(exchange, 403, "{\"error\":\"Forbidden: Manager or Administrator privileges required.\"}");
+            return;
+        }
+
+        String reportJson = manager.getManagerReportJson();
+        sendJsonResponse(exchange, 200, reportJson);
+    }
+
+    private void handleGetAdminReport(HttpExchange exchange) throws Exception {
+        User user = getAuthenticatedUser(exchange);
+        if (user == null || !user.isAdmin()) {
+            sendJsonResponse(exchange, 403, "{\"error\":\"Forbidden: Administrator privileges required.\"}");
+            return;
+        }
+
+        String reportJson = manager.getAdminReportJson();
+        sendJsonResponse(exchange, 200, reportJson);
     }
 
     // ------------------- HELPERS & SERIALIZERS -------------------
@@ -787,12 +1253,17 @@ public class ServerManager {
 
     private String formatUserJson(User u) {
         return String.format(
-                "{\"id\":\"%s\",\"name\":\"%s\",\"email\":\"%s\",\"mobile\":\"%s\",\"role\":\"%s\",\"department\":\"%s\"}",
-                esc(u.getId()), esc(u.getDisplayName()), esc(u.getEmail()), esc(u.getMobile()), esc(u.getRole()), esc(u.getDepartment())
+                "{\"id\":\"%s\",\"name\":\"%s\",\"email\":\"%s\",\"mobile\":\"%s\",\"role\":\"%s\",\"department\":\"%s\",\"active\":%b,\"createdAt\":\"%s\"}",
+                esc(u.getId()), esc(u.getDisplayName()), esc(u.getEmail()), esc(u.getMobile()), esc(u.getRole()), esc(u.getDepartment()), u.isActive(), esc(u.getCreatedAt())
         );
     }
 
     private String formatComplaintJson(Complaint c) {
+        return formatComplaintJson(c, null);
+    }
+
+    private String formatComplaintJson(Complaint c, User requestingUser) {
+        if (c == null) return "null";
         StringBuilder rejs = new StringBuilder("[");
         int rIdx = 0;
         if (c.getRejectedCandidateIds() != null) {
@@ -804,14 +1275,43 @@ public class ServerManager {
         }
         rejs.append("]");
 
+        boolean authorizedForGps = false;
+        if (requestingUser != null) {
+            if (requestingUser.isAdmin() || requestingUser.isManager()) {
+                authorizedForGps = true;
+            } else if (requestingUser.isWorker()) {
+                if (c.getDepartment() == null || c.getDepartment().equalsIgnoreCase(requestingUser.getDepartment()) ||
+                    c.getDepartmentId() == null || c.getDepartmentId().equalsIgnoreCase(requestingUser.getDepartment())) {
+                    authorizedForGps = true;
+                }
+            } else if (requestingUser.isCitizen()) {
+                if (c.getCitizenId() != null && c.getCitizenId().equals(requestingUser.getId())) {
+                    authorizedForGps = true;
+                }
+            }
+        }
+
+        String latVal = (authorizedForGps && c.getLatitude() != null) ? String.valueOf(c.getLatitude()) : "null";
+        String lngVal = (authorizedForGps && c.getLongitude() != null) ? String.valueOf(c.getLongitude()) : "null";
+        String accVal = (authorizedForGps && c.getLocationAccuracyMeters() != null) ? String.valueOf(c.getLocationAccuracyMeters()) : "null";
+        String mapsUrl = (authorizedForGps && c.getGoogleMapsUrl() != null) ? c.getGoogleMapsUrl() : "";
+        boolean hasGps = authorizedForGps && c.hasGpsCoordinates();
+
         return String.format(
-                "{\"id\":\"%s\",\"complaintId\":\"%s\",\"citizenId\":\"%s\",\"citizenName\":\"%s\",\"citizenMobile\":\"%s\",\"category\":\"%s\",\"description\":\"%s\",\"location\":\"%s\",\"departmentId\":\"%s\",\"department\":\"%s\",\"citizenReportedImpact\":%d,\"adminVerifiedImpact\":%s,\"verificationReason\":\"%s\",\"isVerifiedLocked\":%b,\"severity\":\"%s\",\"priority\":\"%s\",\"status\":\"%s\",\"assignedStaff\":\"%s\",\"resolutionNotes\":\"%s\",\"isDuplicate\":%b,\"duplicateOfId\":\"%s\",\"rejectedCandidateIds\":%s,\"isWaiting\":%b,\"arrivalSequence\":%d,\"createdAt\":\"%s\",\"updatedAt\":\"%s\",\"resolvedAt\":\"%s\"}",
+                "{\"id\":\"%s\",\"complaintId\":\"%s\",\"citizenId\":\"%s\",\"citizenName\":\"%s\",\"citizenMobile\":\"%s\",\"category\":\"%s\",\"description\":\"%s\",\"location\":\"%s\",\"latitude\":%s,\"longitude\":%s,\"locationAccuracyMeters\":%s,\"googleMapsUrl\":\"%s\",\"hasGpsCoordinates\":%b,\"departmentId\":\"%s\",\"department\":\"%s\",\"citizenReportedImpact\":%d,\"adminVerifiedImpact\":%s,\"verificationReason\":\"%s\",\"isVerifiedLocked\":%b,\"severity\":\"%s\",\"priority\":\"%s\",\"isAssessed\":%b,\"assessedBy\":\"%s\",\"assessedAt\":\"%s\",\"assessmentReason\":\"%s\",\"status\":\"%s\",\"assignedStaff\":\"%s\",\"resolutionNotes\":\"%s\",\"isDuplicate\":%b,\"duplicateOfId\":\"%s\",\"rejectedCandidateIds\":%s,\"isWaiting\":%b,\"arrivalSequence\":%d,\"createdAt\":\"%s\",\"updatedAt\":\"%s\",\"resolvedAt\":\"%s\"}",
                 esc(c.getId()), esc(c.getComplaintId()), esc(c.getCitizenId()), esc(c.getCitizenName()),
                 esc(c.getCitizenMobile()), esc(c.getCategory()), esc(c.getDescription()), esc(c.getLocation()),
+                latVal, lngVal, accVal, esc(mapsUrl), hasGps,
                 esc(c.getDepartmentId()), esc(c.getDepartment()), c.getCitizenReportedImpact(),
                 (c.getAdminVerifiedImpact() == null ? "null" : c.getAdminVerifiedImpact()),
                 esc(c.getVerificationReason()), c.isVerifiedLocked(),
-                esc(c.getSeverity()), esc(c.getPriority()), esc(c.getStatus()), esc(c.getAssignedStaff()),
+                esc(c.getSeverity() == null ? "UNASSESSED" : c.getSeverity()),
+                esc(c.getPriority() == null ? "UNASSESSED" : c.getPriority()),
+                c.isAssessed(),
+                esc(c.getAssessedBy()),
+                esc(c.getAssessedAt()),
+                esc(c.getAssessmentReason()),
+                esc(c.getStatus()), esc(c.getAssignedStaff()),
                 esc(c.getResolutionNotes()), c.isDuplicate(), esc(c.getDuplicateOfId()),
                 rejs.toString(),
                 c.isWaiting(),
@@ -821,9 +1321,13 @@ public class ServerManager {
     }
 
     private String formatComplaintsListJson(List<Complaint> list) {
+        return formatComplaintsListJson(list, null);
+    }
+
+    private String formatComplaintsListJson(List<Complaint> list, User user) {
         StringBuilder sb = new StringBuilder("[");
         for (int i = 0; i < list.size(); i++) {
-            sb.append(formatComplaintJson(list.get(i)));
+            sb.append(formatComplaintJson(list.get(i), user));
             if (i < list.size() - 1) sb.append(",");
         }
         sb.append("]");

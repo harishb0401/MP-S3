@@ -24,6 +24,7 @@ import java.util.PriorityQueue;
 public class PriorityRankingTest {
 
     public static boolean runAllTests() {
+        Database.setPersistenceDisabled(true);
         System.out.println("===============================================================================");
         System.out.println("   TASK 1: COMPLAINT PRIORITY RANKING - AUTOMATED VERIFICATION SUITE");
         System.out.println("===============================================================================\n");
@@ -320,19 +321,25 @@ public class PriorityRankingTest {
 
         boolean critPreserved = "CRITICAL".equalsIgnoreCase(compCrit.getSeverity());
 
-        // Registration test via GrievanceManager with explicit severity
+        // Registration test via GrievanceManager: starts explicitly unassessed, not defaulted to LOW
+        Database.setPersistenceDisabled(true);
         Database db = new Database();
         GrievanceManager gm = new GrievanceManager(db);
         User citizen = new Citizen("C-SEV", "Citizen Sev", "sev@test.gov", "9876543210", "hash", "2026-09-01 10:00:00");
-        Complaint regComplaint = gm.createComplaint(citizen, "Road Damage", "Normal road crack", "Loc", 10, "HIGH");
+        Complaint regComplaint = gm.createComplaint(citizen, "Roads", "Normal road crack", "Central Market", 10);
 
-        boolean regPreserved = "HIGH".equalsIgnoreCase(regComplaint.getSeverity());
+        boolean unassessedStartsNull = regComplaint.getSeverity() == null && !regComplaint.isAssessed();
 
-        if (constructorPreserved && critPreserved && regPreserved) {
-            System.out.println("PASSED (Severity correctly initialized to supplied value, not defaulted to LOW)");
+        // Manager deliberate assessment sets severity to HIGH
+        User manager = new model.Manager("M001", "manager@makkal.gov.in", "manager@makkal.gov.in", "9876543211", "hash", "Triage Manager", "2026-09-01 00:00:00");
+        gm.assessComplaint(regComplaint.getComplaintId(), "HIGH", "Deliberate manager assessment", "Roads", "Officer", manager);
+        boolean assessedHighPreserved = "HIGH".equalsIgnoreCase(regComplaint.getSeverity()) && regComplaint.isAssessed();
+
+        if (constructorPreserved && critPreserved && unassessedStartsNull && assessedHighPreserved) {
+            System.out.println("PASSED (Severity correctly initialized to supplied value, unassessed complaints not defaulted to LOW, manager assessment verified)");
             return true;
         } else {
-            System.out.println("FAILED: Severity was silently overwritten or defaulted.");
+            System.out.println("FAILED: Severity was silently overwritten or defaulted to LOW.");
             return false;
         }
     }

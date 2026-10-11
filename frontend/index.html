@@ -16,46 +16,146 @@
 
     <!-- 1. AUTHENTICATION & LANDING PORTAL (LIGHT THEME) -->
     <div id="auth-view" class="auth-wrapper">
-        <div class="auth-card">
-            <div style="text-align: center; margin-bottom: 24px;">
+        <div class="auth-card" style="max-width: 580px;">
+            <div style="text-align: center; margin-bottom: 20px;">
                 <div class="brand-emblem" style="margin: 0 auto 12px auto; width: 56px; height: 56px; font-size: 28px;">
                     <i class="fa-solid fa-building-columns"></i>
                 </div>
                 <h2 style="font-size: 22px; font-weight: 700; color: var(--text-main);">Makkal Nagar Municipal Office</h2>
-                <p style="font-size: 13px; color: var(--text-muted); margin-top: 4px;">Government Grievance Management & Priority Resolution Portal</p>
+                <p style="font-size: 13px; color: var(--text-muted); margin-top: 4px;">Role-Based Grievance Management & Resolution System</p>
             </div>
 
-            <!-- Auth Mode Switcher Tabs -->
-            <div class="auth-tabs">
-                <button class="auth-tab-btn active" onclick="switchAuthTab('citizen-login')">Citizen Login</button>
-                <button class="auth-tab-btn" onclick="switchAuthTab('citizen-register')">Register Citizen</button>
-                <button class="auth-tab-btn" onclick="switchAuthTab('staff-login')">Municipal Staff</button>
+            <!-- Four Separate Login Portals + Sign Up Selector -->
+            <div class="portal-picker-grid auth-tabs">
+                <button class="auth-tab-btn active" id="tab-btn-citizen" onclick="switchAuthTab('citizen-login')">
+                    <i class="fa-solid fa-user"></i> Citizen
+                </button>
+                <button class="auth-tab-btn" id="tab-btn-worker" onclick="switchAuthTab('worker-login')">
+                    <i class="fa-solid fa-helmet-safety"></i> Worker
+                </button>
+                <button class="auth-tab-btn" id="tab-btn-manager" onclick="switchAuthTab('manager-login')">
+                    <i class="fa-solid fa-user-tie"></i> Manager
+                </button>
+                <button class="auth-tab-btn" id="tab-btn-admin" onclick="switchAuthTab('admin-login')">
+                    <i class="fa-solid fa-shield-halved"></i> Admin
+                </button>
+                <button class="auth-tab-btn" id="tab-btn-register" onclick="switchAuthTab('citizen-register')">
+                    <i class="fa-solid fa-user-plus"></i> Sign Up
+                </button>
             </div>
 
-            <!-- Citizen Login Form -->
+            <!-- 1. Citizen Login Form -->
             <form id="citizen-login-form" class="auth-form active" onsubmit="handleCitizenLogin(event)">
+                <div style="display:flex; justify-content:space-between; align-items:center;">
+                    <h3 style="font-size: 15px; color: var(--primary); margin: 0;"><i class="fa-solid fa-user"></i> Citizen Portal Login</h3>
+                    <span class="badge" style="background:#eff6ff; color:#1d4ed8;">Portal 1 of 4</span>
+                </div>
                 <div class="form-group">
-                    <label class="form-label">Email Address *</label>
-                    <input type="email" id="c-login-email" class="form-control" placeholder="citizen@example.com" required>
+                    <label class="form-label">Citizen Email or Username *</label>
+                    <input type="text" id="c-login-email" class="form-control" placeholder="citizen@example.com" value="ramesh@test.com" required>
                 </div>
                 <div class="form-group">
                     <label class="form-label">Password *</label>
-                    <input type="password" id="c-login-password" class="form-control" placeholder="••••••••" required>
+                    <input type="password" id="c-login-password" class="form-control" placeholder="••••••••" value="123456" required>
                 </div>
-                <button type="submit" class="btn btn-primary" style="width: 100%; justify-content: center; margin-top: 8px;">
-                    <i class="fa-solid fa-right-to-bracket"></i> Login as Citizen
+                <div class="portal-credential-hint">
+                    <i class="fa-solid fa-circle-info"></i> <strong>Seeded Citizen Account:</strong> <code>ramesh@test.com</code> | Password: <code>123456</code>
+                </div>
+                <button type="submit" class="btn btn-primary" style="width: 100%; justify-content: center; margin-top: 4px;">
+                    <i class="fa-solid fa-right-to-bracket"></i> Login to Citizen Dashboard
+                </button>
+                <div style="text-align: center; margin-top: 8px; font-size: 13px;">
+                    New citizen? <a href="javascript:void(0)" onclick="switchAuthTab('citizen-register')" style="color: var(--primary); font-weight: 600;">Sign Up here</a>
+                </div>
+            </form>
+
+            <!-- 2. Department Worker Login Form -->
+            <form id="worker-login-form" class="auth-form" onsubmit="handleWorkerLogin(event)">
+                <div style="display:flex; justify-content:space-between; align-items:center;">
+                    <h3 style="font-size: 15px; color: #1d4ed8; margin: 0;"><i class="fa-solid fa-helmet-safety"></i> Department Worker Portal</h3>
+                    <span class="badge" style="background:#eff6ff; color:#1d4ed8;">Portal 2 of 4</span>
+                </div>
+                <div class="form-group">
+                    <label class="form-label">Worker Email or Staff ID *</label>
+                    <input type="text" id="w-login-id" class="form-control" placeholder="e.g. water_staff@makkal.gov.in" value="water_staff@makkal.gov.in" required>
+                </div>
+                <div class="form-group">
+                    <label class="form-label">Password *</label>
+                    <input type="password" id="w-login-password" class="form-control" placeholder="••••••••" value="admin123" required>
+                </div>
+                <div class="portal-credential-hint">
+                    <i class="fa-solid fa-id-badge"></i> <strong>Quick Pick Department Worker:</strong><br>
+                    <div style="display: flex; gap: 4px; flex-wrap: wrap; margin-top: 6px;">
+                        <button type="button" class="btn btn-secondary btn-sm" style="font-size: 11px; padding: 2px 8px;" onclick="fillWorkerCreds('water_staff@makkal.gov.in')">💧 Water</button>
+                        <button type="button" class="btn btn-secondary btn-sm" style="font-size: 11px; padding: 2px 8px;" onclick="fillWorkerCreds('roads_staff@makkal.gov.in')">🛣️ Roads</button>
+                        <button type="button" class="btn btn-secondary btn-sm" style="font-size: 11px; padding: 2px 8px;" onclick="fillWorkerCreds('waste_staff@makkal.gov.in')">🗑️ Waste</button>
+                        <button type="button" class="btn btn-secondary btn-sm" style="font-size: 11px; padding: 2px 8px;" onclick="fillWorkerCreds('light_staff@makkal.gov.in')">💡 Streetlights</button>
+                    </div>
+                </div>
+                <button type="submit" class="btn btn-primary" style="width: 100%; justify-content: center; margin-top: 4px; background: #2563eb;">
+                    <i class="fa-solid fa-right-to-bracket"></i> Login to Worker Dashboard
                 </button>
             </form>
 
-            <!-- Citizen Registration Form -->
+            <!-- 3. Municipal Manager Login Form -->
+            <form id="manager-login-form" class="auth-form" onsubmit="handleManagerLogin(event)">
+                <div style="display:flex; justify-content:space-between; align-items:center;">
+                    <h3 style="font-size: 15px; color: #b45309; margin: 0;"><i class="fa-solid fa-user-tie"></i> Municipal Manager Portal</h3>
+                    <span class="badge" style="background:#fef3c7; color:#92400e;">Portal 3 of 4</span>
+                </div>
+                <div class="form-group">
+                    <label class="form-label">Manager Officer Email or ID *</label>
+                    <input type="text" id="m-login-id" class="form-control" placeholder="manager@makkal.gov.in" value="manager@makkal.gov.in" required>
+                </div>
+                <div class="form-group">
+                    <label class="form-label">Password *</label>
+                    <input type="password" id="m-login-password" class="form-control" placeholder="••••••••" value="admin123" required>
+                </div>
+                <div class="portal-credential-hint">
+                    <i class="fa-solid fa-circle-check"></i> <strong>Seeded Manager Account:</strong> <code>manager@makkal.gov.in</code> (ID: <code>MGR1001</code>) | Password: <code>admin123</code><br>
+                    <span style="font-size: 11px;">Permitted: Complaint Triage, Department Routing, Capacity Waiting Queues & Duplicate Management</span>
+                </div>
+                <button type="submit" class="btn btn-primary" style="width: 100%; justify-content: center; margin-top: 4px; background: #d97706;">
+                    <i class="fa-solid fa-right-to-bracket"></i> Login to Manager Dashboard
+                </button>
+            </form>
+
+            <!-- 4. Administrator Login Form -->
+            <form id="admin-login-form" class="auth-form" onsubmit="handleAdminLogin(event)">
+                <div style="display:flex; justify-content:space-between; align-items:center;">
+                    <h3 style="font-size: 15px; color: #dc2626; margin: 0;"><i class="fa-solid fa-shield-halved"></i> Municipal Administrator Portal</h3>
+                    <span class="badge" style="background:#fee2e2; color:#b91c1c;">Portal 4 of 4</span>
+                </div>
+                <div class="form-group">
+                    <label class="form-label">Administrator Email or Staff ID *</label>
+                    <input type="text" id="a-login-id" class="form-control" placeholder="admin@makkal.gov.in" value="admin@makkal.gov.in" required>
+                </div>
+                <div class="form-group">
+                    <label class="form-label">Password *</label>
+                    <input type="password" id="a-login-password" class="form-control" placeholder="••••••••" value="admin123" required>
+                </div>
+                <div class="portal-credential-hint">
+                    <i class="fa-solid fa-shield"></i> <strong>Seeded Administrator Account:</strong> <code>admin@makkal.gov.in</code> (ID: <code>STF1001</code>) | Password: <code>admin123</code><br>
+                    <span style="font-size: 11px;">Permitted: Worker Administration (Add/Edit/Deactivate/Reset), Capacity Tuning, Global Oversight</span>
+                </div>
+                <button type="submit" class="btn btn-primary" style="width: 100%; justify-content: center; margin-top: 4px; background: #dc2626;">
+                    <i class="fa-solid fa-shield-halved"></i> Login to Administrator Dashboard
+                </button>
+            </form>
+
+            <!-- 5. Citizen Registration Form -->
             <form id="citizen-register-form" class="auth-form" onsubmit="handleCitizenRegister(event)">
+                <div style="display:flex; justify-content:space-between; align-items:center;">
+                    <h3 style="font-size: 15px; color: var(--primary); margin: 0;"><i class="fa-solid fa-user-plus"></i> Citizen Account Registration</h3>
+                    <span class="badge" style="background:#ecfdf5; color:#059669;">New Registration</span>
+                </div>
                 <div class="form-group">
                     <label class="form-label">Full Name *</label>
-                    <input type="text" id="c-reg-name" class="form-control" placeholder="e.g. Ramesh Kumar" required>
+                    <input type="text" id="c-reg-name" class="form-control" placeholder="e.g. Anandha Kumar" required>
                 </div>
                 <div class="form-group">
                     <label class="form-label">Email Address *</label>
-                    <input type="email" id="c-reg-email" class="form-control" placeholder="ramesh@example.com" required>
+                    <input type="email" id="c-reg-email" class="form-control" placeholder="anand@example.com" required>
                 </div>
                 <div class="form-group">
                     <label class="form-label">Mobile Number *</label>
@@ -69,28 +169,12 @@
                     <label class="form-label">Confirm Password *</label>
                     <input type="password" id="c-reg-confirm" class="form-control" placeholder="Re-enter password" required>
                 </div>
-                <button type="submit" class="btn btn-primary" style="width: 100%; justify-content: center; margin-top: 8px;">
-                    <i class="fa-solid fa-user-plus"></i> Create Citizen Account
+                <button type="submit" class="btn btn-primary" style="width: 100%; justify-content: center; margin-top: 4px;">
+                    <i class="fa-solid fa-user-plus"></i> Complete Citizen Registration
                 </button>
-            </form>
-
-            <!-- Staff Login Form -->
-            <form id="staff-login-form" class="auth-form" onsubmit="handleStaffLogin(event)">
-                <div class="form-group">
-                    <label class="form-label">Staff ID or Officer Email *</label>
-                    <input type="text" id="s-login-id" class="form-control" placeholder="STF1001 or admin@makkal.gov.in" value="STF1001" required>
+                <div style="text-align: center; margin-top: 8px; font-size: 13px;">
+                    Already registered? <a href="javascript:void(0)" onclick="switchAuthTab('citizen-login')" style="color: var(--primary); font-weight: 600;">Sign in to Citizen Portal</a>
                 </div>
-                <div class="form-group">
-                    <label class="form-label">Password *</label>
-                    <input type="password" id="s-login-password" class="form-control" placeholder="••••••••" value="admin123" required>
-                </div>
-                <div style="background: var(--status-pending-bg); border: 1px solid #fde68a; padding: 10px; border-radius: var(--radius-sm); font-size: 12px; color: var(--accent-gold);">
-                    <i class="fa-solid fa-key"></i> <strong>Initial Seeded Credentials:</strong><br>
-                    ID/Email: <code>STF1001</code> / <code>admin@makkal.gov.in</code> | Password: <code>admin123</code>
-                </div>
-                <button type="submit" class="btn btn-primary" style="width: 100%; justify-content: center; margin-top: 8px; background: #1d4ed8;">
-                    <i class="fa-solid fa-shield-halved"></i> Staff / Admin Portal Login
-                </button>
             </form>
         </div>
     </div>
@@ -312,27 +396,64 @@
                                 <h3 style="font-size: 16px; margin-bottom: 16px; color: var(--primary);">Step 2: Complaint Specifics</h3>
                                 <div class="form-grid">
                                     <div class="form-group full-width">
+                                        <label class="form-label">Complaint Title *</label>
+                                        <input type="text" id="w-title" class="form-control" placeholder="Brief summary, e.g. Drinking water pipeline leak" required>
+                                    </div>
+
+                                    <div class="form-group">
                                         <label class="form-label">Complaint Category *</label>
-                                        <select id="w-category" class="form-control" required onchange="updatePriorityHint()">
+                                        <select id="w-category" class="form-control" required>
                                             <option value="">Select Category...</option>
-                                            <option value="Streetlight">Streetlight</option>
-                                            <option value="Waste Management">Waste Management</option>
-                                            <option value="Road Damage">Road Damage</option>
                                             <option value="Water Supply">Water Supply</option>
-                                            <option value="Drainage">Drainage</option>
-                                            <option value="Public Sanitation">Public Sanitation</option>
-                                            <option value="Other">Other</option>
+                                            <option value="Roads">Roads</option>
+                                            <option value="Waste Management">Waste Management</option>
+                                            <option value="Streetlights">Streetlights</option>
                                         </select>
                                     </div>
 
-                                    <div class="form-group full-width">
-                                        <label class="form-label">Location / Landmark *</label>
-                                        <input type="text" id="w-location" class="form-control" placeholder="e.g. 5th Main Road, Opposite Govt School" required>
+                                    <div class="form-group">
+                                        <label class="form-label">Municipal Area (Makkal Nagar Zones) *</label>
+                                        <select id="w-location" class="form-control" required>
+                                            <option value="">Select Canonical Location...</option>
+                                            <option value="Central Market">Central Market</option>
+                                            <option value="North Street">North Street</option>
+                                            <option value="South Colony">South Colony</option>
+                                            <option value="Lake Road">Lake Road</option>
+                                            <option value="Government Hospital Area">Government Hospital Area</option>
+                                        </select>
+                                    </div>
+
+                                    <div class="form-group">
+                                        <label class="form-label">Number of Affected People *</label>
+                                        <input type="number" id="w-affected" class="form-control" min="1" value="15" placeholder="e.g. 50" required>
+                                    </div>
+
+                                    <!-- Exact GPS Coordinates Component -->
+                                    <div class="form-group full-width" style="background: var(--bg-surface-secondary); padding: 16px; border-radius: var(--radius-md); border: 1px solid var(--border-color); margin-top: 4px;">
+                                        <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 10px;">
+                                            <div>
+                                                <label class="form-label" style="margin-bottom: 2px;">
+                                                    <i class="fa-solid fa-location-crosshairs" style="color: var(--primary);"></i> Exact GPS Coordinates (Optional)
+                                                </label>
+                                                <p style="font-size: 12px; color: var(--text-muted); margin: 0;">
+                                                    Click to capture your device's live coordinates for field verification. If unavailable or denied, your selected municipal area will be used.
+                                                </p>
+                                            </div>
+                                            <button type="button" class="btn btn-secondary btn-sm" id="btn-capture-gps" onclick="captureCitizenGpsLocation()">
+                                                <i class="fa-solid fa-location-arrow"></i> Use My Current GPS Location
+                                            </button>
+                                        </div>
+                                        <input type="hidden" id="w-latitude" value="">
+                                        <input type="hidden" id="w-longitude" value="">
+                                        <input type="hidden" id="w-accuracy" value="">
+                                        <div id="gps-feedback-box" style="display: none; padding: 10px 14px; border-radius: var(--radius-sm); font-size: 13px; margin-top: 10px;">
+                                            <!-- Dynamically populated -->
+                                        </div>
                                     </div>
 
                                     <div class="form-group full-width">
                                         <label class="form-label">Detailed Problem Description *</label>
-                                        <textarea id="w-description" class="form-control" placeholder="Describe the hazard, pipe burst, garbage overflow, or defect..." required></textarea>
+                                        <textarea id="w-description" class="form-control" placeholder="Describe the factual problem, water contamination, crater on road, or waste overflow..." required></textarea>
                                     </div>
                                 </div>
                                 <div style="margin-top: 24px; display: flex; justify-content: space-between;">
@@ -356,12 +477,12 @@
                                     </div>
                                 </div>
 
-                                <div style="background: var(--primary-light); border: 1px solid var(--primary-border); padding: 16px; border-radius: var(--radius-sm); margin-top: 16px;">
-                                    <h4 style="font-size: 14px; color: var(--primary); margin-bottom: 4px;">
-                                        <i class="fa-solid fa-wand-magic-sparkles"></i> Automated Backend Priority Evaluation
+                                <div style="background: var(--bg-surface-secondary); border: 1px solid var(--border-color); padding: 14px; border-radius: var(--radius-sm); margin-top: 16px;">
+                                    <h4 style="font-size: 13px; color: var(--text-main); margin-bottom: 4px;">
+                                        <i class="fa-solid fa-shield-halved" style="color: var(--primary);"></i> Municipal Triage Process
                                     </h4>
-                                    <p style="font-size: 13px; color: var(--text-main);" id="priority-hint-text">
-                                        Category selected will determine starting queue priority (Emergency keywords rise automatically).
+                                    <p style="font-size: 12px; color: var(--text-muted); margin: 0;">
+                                        All submitted complaints are registered as unassessed and reviewed by authorized municipal managers who conduct an objective risk assessment before routing to field teams.
                                     </p>
                                 </div>
 
@@ -380,9 +501,11 @@
                                 <h3 style="font-size: 16px; margin-bottom: 16px; color: var(--primary);">Step 4: Review Complaint Summary</h3>
                                 <div style="background: var(--bg-surface-secondary); border: 1px solid var(--border-color); padding: 20px; border-radius: var(--radius-md); font-size: 14px; display: flex; flex-direction: column; gap: 12px;">
                                     <div><strong>Category:</strong> <span id="rev-category">-</span></div>
-                                    <div><strong>Location:</strong> <span id="rev-location">-</span></div>
+                                    <div><strong>Municipal Area:</strong> <span id="rev-location">-</span></div>
+                                    <div><strong>GPS Coordinates:</strong> <span id="rev-gps">None</span></div>
+                                    <div><strong>Impact (Affected):</strong> <span id="rev-affected">-</span></div>
                                     <div><strong>Description:</strong> <span id="rev-description">-</span></div>
-                                    <div><strong>Attachment:</strong> <span id="rev-attachment">None</span></div>
+                                    <div><strong>Attachment:</strong> <span id="rev-attachment">None Attached</span></div>
                                 </div>
 
                                 <div style="margin-top: 24px; display: flex; justify-content: space-between;">
@@ -398,9 +521,293 @@
                     </div>
                 </section>
 
+                <!-- ------------------- DEPARTMENT WORKER PORTAL VIEW ------------------- -->
+                <section id="worker-dashboard" class="page-view">
+                    <div class="page-header">
+                        <div>
+                            <h2>Field Worker Operational Console 👷</h2>
+                            <p>Assigned Municipal Department: <span class="locked-badge" id="worker-dept-badge"><i class="fa-solid fa-lock"></i> Water Supply</span> | Worker: <strong id="worker-name-display">-</strong></p>
+                        </div>
+                        <div>
+                            <button class="btn btn-secondary" onclick="loadWorkerDashboard()"><i class="fa-solid fa-arrows-rotate"></i> Refresh Workload</button>
+                        </div>
+                    </div>
 
-                <!-- ------------------- MUNICIPAL STAFF / ADMIN VIEWS ------------------- -->
+                    <!-- Worker Department Workload Stats -->
+                    <div class="stats-grid">
+                        <div class="stat-card">
+                            <div class="stat-icon total"><i class="fa-solid fa-clipboard-list"></i></div>
+                            <div class="stat-info">
+                                <div class="stat-value" id="w-stat-assigned">0</div>
+                                <div class="stat-label">Department Active Tasks</div>
+                            </div>
+                        </div>
+                        <div class="stat-card">
+                            <div class="stat-icon progress"><i class="fa-solid fa-screwdriver-wrench"></i></div>
+                            <div class="stat-info">
+                                <div class="stat-value" id="w-stat-progress">0</div>
+                                <div class="stat-label">In Progress</div>
+                            </div>
+                        </div>
+                        <div class="stat-card">
+                            <div class="stat-icon resolved"><i class="fa-solid fa-circle-check"></i></div>
+                            <div class="stat-info">
+                                <div class="stat-value" id="w-stat-resolved">0</div>
+                                <div class="stat-label">Resolved by Department</div>
+                            </div>
+                        </div>
+                        <div class="stat-card">
+                            <div class="stat-icon pending"><i class="fa-solid fa-gauge-high"></i></div>
+                            <div class="stat-info">
+                                <div class="stat-value" id="w-stat-capacity">- / -</div>
+                                <div class="stat-label">Department Capacity Load</div>
+                            </div>
+                        </div>
+                    </div>
 
+                    <!-- Department Complaints Table -->
+                    <div class="content-card">
+                        <div class="card-title-bar">
+                            <h3><i class="fa-solid fa-list-check"></i> Authorized Department Grievances Register</h3>
+                            <span style="font-size:12px; color:var(--text-muted);"><i class="fa-solid fa-shield-halved"></i> Role Restriction: Filtered strictly to your authorized department</span>
+                        </div>
+                        <div class="table-responsive">
+                            <table class="custom-table">
+                                <thead>
+                                    <tr>
+                                        <th>Complaint ID</th>
+                                        <th>Category & Location</th>
+                                        <th>Severity / Impact</th>
+                                        <th>Citizen Contact</th>
+                                        <th>Status</th>
+                                        <th>Submission Date</th>
+                                        <th>Operational Action</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="worker-complaints-tbody">
+                                    <!-- Populated dynamically -->
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </section>
+
+                <!-- ------------------- MANAGER PORTAL VIEW ------------------- -->
+                <section id="manager-dashboard" class="page-view">
+                    <div class="page-header">
+                        <div>
+                            <h2>Municipal Grievance Triage & Routing Console 📋</h2>
+                            <p>Review new citizen submissions, route to departments, manage waiting queues & confirm duplicates</p>
+                        </div>
+                        <div>
+                            <button class="btn btn-secondary" onclick="loadManagerDashboard()"><i class="fa-solid fa-arrows-rotate"></i> Refresh Triage</button>
+                        </div>
+                    </div>
+
+                    <!-- Manager Summary Stats -->
+                    <div class="stats-grid">
+                        <div class="stat-card">
+                            <div class="stat-icon total"><i class="fa-solid fa-inbox"></i></div>
+                            <div class="stat-info">
+                                <div class="stat-value" id="mgr-stat-total">0</div>
+                                <div class="stat-label">Total Submissions</div>
+                            </div>
+                        </div>
+                        <div class="stat-card">
+                            <div class="stat-icon pending"><i class="fa-solid fa-clock-rotate-left"></i></div>
+                            <div class="stat-info">
+                                <div class="stat-value" id="mgr-stat-review">0</div>
+                                <div class="stat-label">Awaiting Triage Review</div>
+                            </div>
+                        </div>
+                        <div class="stat-card">
+                            <div class="stat-icon progress"><i class="fa-solid fa-user-gear"></i></div>
+                            <div class="stat-info">
+                                <div class="stat-value" id="mgr-stat-active">0</div>
+                                <div class="stat-label">Active (Assigned/Progress)</div>
+                            </div>
+                        </div>
+                        <div class="stat-card">
+                            <div class="stat-icon critical"><i class="fa-solid fa-hourglass-half"></i></div>
+                            <div class="stat-info">
+                                <div class="stat-value" id="mgr-stat-waiting">0</div>
+                                <div class="stat-label">Capacity Waiting Queue</div>
+                            </div>
+                        </div>
+                        <div class="stat-card">
+                            <div class="stat-icon resolved"><i class="fa-solid fa-circle-check"></i></div>
+                            <div class="stat-info">
+                                <div class="stat-value" id="mgr-stat-resolved">0</div>
+                                <div class="stat-label">Resolved Grievances</div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Sub-Tabs for Manager Workflow -->
+                    <div class="subtab-nav">
+                        <button class="subtab-btn active" id="btn-mgr-triage" onclick="switchManagerSubtab('triage')"><i class="fa-solid fa-clipboard-check"></i> Complaints Awaiting Triage</button>
+                        <button class="subtab-btn" id="btn-mgr-duplicates" onclick="switchManagerSubtab('duplicates')"><i class="fa-solid fa-clone"></i> Duplicate Candidates Review</button>
+                        <button class="subtab-btn" id="btn-mgr-capacity" onclick="switchManagerSubtab('capacity')"><i class="fa-solid fa-diagram-project"></i> Department Queues & Capacity</button>
+                        <button class="subtab-btn" id="btn-mgr-report" onclick="switchManagerSubtab('report')"><i class="fa-solid fa-file-lines"></i> Manager Workload Report</button>
+                    </div>
+
+                    <!-- Subtab 1: Triage & Routing -->
+                    <div class="subtab-content active" id="mgr-tab-triage">
+                        <div class="content-card">
+                            <div class="card-title-bar">
+                                <h3><i class="fa-solid fa-inbox"></i> Newly Registered Grievances (Awaiting Department Assignment)</h3>
+                            </div>
+                            <div class="table-responsive">
+                                <table class="custom-table">
+                                    <thead>
+                                        <tr>
+                                            <th>Complaint ID</th>
+                                            <th>Citizen</th>
+                                            <th>Category</th>
+                                            <th>Location</th>
+                                            <th>Severity & Impact</th>
+                                            <th>Arrival Order</th>
+                                            <th>Duplicate Flag?</th>
+                                            <th>Manager Action</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody id="mgr-triage-tbody">
+                                        <!-- Populated dynamically -->
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Subtab 2: Duplicate Candidates Review -->
+                    <div class="subtab-content" id="mgr-tab-duplicates">
+                        <div class="content-card">
+                            <div class="card-title-bar">
+                                <h3><i class="fa-solid fa-clone"></i> Duplicate Candidate Audit & Resolution</h3>
+                                <span style="font-size:12px; color:var(--text-muted);">Matches based on Category, Normalized Location & Open Status</span>
+                            </div>
+                            <div id="mgr-duplicates-container">
+                                <!-- Populated dynamically -->
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Subtab 3: Department Queues & Capacity -->
+                    <div class="subtab-content" id="mgr-tab-capacity">
+                        <div class="stats-grid" id="mgr-capacity-cards-grid">
+                            <!-- 4 Department capacity cards populated dynamically -->
+                        </div>
+                    </div>
+
+                    <!-- Subtab 4: Manager Report -->
+                    <div class="subtab-content" id="mgr-tab-report">
+                        <div class="content-card" id="mgr-report-summary-box">
+                            <!-- Manager report populated dynamically -->
+                        </div>
+                    </div>
+                </section>
+
+                <!-- ------------------- ADMINISTRATOR PORTAL VIEW ------------------- -->
+                <section id="admin-dashboard" class="page-view">
+                    <div class="page-header">
+                        <div>
+                            <h2>Municipal Governance & Administration Portal 🛡️</h2>
+                            <p>System-wide oversight, department worker lifecycle, capacity provisioning & master audits</p>
+                        </div>
+                        <div>
+                            <button class="btn btn-primary" onclick="openAddWorkerModal()"><i class="fa-solid fa-user-plus"></i> Add New Department Worker</button>
+                        </div>
+                    </div>
+
+                    <!-- Admin Global Overview Stats -->
+                    <div class="stats-grid">
+                        <div class="stat-card">
+                            <div class="stat-icon total"><i class="fa-solid fa-city"></i></div>
+                            <div class="stat-info">
+                                <div class="stat-value" id="adm-stat-complaints">0</div>
+                                <div class="stat-label">Total Municipal Complaints</div>
+                            </div>
+                        </div>
+                        <div class="stat-card">
+                            <div class="stat-icon progress"><i class="fa-solid fa-people-carry-box"></i></div>
+                            <div class="stat-info">
+                                <div class="stat-value" id="adm-stat-workers">0</div>
+                                <div class="stat-label">Active Field Workers</div>
+                            </div>
+                        </div>
+                        <div class="stat-card">
+                            <div class="stat-icon pending"><i class="fa-solid fa-sliders"></i></div>
+                            <div class="stat-info">
+                                <div class="stat-value" id="adm-stat-capacity">4 Core</div>
+                                <div class="stat-label">Operational Departments</div>
+                            </div>
+                        </div>
+                        <div class="stat-card">
+                            <div class="stat-icon resolved"><i class="fa-solid fa-circle-check"></i></div>
+                            <div class="stat-info">
+                                <div class="stat-value" id="adm-stat-resolved">0</div>
+                                <div class="stat-label">Resolved Civic Cases</div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Sub-Tabs for Admin Workflow -->
+                    <div class="subtab-nav">
+                        <button class="subtab-btn active" id="btn-adm-workers" onclick="switchAdminSubtab('workers')"><i class="fa-solid fa-users-gear"></i> Manage Department Workers</button>
+                        <button class="subtab-btn" id="btn-adm-capacity" onclick="switchAdminSubtab('capacity')"><i class="fa-solid fa-sliders"></i> Department Capacity Settings</button>
+                        <button class="subtab-btn" id="btn-adm-audit" onclick="switchAdminSubtab('audit')"><i class="fa-solid fa-file-shield"></i> System Activity & Audit Report</button>
+                    </div>
+
+                    <!-- Admin Subtab 1: Worker Management -->
+                    <div class="subtab-content active" id="adm-tab-workers">
+                        <div class="content-card">
+                            <div class="card-title-bar">
+                                <h3><i class="fa-solid fa-users"></i> Department Field Workers Directory</h3>
+                                <button class="btn btn-primary btn-sm" onclick="openAddWorkerModal()"><i class="fa-solid fa-user-plus"></i> Add Worker</button>
+                            </div>
+                            <div class="table-responsive">
+                                <table class="custom-table">
+                                    <thead>
+                                        <tr>
+                                            <th>Worker ID</th>
+                                            <th>Officer Name</th>
+                                            <th>Email / Username</th>
+                                            <th>Mobile</th>
+                                            <th>Assigned Department</th>
+                                            <th>Status</th>
+                                            <th>Admin Actions</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody id="adm-workers-tbody">
+                                        <!-- Populated dynamically -->
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Admin Subtab 2: Department Capacity Settings -->
+                    <div class="subtab-content" id="adm-tab-capacity">
+                        <div class="content-card">
+                            <div class="card-title-bar">
+                                <h3><i class="fa-solid fa-sliders"></i> Configure Department Capacity Limits</h3>
+                                <span style="font-size:12px; color:var(--text-muted);">When capacity is reached, new complaints are safely held in priority-ranked waiting queues</span>
+                            </div>
+                            <div class="stats-grid" id="adm-capacity-cards-grid" style="margin-top: 16px;">
+                                <!-- 4 Department capacity editors populated dynamically -->
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Admin Subtab 3: Audit & Reports -->
+                    <div class="subtab-content" id="adm-tab-audit">
+                        <div class="content-card" id="adm-audit-summary-box">
+                            <!-- Admin report and audit stats populated dynamically -->
+                        </div>
+                    </div>
+                </section>
+
+                <!-- ------------------- MASTER GRIEVANCES REGISTER (ADMIN / MANAGER) ------------------- -->
                 <!-- Staff Dashboard View -->
                 <section id="staff-dashboard" class="page-view">
                     <div class="page-header">
@@ -778,6 +1185,198 @@
                     <!-- Populated dynamically -->
                 </div>
             </div>
+        </div>
+    </div>
+
+    <!-- 5. RISK ASSESSMENT & DEPARTMENT ASSIGNMENT MODAL (MANAGER / ADMIN) -->
+    <div class="modal-overlay" id="assign-modal">
+        <div class="modal-card" style="max-width: 580px;">
+            <div class="modal-header">
+                <h3><i class="fa-solid fa-stamp" style="color: var(--primary);"></i> Risk Assessment & Routing: <span id="assign-modal-comp-id" style="color: var(--primary);">-</span></h3>
+                <button class="close-btn" onclick="closeAssignModal()"><i class="fa-solid fa-xmark"></i></button>
+            </div>
+            
+            <!-- Complaint Summary Card -->
+            <div style="background: var(--bg-surface-secondary); padding: 12px 16px; border-radius: var(--radius-sm); border: 1px solid var(--border-color); margin-bottom: 16px; font-size: 13px;">
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px;">
+                    <div>Category: <strong id="assign-modal-cat" style="color: var(--text-main);">-</strong></div>
+                    <div style="font-size: 12px; color: var(--text-muted);">Suggested Dept: <strong id="assign-modal-suggested" style="color: var(--accent-gold);">-</strong></div>
+                </div>
+                <div id="assign-modal-details-summary" style="display: flex; flex-direction: column; gap: 4px; font-size: 12px; color: var(--text-main);">
+                    <!-- Dynamically populated: location, GPS, affected people, registered time, assessment status -->
+                </div>
+                <div style="background: var(--bg-surface); padding: 8px 12px; border-radius: 4px; border: 1px solid var(--border-color); margin-top: 8px; font-size: 12px;" id="assign-modal-capacity-info">
+                    Capacity status loading...
+                </div>
+            </div>
+
+            <form onsubmit="handleConfirmAssign(event)">
+                <!-- Deliberate Risk Assessment Dropdown -->
+                <div class="form-group">
+                    <label class="form-label">
+                        <i class="fa-solid fa-triangle-exclamation" style="color: var(--primary);"></i> Deliberate Risk Assessment (Severity Level) *
+                    </label>
+                    <select id="assign-modal-severity-select" class="form-control" required>
+                        <option value="" disabled selected>-- Select Deliberate Severity Level --</option>
+                        <option value="CRITICAL">🔴 Critical (Immediate Hazard / Life-Safety Risk)</option>
+                        <option value="HIGH">🟠 High (Urgent Municipal Attention Required)</option>
+                        <option value="MEDIUM">🟡 Medium (Standard Operational Priority)</option>
+                        <option value="LOW">🟢 Low (Routine / Non-urgent Maintenance)</option>
+                    </select>
+                    <small style="color: var(--text-muted); font-size: 11px;">Must be deliberately assessed by Manager. No automatic default.</small>
+                </div>
+
+                <div class="form-group">
+                    <label class="form-label">Target Municipal Department *</label>
+                    <select id="assign-modal-dept-select" class="form-control" required onchange="updateAssignCapacityFeedback()">
+                        <option value="Water Supply">Water Supply Department</option>
+                        <option value="Roads">Roads Department</option>
+                        <option value="Waste Management">Waste Management Department</option>
+                        <option value="Streetlights">Streetlights Department</option>
+                    </select>
+                </div>
+
+                <div class="form-group">
+                    <label class="form-label">Assign Field Worker Officer (Optional)</label>
+                    <input type="text" id="assign-modal-staff-input" class="form-control" placeholder="e.g. Suresh Kumar">
+                </div>
+
+                <div class="form-group">
+                    <label class="form-label">Assessment Reason / Decision Justification *</label>
+                    <input type="text" id="assign-modal-reason-input" class="form-control" placeholder="Provide factual reason for the assessed severity and routing decision" required>
+                </div>
+
+                <div style="display: flex; justify-content: flex-end; gap: 8px; margin-top: 18px;">
+                    <button type="button" class="btn btn-secondary" onclick="closeAssignModal()">Cancel</button>
+                    <button type="submit" class="btn btn-primary" id="assign-modal-submit-btn">
+                        <i class="fa-solid fa-stamp"></i> Assess & Assign
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- 6. WORKER RESOLVE CASE MODAL -->
+    <div class="modal-overlay" id="resolve-modal">
+        <div class="modal-card" style="max-width: 500px;">
+            <div class="modal-header">
+                <h3><i class="fa-solid fa-circle-check" style="color:#059669;"></i> Complete Complaint: <span id="resolve-modal-comp-id">-</span></h3>
+                <button class="close-btn" onclick="closeResolveModal()"><i class="fa-solid fa-xmark"></i></button>
+            </div>
+            <form onsubmit="handleConfirmResolve(event)">
+                <div class="form-group">
+                    <label class="form-label">Detailed Resolution Notes & Actions Taken *</label>
+                    <textarea id="resolve-modal-notes" class="form-control" style="min-height: 100px;" placeholder="Document the completed repair, replaced parts, testing conducted, or inspection results..." required></textarea>
+                </div>
+                <div style="background: var(--status-resolved-bg); border: 1px solid var(--priority-low-border); padding: 10px 14px; border-radius: var(--radius-sm); font-size: 12px; color: var(--status-resolved); margin-bottom: 16px;">
+                    <i class="fa-solid fa-shield"></i> Moving status to <strong>Resolved</strong> releases 1 slot of active department capacity.
+                </div>
+                <div style="display: flex; justify-content: flex-end; gap: 8px;">
+                    <button type="button" class="btn btn-secondary" onclick="closeResolveModal()">Cancel</button>
+                    <button type="submit" class="btn btn-primary" style="background: #059669;"><i class="fa-solid fa-check"></i> Mark Case Resolved</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- 7. ADMIN WORKER CREATION / EDIT MODAL -->
+    <div class="modal-overlay" id="worker-modal">
+        <div class="modal-card" style="max-width: 540px;">
+            <div class="modal-header">
+                <h3 id="worker-modal-title"><i class="fa-solid fa-user-plus"></i> Add New Department Worker</h3>
+                <button class="close-btn" onclick="closeWorkerModal()"><i class="fa-solid fa-xmark"></i></button>
+            </div>
+            <form onsubmit="handleSaveWorker(event)">
+                <input type="hidden" id="worker-form-id" value="">
+                <div class="form-grid">
+                    <div class="form-group full-width">
+                        <label class="form-label">Officer Full Name *</label>
+                        <input type="text" id="w-form-name" class="form-control" placeholder="e.g. Balan Natarajan" required>
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">Email / Username *</label>
+                        <input type="text" id="w-form-email" class="form-control" placeholder="balan@makkal.gov.in" required>
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">Mobile Number *</label>
+                        <input type="tel" id="w-form-mobile" class="form-control" placeholder="9876543210" required>
+                    </div>
+                    <div class="form-group full-width">
+                        <label class="form-label">Assigned Core Department *</label>
+                        <select id="w-form-dept" class="form-control" required>
+                            <option value="Water Supply">Water Supply Department</option>
+                            <option value="Roads">Roads Department</option>
+                            <option value="Waste Management">Waste Management Department</option>
+                            <option value="Streetlights">Streetlights Department</option>
+                        </select>
+                    </div>
+                    <div class="form-group full-width" id="w-form-pwd-group">
+                        <label class="form-label">Initial Password *</label>
+                        <input type="password" id="w-form-pwd" class="form-control" placeholder="••••••••">
+                    </div>
+                    <div class="form-group full-width" id="w-form-active-group" style="display: none;">
+                        <label style="display: flex; align-items: center; gap: 8px; font-size: 13px; font-weight: 600; cursor: pointer;">
+                            <input type="checkbox" id="w-form-active" checked> Active in Service
+                        </label>
+                    </div>
+                </div>
+                <div style="background: var(--bg-surface-secondary); border: 1px solid var(--border-color); padding: 10px 14px; border-radius: var(--radius-sm); font-size: 12px; color: var(--text-muted); margin: 16px 0;">
+                    <i class="fa-solid fa-triangle-exclamation" style="color:var(--accent-gold);"></i> <strong>Handover Assurance:</strong> Transferring departments or deactivating a worker automatically initiates a validated handover for active assignments so no complaints are orphaned.
+                </div>
+                <div style="display: flex; justify-content: flex-end; gap: 8px;">
+                    <button type="button" class="btn btn-secondary" onclick="closeWorkerModal()">Cancel</button>
+                    <button type="submit" class="btn btn-primary" id="w-form-submit-btn"><i class="fa-solid fa-save"></i> Save Worker Account</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- 8. ADMIN RESET WORKER PASSWORD MODAL -->
+    <div class="modal-overlay" id="reset-pwd-modal">
+        <div class="modal-card" style="max-width: 440px;">
+            <div class="modal-header">
+                <h3><i class="fa-solid fa-key"></i> Reset Worker Password</h3>
+                <button class="close-btn" onclick="closeResetPwdModal()"><i class="fa-solid fa-xmark"></i></button>
+            </div>
+            <form onsubmit="handleConfirmResetPwd(event)">
+                <input type="hidden" id="reset-pwd-worker-id" value="">
+                <p style="font-size: 13px; margin-bottom: 12px;">Resetting credentials for: <strong id="reset-pwd-worker-name">-</strong></p>
+                <div class="form-group">
+                    <label class="form-label">New Password *</label>
+                    <input type="password" id="reset-pwd-new" class="form-control" placeholder="Min 6 characters" required>
+                </div>
+                <div style="display: flex; justify-content: flex-end; gap: 8px; margin-top: 16px;">
+                    <button type="button" class="btn btn-secondary" onclick="closeResetPwdModal()">Cancel</button>
+                    <button type="submit" class="btn btn-primary"><i class="fa-solid fa-check"></i> Set New Password</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- 9. DELETE CONFIRMED DUPLICATE MODAL -->
+    <div class="modal-overlay" id="delete-dup-modal">
+        <div class="modal-card" style="max-width: 480px;">
+            <div class="modal-header">
+                <h3 style="color:#dc2626;"><i class="fa-solid fa-trash-can"></i> Confirm Duplicate Deletion</h3>
+                <button class="close-btn" onclick="closeDeleteDupModal()"><i class="fa-solid fa-xmark"></i></button>
+            </div>
+            <form onsubmit="handleConfirmDeleteDuplicate(event)">
+                <input type="hidden" id="delete-dup-comp-id" value="">
+                <p style="font-size: 13px; margin-bottom: 12px; color:var(--text-main);">
+                    Are you sure you want to permanently delete confirmed redundant duplicate complaint <strong id="delete-dup-display-id">-</strong>?
+                </p>
+                <div class="form-group">
+                    <label class="form-label">Mandatory Deletion Confirmation Reason *</label>
+                    <textarea id="delete-dup-reason" class="form-control" placeholder="Provide audit justification, e.g. Confirmed exact duplicate of GRV-2026-0001, redundant case resolved." required></textarea>
+                </div>
+                <div style="background: #fef2f2; border: 1px solid #fecaca; padding: 10px 14px; border-radius: var(--radius-sm); font-size: 12px; color: #dc2626; margin-bottom: 16px;">
+                    <i class="fa-solid fa-circle-exclamation"></i> Only confirmed duplicate records linked to a canonical complaint can be deleted. An immutable deletion audit tombstone is retained.
+                </div>
+                <div style="display: flex; justify-content: flex-end; gap: 8px;">
+                    <button type="button" class="btn btn-secondary" onclick="closeDeleteDupModal()">Cancel</button>
+                    <button type="submit" class="btn btn-primary" style="background:#dc2626;"><i class="fa-solid fa-trash-can"></i> Confirm Deletion</button>
+                </div>
+            </form>
         </div>
     </div>
 

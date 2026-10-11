@@ -143,3 +143,67 @@ java -cp backend/bin test.SystemTest
 [TEST 6/7] Core 4-Department Scope & Category Mapping Validation... PASSED
 [TEST 7/7] Persisted Demonstration Dataset Integrity (database.json)... PASSED
 ```
+
+#### 8. RoleBasedPortalsTest Suite (17 / 17 Passed)
+```
+[TEST 1/17] Citizen Signup & Login with Password Hashing... PASSED
+[TEST 2/17] Invalid Login & Duplicate Citizen Account Rejection... PASSED
+[TEST 3/17] Citizen Complaint Registration & Field Validation... PASSED
+[TEST 4/17] Citizen Ownership & IDOR Protection... PASSED
+[TEST 5/17] Worker Access Restricted to Authorized Department... PASSED
+[TEST 6/17] Worker Status Transitions & Invalid Jumps Prevention... PASSED
+[TEST 7/17] Manager Assignment, Reassignment & Capacity Conservation... PASSED
+[TEST 8/17] Department Capacity Enforcement & Waiting Queue Promotion... PASSED
+[TEST 9/17] Priority Multi-Criteria Ordering (Severity > Impact > Arrival)... PASSED
+[TEST 10/17] Duplicate Candidate Detection, Confirmation & Rejection... PASSED
+[TEST 11/17] Safe Confirmed Duplicate Deletion & Audit Tombstone... PASSED
+[TEST 12/17] Admin Worker CRUD, Deactivation & Complaint Handover... PASSED
+[TEST 13/17] Role Invariants & Privilege Escalation Prevention... PASSED
+[TEST 14/17] Real HTTP API Endpoint RBAC & Unauthorized Requests... PASSED
+[TEST 15/17] Persistent Data Invariants & Restart Resilience... PASSED
+[TEST 16/17] Frontend/Backend API Schema & JSON Synchronization... PASSED
+[TEST 17/17] Regression Tests (4 Core Depts, 5 Locations, OOP Polymorphism)... PASSED
+```
+
+---
+
+## 4. Tasks 1-8: Risk Assessment & GPS Geolocation Verification Suite (28 Scenarios)
+
+Command:
+```powershell
+java -cp backend/bin test.AssessmentAndGPSTest
+```
+
+### Test Results (28 / 28 Passed - 100% Success Rate)
+
+```
+[TEST 01/28] Citizen registration does not require severity... PASSED
+[TEST 02/28] Citizen-supplied severity values cannot manipulate assessment... PASSED (Citizen 'CRITICAL' was ignored; complaint starts unassessed)
+[TEST 03/28] Newly registered complaints remain unassessed... PASSED (severity=null, isAssessed=false)
+[TEST 04/28] Category & emergency keywords do not automatically assign risk... PASSED (No automatic classification triggered)
+[TEST 05/28] Manager can assess complaint (Critical, High, Medium, Low)... PASSED (Assessed as CRITICAL by Manager Arun)
+[TEST 06/28] Admin can perform authorized assessment... PASSED (Assessed as HIGH by Admin)
+[TEST 07/28] Worker cannot alter severity... PASSED (SecurityException thrown)
+[TEST 08/28] Citizen cannot alter severity... PASSED (SecurityException thrown)
+[TEST 09/28] Invalid severity values are rejected... PASSED (Rejected non-standard severity)
+[TEST 10/28] Unassessed complaints do not rank as LOW in PriorityQueue... PASSED (Assessed LOW ranks ahead of unassessed; unassessed rank is 999)
+[TEST 11/28] Assessed waiting complaints retain deterministic priority ordering... PASSED (Critical > High(Impact:50) > High(Impact:10,Earlier) > High(Impact:10,Later))
+[TEST 12/28] Assessment updates are recorded in audit history... PASSED (Audit entry found: Risk Assessed by Manager Arun: Severity set to CRITICAL. Reason: Field hazard verified. Department: Water Department (Load: 4/10). Assigned to Staff Raj.)
+[TEST 13/28] Valid latitude and longitude are accepted and persisted... PASSED (Lat: 13.0827, Lng: 80.2707, Accuracy: 5.0m)
+[TEST 14/28] Out-of-range latitude is rejected... PASSED (Latitude 95.0 out of [-90..90] rejected)
+[TEST 15/28] Out-of-range longitude is rejected... PASSED (Longitude 195.0 out of [-180..180] rejected)
+[TEST 16/28] Missing coordinate pair is rejected... PASSED (Latitude with null longitude rejected)
+[TEST 17/28] GPS accuracy is validated (nonnegative finite number)... PASSED (Negative accuracy -10m rejected)
+[TEST 18/28] Complaint without GPS can still be registered with canonical area... PASSED (Registered with Municipal Area 'South Colony')
+[TEST 19/28] Coordinates survive database serialization and reload... PASSED (GPS lat, lng, accuracy, and assessment survived round-trip)
+[TEST 20/28] Assignment, status updates, and reassignment preserve GPS... PASSED (GPS coordinates unchanged after status transition and reassignment)
+[TEST 21/28] Google Maps link uses saved complaint coordinates... PASSED (https://www.google.com/maps?q=13.0827,80.2707)
+[TEST 22/28] RBAC prevents unauthorized users from altering location data... PASSED (SecurityException prevents unauthorized tampering)
+[TEST 23/28] Integration: Citizen submits complaint without risk selection... PASSED (Starts unassessed, status: Registered)
+[TEST 24/28] Integration: Manager sees complaint in assessment queue... PASSED (Visible in manager review queue)
+[TEST 25/28] Integration: Manager assesses and assigns complaint... PASSED (Assessed as HIGH, status: Assigned)
+[TEST 26/28] Integration: Assigned department receives complaint... PASSED (Present in Water Supply department active list)
+[TEST 27/28] Integration: Full department retains assessed complaint in PriorityQueue... PASSED (Complaint placed in Department Waiting PriorityQueue at CRITICAL priority)
+[TEST 28/28] Integration: Existing records & role workflows preserved... PASSED (Legacy records intact with preserved severity; RBAC roles fully operational)
+```
+

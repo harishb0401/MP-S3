@@ -8,6 +8,7 @@ import model.Department;
 import model.DepartmentStaff;
 import model.Grievance;
 import model.GrievanceFactory;
+import model.Manager;
 import model.Notification;
 import model.User;
 
@@ -75,7 +76,14 @@ public class Database {
     private int historyCounter = 0;
     private int notificationCounter = 0;
 
+    private String customDbFile = null;
+
     public Database() {
+        this(null);
+    }
+
+    public Database(String customDbFilePath) {
+        this.customDbFile = customDbFilePath;
         this.userMap = new ConcurrentHashMap<>();
         this.complaintList = new ArrayList<>();
         this.complaintMap = new ConcurrentHashMap<>();
@@ -90,6 +98,10 @@ public class Database {
         ensureDatabaseFile();
         loadDatabase();
         seedInitialAccounts();
+    }
+
+    public String getEffectiveDbFile() {
+        return (customDbFile != null && !customDbFile.trim().isEmpty()) ? customDbFile : getDbFile();
     }
 
     private void initializeDepartments() {
@@ -128,11 +140,11 @@ public class Database {
     }
 
     private void ensureDatabaseFile() {
-        File dir = new File(getDbDir());
-        if (!dir.exists()) {
+        File file = new File(getEffectiveDbFile());
+        File dir = file.getParentFile();
+        if (dir != null && !dir.exists()) {
             dir.mkdirs();
         }
-        File file = new File(getDbFile());
         if (!file.exists()) {
             try {
                 file.createNewFile();
@@ -180,6 +192,22 @@ public class Database {
 
             // Legacy Staff ID alias for backward compatibility
             userMap.put("STF1001", admin);
+        }
+
+        // 1b. Initial Manager
+        if (getUserById("MGR1001") == null && getUserByEmail("manager@makkal.gov.in") == null) {
+            Manager manager = new Manager(
+                    "MGR1001",
+                    "manager@makkal.gov.in",
+                    "manager@makkal.gov.in",
+                    "9876543201",
+                    hashPassword("admin123"),
+                    "Triage Operations Manager",
+                    "2026-09-14 00:00:00"
+            );
+            userMap.put(manager.getEmail().toLowerCase(), manager);
+            userMap.put(manager.getId(), manager);
+            userMap.put(manager.getUsername().toLowerCase(), manager);
         }
 
         // 2. Department Staff accounts
@@ -238,10 +266,10 @@ public class Database {
 
     // Save full system state to JSON
     public synchronized void saveDatabase() {
-        if (persistenceDisabled) {
+        if (persistenceDisabled && customDbFile == null) {
             return;
         }
-        try (FileWriter writer = new FileWriter(getDbFile(), false)) {
+        try (FileWriter writer = new FileWriter(getEffectiveDbFile(), false)) {
             StringBuilder json = new StringBuilder();
             json.append("{\n");
 
@@ -251,10 +279,10 @@ public class Database {
             for (int i = 0; i < uniqueUsers.size(); i++) {
                 User u = uniqueUsers.get(i);
                 json.append(String.format(
-                        "    {\"id\":\"%s\",\"name\":\"%s\",\"email\":\"%s\",\"mobile\":\"%s\",\"passwordHash\":\"%s\",\"role\":\"%s\",\"department\":\"%s\",\"createdAt\":\"%s\"}",
+                        "    {\"id\":\"%s\",\"name\":\"%s\",\"email\":\"%s\",\"mobile\":\"%s\",\"passwordHash\":\"%s\",\"role\":\"%s\",\"department\":\"%s\",\"active\":%b,\"createdAt\":\"%s\"}",
                         escapeJson(u.getId()), escapeJson(u.getDisplayName()), escapeJson(u.getEmail()),
                         escapeJson(u.getMobile()), escapeJson(u.getPasswordHash()), escapeJson(u.getRole()),
-                        escapeJson(u.getDepartment()), escapeJson(u.getCreatedAt())
+                        escapeJson(u.getDepartment()), u.isActive(), escapeJson(u.getCreatedAt())
                 ));
                 if (i < uniqueUsers.size() - 1) json.append(",");
                 json.append("\n");
@@ -266,15 +294,22 @@ public class Database {
             for (int i = 0; i < complaintList.size(); i++) {
                 Complaint c = complaintList.get(i);
                 json.append(String.format(
-                        "    {\"id\":\"%s\",\"complaintId\":\"%s\",\"citizenId\":\"%s\",\"citizenName\":\"%s\",\"citizenMobile\":\"%s\",\"category\":\"%s\",\"description\":\"%s\",\"location\":\"%s\",\"departmentId\":\"%s\",\"department\":\"%s\",\"citizenReportedImpact\":%d,\"adminVerifiedImpact\":%s,\"verificationReason\":\"%s\",\"isVerifiedLocked\":%b,\"severity\":\"%s\",\"priority\":\"%s\",\"status\":\"%s\",\"assignedStaff\":\"%s\",\"resolutionNotes\":\"%s\",\"isDuplicate\":%b,\"duplicateOfId\":\"%s\",\"rejectedCandidateIds\":\"%s\",\"isWaiting\":%b,\"arrivalSequence\":%d,\"createdAt\":\"%s\",\"updatedAt\":\"%s\",\"resolvedAt\":\"%s\"}",
+                        "    {\"id\":\"%s\",\"complaintId\":\"%s\",\"citizenId\":\"%s\",\"citizenName\":\"%s\",\"citizenMobile\":\"%s\",\"category\":\"%s\",\"description\":\"%s\",\"location\":\"%s\",\"latitude\":%s,\"longitude\":%s,\"locationAccuracyMeters\":%s,\"departmentId\":\"%s\",\"department\":\"%s\",\"citizenReportedImpact\":%d,\"adminVerifiedImpact\":%s,\"verificationReason\":\"%s\",\"isVerifiedLocked\":%b,\"severity\":\"%s\",\"priority\":\"%s\",\"status\":\"%s\",\"assignedStaff\":\"%s\",\"resolutionNotes\":\"%s\",\"assessedBy\":\"%s\",\"assessedAt\":\"%s\",\"assessmentReason\":\"%s\",\"isDuplicate\":%b,\"duplicateOfId\":\"%s\",\"rejectedCandidateIds\":\"%s\",\"isWaiting\":%b,\"arrivalSequence\":%d,\"createdAt\":\"%s\",\"updatedAt\":\"%s\",\"resolvedAt\":\"%s\"}",
                         escapeJson(c.getId()), escapeJson(c.getComplaintId()), escapeJson(c.getCitizenId()),
                         escapeJson(c.getCitizenName()), escapeJson(c.getCitizenMobile()), escapeJson(c.getCategory()),
-                        escapeJson(c.getDescription()), escapeJson(c.getLocation()), escapeJson(c.getDepartmentId()),
+                        escapeJson(c.getDescription()), escapeJson(c.getLocation()),
+                        (c.getLatitude() == null ? "null" : c.getLatitude().toString()),
+                        (c.getLongitude() == null ? "null" : c.getLongitude().toString()),
+                        (c.getLocationAccuracyMeters() == null ? "null" : c.getLocationAccuracyMeters().toString()),
+                        escapeJson(c.getDepartmentId()),
                         escapeJson(c.getDepartment()), c.getCitizenReportedImpact(),
                         (c.getAdminVerifiedImpact() == null ? "null" : c.getAdminVerifiedImpact()),
                         escapeJson(c.getVerificationReason()), c.isVerifiedLocked(),
-                        escapeJson(c.getSeverity()), escapeJson(c.getPriority()), escapeJson(c.getStatus()),
+                        (c.getSeverity() == null ? "UNASSESSED" : escapeJson(c.getSeverity())),
+                        (c.getPriority() == null ? "UNASSESSED" : escapeJson(c.getPriority())),
+                        escapeJson(c.getStatus()),
                         escapeJson(c.getAssignedStaff()), escapeJson(c.getResolutionNotes()),
+                        escapeJson(c.getAssessedBy()), escapeJson(c.getAssessedAt()), escapeJson(c.getAssessmentReason()),
                         c.isDuplicate(), escapeJson(c.getDuplicateOfId()),
                         escapeJson(c.getRejectedCandidateIdsCsv()),
                         c.isWaiting(),
@@ -331,7 +366,7 @@ public class Database {
 
     // Load state from disk
     public synchronized void loadDatabase() {
-        File file = new File(getDbFile());
+        File file = new File(getEffectiveDbFile());
         if (!file.exists() || file.length() == 0) return;
 
         try {
@@ -380,13 +415,15 @@ public class Database {
                     " | Notifications: " + notificationList.size());
 
             // Startup demonstration data validation and diagnostic report
-            DataValidator.validateAndReport(this);
+            if (customDbFile == null) {
+                DataValidator.validateAndReport(this);
+            }
         } catch (Exception e) {
             System.err.println("[DATABASE WARNING] Could not parse existing database. Initializing fresh: " + e.getMessage());
         }
     }
 
-    private List<User> getUniqueUsers() {
+    public List<User> getUniqueUsers() {
         Map<String, User> uniqueMap = new HashMap<>();
         for (User u : userMap.values()) {
             uniqueMap.put(u.getId(), u);
@@ -410,16 +447,22 @@ public class Database {
             String department = extractJsonVal(objStr, "department");
             String createdAt = extractJsonVal(objStr, "createdAt");
 
+            String activeVal = extractJsonVal(objStr, "active");
+            boolean active = activeVal.isEmpty() || !"false".equalsIgnoreCase(activeVal);
+
             User u;
             if ("ADMIN".equalsIgnoreCase(role)) {
                 u = new Admin(id, email, email, mobile, passwordHash, name, createdAt);
-            } else if ("STAFF".equalsIgnoreCase(role)) {
-                Department dept = departmentMap.get(department);
-                u = new DepartmentStaff(id, email, email, mobile, passwordHash, name,
+            } else if ("MANAGER".equalsIgnoreCase(role)) {
+                u = new Manager(id, email, email, mobile, passwordHash, name, createdAt);
+            } else if ("STAFF".equalsIgnoreCase(role) || "WORKER".equalsIgnoreCase(role)) {
+                Department dept = getDepartmentByAnyIdentifier(department);
+                u = new DepartmentStaff(id, email, email, mobile, passwordHash, role.toUpperCase(), name,
                         dept != null ? dept.getDepartmentId() : "DEPT-GEN", dept, createdAt);
             } else {
                 u = new Citizen(id, name, email, mobile, passwordHash, createdAt);
             }
+            u.setActive(active);
 
             if (u.getEmail() != null) userMap.put(u.getEmail().toLowerCase(), u);
             if (u.getId() != null) userMap.put(u.getId(), u);
@@ -460,8 +503,30 @@ public class Database {
             c.forceSetVerificationReasonFromPersistence(extractJsonVal(objStr, "verificationReason"));
             c.setVerifiedLocked("true".equalsIgnoreCase(extractJsonVal(objStr, "isVerifiedLocked")));
 
-            c.setSeverity(extractJsonVal(objStr, "severity"));
-            c.setPriority(extractJsonVal(objStr, "priority"));
+            // GPS Location fields
+            c.setLatitude(extractJsonDoubleVal(objStr, "latitude"));
+            c.setLongitude(extractJsonDoubleVal(objStr, "longitude"));
+            c.setLocationAccuracyMeters(extractJsonDoubleVal(objStr, "locationAccuracyMeters"));
+
+            // Assessment audit fields
+            c.setAssessedBy(extractJsonVal(objStr, "assessedBy"));
+            c.setAssessedAt(extractJsonVal(objStr, "assessedAt"));
+            c.setAssessmentReason(extractJsonVal(objStr, "assessmentReason"));
+
+            String sevRaw = extractJsonVal(objStr, "severity");
+            if (sevRaw.isEmpty() || "null".equalsIgnoreCase(sevRaw) || "UNASSESSED".equalsIgnoreCase(sevRaw)) {
+                c.setSeverity(null);
+            } else {
+                c.setSeverity(sevRaw);
+            }
+
+            String prioRaw = extractJsonVal(objStr, "priority");
+            if (prioRaw.isEmpty() || "null".equalsIgnoreCase(prioRaw) || "UNASSESSED".equalsIgnoreCase(prioRaw)) {
+                c.setPriority(c.getSeverity() != null ? c.getSeverity() : "UNASSESSED");
+            } else {
+                c.setPriority(prioRaw);
+            }
+
             c.setStatus(extractJsonVal(objStr, "status"));
             c.setAssignedStaff(extractJsonVal(objStr, "assignedStaff"));
             c.setResolutionNotes(extractJsonVal(objStr, "resolutionNotes"));
@@ -584,6 +649,23 @@ public class Database {
         return val.replaceAll("[^0-9]", "");
     }
 
+    private Double extractJsonDoubleVal(String objStr, String key) {
+        String pattern = "\"" + key + "\":";
+        int start = objStr.indexOf(pattern);
+        if (start == -1) return null;
+        start += pattern.length();
+        int end = objStr.indexOf(",", start);
+        if (end == -1) end = objStr.indexOf("}", start);
+        if (end == -1) return null;
+        String val = objStr.substring(start, end).replaceAll("[\"\\s]", "").trim();
+        if (val.isEmpty() || "null".equalsIgnoreCase(val)) return null;
+        try {
+            return Double.parseDouble(val);
+        } catch (Exception e) {
+            return null;
+        }
+    }
+
     private String escapeJson(String str) {
         if (str == null) return "";
         return str.replace("\\", "\\\\").replace("\"", "\\\"").replace("\n", "\\n").replace("\r", "");
@@ -696,6 +778,24 @@ public class Database {
     }
 
     // Auth Operations
+    public synchronized User registerUser(String name, String email, String mobile, String rawPassword) {
+        return registerUser(name, email, mobile, rawPassword, "CITIZEN", null);
+    }
+
+    public User authenticateUser(String emailOrId, String rawPassword) {
+        if (emailOrId == null || rawPassword == null) return null;
+        User user = getUserByEmail(emailOrId);
+        if (user == null) {
+            user = getUserById(emailOrId);
+        }
+        if (user == null) return null;
+        if (!user.isActive()) return null;
+        if (user.getPasswordHash() != null && user.getPasswordHash().equals(hashPassword(rawPassword))) {
+            return user;
+        }
+        return null;
+    }
+
     public synchronized User registerUser(String name, String email, String mobile, String rawPassword, String role, String department) {
         String lowerEmail = email.toLowerCase().trim();
         if (userMap.containsKey(lowerEmail)) {
@@ -706,9 +806,11 @@ public class Database {
         User user;
         if ("ADMIN".equalsIgnoreCase(role)) {
             user = new Admin(userId, lowerEmail, lowerEmail, mobile, hashPassword(rawPassword), name, "2026-09-14 12:00:00");
-        } else if ("STAFF".equalsIgnoreCase(role)) {
+        } else if ("MANAGER".equalsIgnoreCase(role)) {
+            user = new Manager(userId, lowerEmail, lowerEmail, mobile, hashPassword(rawPassword), name, "2026-09-14 12:00:00");
+        } else if ("STAFF".equalsIgnoreCase(role) || "WORKER".equalsIgnoreCase(role)) {
             Department dept = getDepartmentByAnyIdentifier(department);
-            user = new DepartmentStaff(userId, lowerEmail, lowerEmail, mobile, hashPassword(rawPassword), name,
+            user = new DepartmentStaff(userId, lowerEmail, lowerEmail, mobile, hashPassword(rawPassword), role.toUpperCase(), name,
                     dept != null ? dept.getDepartmentId() : "DEPT-GEN", dept, "2026-09-14 12:00:00");
         } else {
             user = new Citizen(userId, name, lowerEmail, mobile, hashPassword(rawPassword), "2026-09-14 12:00:00");
@@ -737,6 +839,13 @@ public class Database {
         return token;
     }
 
+    public void invalidateSession(String token) {
+        if (token != null) {
+            String cleanToken = token.replace("Bearer ", "").trim();
+            activeSessions.remove(cleanToken);
+        }
+    }
+
     public User getUserByToken(String token) {
         if (token == null) return null;
         String cleanToken = token.replace("Bearer ", "").trim();
@@ -745,6 +854,145 @@ public class Database {
             return getUserById(userId);
         }
         return null;
+    }
+
+    // ------------------- WORKER MANAGEMENT -------------------
+    public synchronized List<DepartmentStaff> getAllWorkers() {
+        List<DepartmentStaff> workers = new ArrayList<>();
+        Set<String> seen = new HashSet<>();
+        for (User u : userMap.values()) {
+            if (u instanceof DepartmentStaff && seen.add(u.getId())) {
+                workers.add((DepartmentStaff) u);
+            }
+        }
+        return workers;
+    }
+
+    public synchronized DepartmentStaff createWorker(String name, String email, String mobile, String rawPassword, String departmentName, User adminActor) {
+        if (adminActor == null || !adminActor.isAdmin()) {
+            throw new SecurityException("Unauthorized: Only administrators can create workers.");
+        }
+        if (name == null || name.trim().isEmpty() || email == null || email.trim().isEmpty() || rawPassword == null || rawPassword.trim().isEmpty()) {
+            throw new IllegalArgumentException("Worker name, email, and password are required.");
+        }
+        String lowerEmail = email.toLowerCase().trim();
+        if (userMap.containsKey(lowerEmail)) {
+            throw new IllegalArgumentException("An account with email " + email + " already exists.");
+        }
+
+        Department dept = getDepartmentByAnyIdentifier(departmentName);
+        if (dept == null) {
+            dept = departmentMap.get("DEPT-GEN");
+        }
+        String workerId = "WRK" + UUID.randomUUID().toString().substring(0, 6).toUpperCase();
+        DepartmentStaff worker = new DepartmentStaff(
+                workerId, lowerEmail, lowerEmail, mobile, hashPassword(rawPassword), "WORKER",
+                name.trim(), dept != null ? dept.getDepartmentId() : "DEPT-GEN", dept,
+                java.time.LocalDateTime.now().format(java.time.format.DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss"))
+        );
+        userMap.put(lowerEmail, worker);
+        userMap.put(workerId, worker);
+        userMap.put(worker.getUsername().toLowerCase(), worker);
+        saveDatabase();
+        return worker;
+    }
+
+    public synchronized DepartmentStaff updateWorker(String workerId, String name, String mobile, String departmentName, Boolean active, User adminActor) {
+        return updateWorker(workerId, name, null, mobile, departmentName, active, adminActor);
+    }
+
+    public synchronized DepartmentStaff updateWorker(String workerId, String name, String email, String mobile, String departmentName, Boolean active, User adminActor) {
+        if (adminActor == null || !adminActor.isAdmin()) {
+            throw new SecurityException("Unauthorized: Only administrators can update workers.");
+        }
+        User u = getUserById(workerId);
+        if (u == null || !(u instanceof DepartmentStaff)) {
+            throw new IllegalArgumentException("Worker not found with ID: " + workerId);
+        }
+        DepartmentStaff worker = (DepartmentStaff) u;
+        String prevDept = worker.getDepartment();
+
+        if (name != null && !name.trim().isEmpty()) {
+            worker.setStaffName(name.trim());
+            worker.setUsername(name.trim());
+        }
+        if (mobile != null) {
+            worker.setMobile(mobile.trim());
+        }
+        if (active != null) {
+            worker.setActive(active);
+        }
+
+        boolean deptChanged = false;
+        if (departmentName != null && !departmentName.trim().isEmpty()) {
+            Department newDept = getDepartmentByAnyIdentifier(departmentName);
+            if (newDept != null && !newDept.getDepartmentName().equalsIgnoreCase(prevDept)) {
+                worker.setDepartmentObj(newDept);
+                deptChanged = true;
+            }
+        }
+
+        // Handover: If worker is deactivated or transferred, reassign/unassign active complaints
+        if (!worker.isActive() || deptChanged) {
+            handoverWorkerComplaints(worker, adminActor, deptChanged ? "Worker transferred from " + prevDept + " to " + worker.getDepartment() : "Worker deactivated by administrator");
+        }
+
+        saveDatabase();
+        return worker;
+    }
+
+    public synchronized boolean resetWorkerPassword(String workerId, String newPassword, User adminActor) {
+        if (adminActor == null || !adminActor.isAdmin()) {
+            throw new SecurityException("Unauthorized: Only administrators can reset worker passwords.");
+        }
+        if (newPassword == null || newPassword.trim().isEmpty()) {
+            throw new IllegalArgumentException("New password cannot be empty.");
+        }
+        User u = getUserById(workerId);
+        if (u == null || !(u instanceof DepartmentStaff)) {
+            throw new IllegalArgumentException("Worker not found with ID: " + workerId);
+        }
+        u.setPasswordHash(hashPassword(newPassword.trim()));
+        saveDatabase();
+        return true;
+    }
+
+    private void handoverWorkerComplaints(DepartmentStaff worker, User adminActor, String handoverReason) {
+        String workerName = worker.getStaffName();
+        String workerDisp = worker.getDisplayName();
+        for (Complaint c : complaintList) {
+            if ("Assigned".equalsIgnoreCase(c.getStatus()) || "InProgress".equalsIgnoreCase(c.getStatus())) {
+                boolean matches = (c.getAssignedStaff() != null &&
+                        (c.getAssignedStaff().equalsIgnoreCase(workerName) ||
+                         c.getAssignedStaff().equalsIgnoreCase(workerDisp) ||
+                         c.getAssignedStaff().toLowerCase().contains(workerName.toLowerCase()) ||
+                         c.getAssignedStaff().toLowerCase().contains(workerDisp.toLowerCase())));
+                if (matches) {
+                    c.setAssignedStaff("Unassigned");
+                    c.setUpdatedAt(java.time.LocalDateTime.now().format(java.time.format.DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss")));
+                    addHistory(new ComplaintHistory(
+                            generateHistoryId(),
+                            c.getComplaintId(),
+                            c.getStatus(),
+                            c.getStatus(),
+                            adminActor != null ? adminActor.getDisplayName() : "Administrator",
+                            "Staff Handover: " + handoverReason + ". Assigned staff reset to Unassigned for department reallocation."
+                    ));
+                }
+            }
+        }
+    }
+
+    public synchronized boolean removeComplaint(String complaintId) {
+        if (complaintId == null) return false;
+        Complaint c = complaintMap.remove(complaintId);
+        if (c != null) {
+            if (c.getId() != null) complaintMap.remove(c.getId());
+            complaintList.remove(c);
+            priorityQueue.remove(c);
+            return true;
+        }
+        return false;
     }
 
     // Complaint Operations

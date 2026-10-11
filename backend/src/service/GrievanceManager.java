@@ -65,33 +65,18 @@ public class GrievanceManager {
         }
     }
 
-    // Priority Calculator Algorithm
+    /**
+     * @deprecated Automatic priority calculation from keywords/category has been retired.
+     * All complaints must start explicitly unassessed until evaluated by a Manager or Administrator.
+     */
+    @Deprecated
     public String calculatePriority(String category, String description, int impact) {
-        String desc = (description != null) ? description.toLowerCase() : "";
-        String cat = (category != null) ? category.toLowerCase() : "";
-
-        // Check for severe critical hazards or high impact count
-        if (impact >= 500 || desc.contains("burst") || desc.contains("flooding") ||
-            desc.contains("hazardous") || desc.contains("medical waste") ||
-            desc.contains("fire") || desc.contains("collapse") ||
-            desc.contains("emergency") || desc.contains("school")) {
-            return "CRITICAL";
-        }
-
-        if (impact >= 200 || cat.contains("water") || cat.contains("streetlight") ||
-            desc.contains("overflow") || desc.contains("blockage")) {
-            return "HIGH";
-        }
-
-        if (cat.contains("waste") || cat.contains("road") || cat.contains("sanitation")) {
-            return "MEDIUM";
-        }
-
-        return "LOW";
+        return "UNASSESSED";
     }
 
-    // 1. CREATE COMPLAINT (CITIZEN PORTAL)
-    public Complaint createComplaint(User citizen, String category, String description, String location, int citizenReportedImpact, String suppliedSeverity) {
+    // 1. CREATE COMPLAINT (CITIZEN PORTAL) - STARTS EXPLICITLY UNASSESSED
+    public Complaint createComplaint(User citizen, String category, String description, String location,
+                                    int citizenReportedImpact, Double latitude, Double longitude, Double locationAccuracyMeters, String title) {
         String id = "GRV-GUID-" + UUID.randomUUID().toString().substring(0, 8);
         String complaintId = database.generateComplaintId();
 
@@ -100,15 +85,13 @@ public class GrievanceManager {
         Department dept = database.getDepartmentByAnyIdentifier(departmentName);
         String departmentId = dept != null ? dept.getDepartmentId() : "DEPT-GEN";
 
-        String calculatedPriority = calculatePriority(category, description, impact);
-        String severityToUse = (suppliedSeverity != null && !suppliedSeverity.trim().isEmpty())
-                ? Complaint.normalizeSeverity(suppliedSeverity)
-                : calculatedPriority;
-        String priorityToUse = (suppliedSeverity != null && !suppliedSeverity.trim().isEmpty())
-                ? Complaint.normalizeSeverity(suppliedSeverity)
-                : calculatedPriority;
+        // Validate Coordinates (Task 5 & 6)
+        Complaint.validateCoordinates(latitude, longitude, locationAccuracyMeters);
 
-        String status = "Registered"; // Initial status as specified
+        // New complaint must start as unassessed, with no manager-assigned risk level (Task 2)
+        String severityToUse = null;
+        String priorityToUse = "UNASSESSED";
+        String status = "Registered";
 
         Complaint complaint = GrievanceFactory.createGrievance(
                 id,
@@ -126,23 +109,164 @@ public class GrievanceManager {
                 status
         );
         complaint.setDepartmentId(departmentId);
+        if (title != null && !title.trim().isEmpty()) {
+            complaint.setTitle(title.trim());
+        }
+        complaint.setLatitude(latitude);
+        complaint.setLongitude(longitude);
+        complaint.setLocationAccuracyMeters(locationAccuracyMeters);
 
         database.addComplaint(complaint);
 
         // Record Initial Audit History Entry
-        String remarks = "Complaint registered by citizen with Reported Impact: " + impact;
+        String gpsInfo = complaint.hasGpsCoordinates() ? String.format(" [GPS: %.6f, %.6f]", latitude, longitude) : "";
+        String remarks = "Complaint registered by citizen with Reported Impact: " + impact + " at " + location + gpsInfo + ". Status: Registered (Awaiting Manager Risk Assessment).";
         recordHistory(complaintId, "None", "Registered", citizen.getDisplayName(), remarks);
 
         return complaint;
     }
 
-    public Complaint createComplaint(User citizen, String category, String description, String location, int citizenReportedImpact) {
-        return createComplaint(citizen, category, description, location, citizenReportedImpact, null);
+    public Complaint createComplaint(User citizen, String category, String description, String location, int citizenReportedImpact, String suppliedSeverity, String title) {
+        // Citizens cannot manipulate severity: always starts unassessed
+        return createComplaint(citizen, category, description, location, citizenReportedImpact, null, null, null, title);
     }
 
-    // Compatibility overload
+    public Complaint createComplaint(User citizen, String category, String description, String location, int citizenReportedImpact, String suppliedSeverity) {
+        return createComplaint(citizen, category, description, location, citizenReportedImpact, null, null, null, null);
+    }
+
+    public Complaint createComplaint(User citizen, String category, String description, String location, int citizenReportedImpact) {
+        return createComplaint(citizen, category, description, location, citizenReportedImpact, null, null, null, null);
+    }
+
     public Complaint createComplaint(User citizen, String category, String description, String location) {
-        return createComplaint(citizen, category, description, location, 1, null);
+        return createComplaint(citizen, category, description, location, 1, null, null, null, null);
+    }
+
+    // 1b. MANAGER / ADMIN RISK ASSESSMENT & ASSIGNMENT (TASK 3)
+    public synchronized boolean assessComplaint(String complaintId, String severity, String reason,
+                                                String targetDepartmentName, String staffName, User assessor) {
+        if (assessor == null || !assessor.canAssessSeverity()) {
+            throw new SecurityException("Unauthorized: Only Municipal Managers or Administrators can assess complaint severity.");
+        }
+        if (severity == null || severity.trim().isEmpty()) {
+            throw new IllegalArgumentException("Severity is required for risk assessment.");
+        }
+        String normSeverity = severity.trim().toUpperCase();
+        if (!normSeverity.equals("CRITICAL") && !normSeverity.equals("HIGH") &&
+            !normSeverity.equals("MEDIUM") && !normSeverity.equals("LOW")) {
+            throw new IllegalArgumentException("Invalid severity: '" + severity + "'. Allowed values are: Critical, High, Medium, Low.");
+        }
+        if (reason == null || reason.trim().isEmpty()) {
+            throw new IllegalArgumentException("Assessment reason is mandatory.");
+        }
+
+        Complaint complaint = database.getComplaintById(complaintId);
+        if (complaint == null) {
+            throw new IllegalArgumentException("Complaint not found: " + complaintId);
+        }
+
+        if ("RESOLVED".equalsIgnoreCase(complaint.getStatus()) || "CLOSED".equalsIgnoreCase(complaint.getStatus())) {
+            throw new IllegalStateException("Cannot assess a resolved or closed complaint.");
+        }
+
+        String deptToUse = targetDepartmentName;
+        if (deptToUse == null || deptToUse.trim().isEmpty()) {
+            deptToUse = complaint.getDepartment();
+        }
+        if (deptToUse == null || deptToUse.trim().isEmpty()) {
+            deptToUse = mapCategoryToDepartment(complaint.getCategory());
+        }
+        Department targetDept = database.findDepartment(deptToUse);
+        if (targetDept == null) {
+            targetDept = database.getDepartmentByAnyIdentifier(deptToUse);
+        }
+        if (targetDept == null) {
+            targetDept = database.findDepartment("General Administration");
+        }
+
+        String oldSeverity = complaint.getSeverity();
+        boolean wasAssessed = complaint.isAssessed();
+
+        // 1. Remove from queues before updating ranking attributes
+        Department currentDept = database.findDepartment(complaint.getDepartmentId() != null ? complaint.getDepartmentId() : complaint.getDepartment());
+        database.getPriorityQueue().remove(complaint);
+        if (currentDept != null) {
+            currentDept.removeFromWaitingQueue(complaint);
+        }
+
+        // 2. Set assessed severity and priority
+        complaint.setSeverity(normSeverity);
+        complaint.setPriority(normSeverity);
+        complaint.setAssessedBy(assessor.getDisplayName());
+        String now = LocalDateTime.now().format(DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss"));
+        complaint.setAssessedAt(now);
+        complaint.setAssessmentReason(reason.trim());
+        complaint.setUpdatedAt(now);
+
+        // 3. Department Routing and Capacity Logic
+        boolean isChangingDept = currentDept != null && !currentDept.getDepartmentId().equalsIgnoreCase(targetDept.getDepartmentId());
+        String currentStatus = complaint.getStatus();
+
+        if (isChangingDept) {
+            if ("ASSIGNED".equalsIgnoreCase(currentStatus) || "IN_PROGRESS".equalsIgnoreCase(currentStatus)) {
+                if (!complaint.isWaiting()) {
+                    currentDept.decrementLoad();
+                    promoteAllEligibleWaitingComplaints(currentDept, now);
+                }
+            }
+        }
+
+        complaint.setDepartment(targetDept.getDepartmentName());
+        complaint.setDepartmentId(targetDept.getDepartmentId());
+
+        boolean alreadyActiveInTarget = (!isChangingDept) && (!complaint.isWaiting()) &&
+                ("ASSIGNED".equalsIgnoreCase(currentStatus) || "IN_PROGRESS".equalsIgnoreCase(currentStatus));
+
+        String oldStatus = complaint.getStatus();
+        if (alreadyActiveInTarget) {
+            complaint.setStatus("Assigned");
+            if (staffName != null && !staffName.trim().isEmpty()) {
+                complaint.setAssignedStaff(staffName.trim());
+            }
+        } else {
+            if (targetDept.tryAcquireCapacity()) {
+                complaint.setStatus("Assigned");
+                complaint.setWaiting(false);
+                if (staffName != null && !staffName.trim().isEmpty()) {
+                    complaint.setAssignedStaff(staffName.trim());
+                } else if (complaint.getAssignedStaff() == null || complaint.getAssignedStaff().trim().isEmpty() || complaint.getAssignedStaff().startsWith("Queued")) {
+                    complaint.setAssignedStaff("Assigned Officer");
+                }
+            } else {
+                complaint.setStatus("Assigned");
+                complaint.setWaiting(true);
+                if (staffName != null && !staffName.trim().isEmpty()) {
+                    complaint.setAssignedStaff("Queued (Waiting: " + staffName.trim() + ")");
+                } else {
+                    complaint.setAssignedStaff("Queued");
+                }
+                targetDept.addToWaitingQueue(complaint);
+            }
+        }
+
+        // 4. Re-insert into PriorityQueue now that ranking fields have been updated
+        database.getPriorityQueue().add(complaint);
+
+        // 5. Audit Trail Record
+        String remarks;
+        if (!wasAssessed) {
+            remarks = String.format("Risk Assessed by %s: Severity set to %s. Reason: %s. Department: %s (Load: %d/%d). %s",
+                    assessor.getDisplayName(), normSeverity, reason.trim(), targetDept.getDepartmentName(), targetDept.getCurrentLoad(), targetDept.getCapacity(),
+                    complaint.isWaiting() ? "Placed in Department Priority Waiting Queue." : "Assigned to " + complaint.getAssignedStaff() + ".");
+        } else {
+            remarks = String.format("Severity updated from %s to %s by %s. Reason: %s.",
+                    oldSeverity != null ? oldSeverity : "UNASSESSED", normSeverity, assessor.getDisplayName(), reason.trim());
+        }
+        recordHistory(complaintId, oldStatus, complaint.getStatus(), assessor.getDisplayName(), remarks);
+
+        database.saveDatabase();
+        return true;
     }
 
     // 2. ADMIN VERIFICATION (ADMIN PORTAL)
@@ -1035,5 +1159,185 @@ public class GrievanceManager {
         stats.put("resolved", resolved);
         stats.put("critical", critical);
         return stats;
+    }
+
+    public List<Complaint> getDepartmentComplaints(String deptNameOrId) {
+        List<Complaint> all = database.getAllComplaints();
+        List<Complaint> filtered = new ArrayList<>();
+        if (deptNameOrId == null || deptNameOrId.trim().isEmpty()) {
+            return filtered;
+        }
+        Department dept = database.findDepartment(deptNameOrId);
+        if (dept == null) {
+            dept = database.getDepartmentByAnyIdentifier(deptNameOrId);
+        }
+        String targetDeptId = dept != null ? dept.getDepartmentId() : null;
+        String targetDeptName = dept != null ? dept.getDepartmentName() : null;
+        String target = deptNameOrId.trim();
+
+        for (Complaint c : all) {
+            if (target.equalsIgnoreCase(c.getDepartment()) || target.equalsIgnoreCase(c.getDepartmentId())
+                || (targetDeptId != null && targetDeptId.equalsIgnoreCase(c.getDepartmentId()))
+                || (targetDeptName != null && targetDeptName.equalsIgnoreCase(c.getDepartment()))) {
+                filtered.add(c);
+            }
+        }
+        return filtered;
+    }
+
+    public synchronized boolean updateDepartmentCapacity(String deptIdOrName, int newCapacity, User adminUser) {
+        if (adminUser == null || !adminUser.isAdmin()) {
+            throw new SecurityException("Unauthorized: Only administrators can update department capacity.");
+        }
+        if (newCapacity <= 0) {
+            throw new IllegalArgumentException("Capacity must be greater than zero.");
+        }
+        Department dept = database.findDepartment(deptIdOrName);
+        if (dept == null) dept = database.getDepartmentByAnyIdentifier(deptIdOrName);
+        if (dept == null) return false;
+
+        dept.setCapacity(newCapacity);
+        String now = LocalDateTime.now().format(DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss"));
+        promoteAllEligibleWaitingComplaints(dept, now);
+        database.saveDatabase();
+        return true;
+    }
+
+    public synchronized boolean deleteConfirmedDuplicate(String complaintId, User operator, String confirmationReason) {
+        if (operator == null || (!operator.isAdmin() && !operator.isManager())) {
+            throw new SecurityException("Unauthorized: Only administrators or managers can delete confirmed duplicates.");
+        }
+        if (complaintId == null || complaintId.trim().isEmpty()) {
+            throw new IllegalArgumentException("Complaint ID cannot be empty.");
+        }
+        if (confirmationReason == null || confirmationReason.trim().isEmpty()) {
+            throw new IllegalArgumentException("A formal confirmation reason is required to delete a confirmed duplicate.");
+        }
+
+        Complaint complaint = database.getComplaintById(complaintId.trim());
+        if (complaint == null) {
+            throw new IllegalArgumentException("Complaint not found: " + complaintId);
+        }
+
+        if (!complaint.isDuplicate() || complaint.getDuplicateOfId() == null || complaint.getDuplicateOfId().trim().isEmpty()) {
+            throw new IllegalStateException("Deletion prohibited: Only confirmed redundant duplicate complaints can be deleted.");
+        }
+
+        String primaryId = complaint.getDuplicateOfId();
+        String opName = operator.getDisplayName();
+
+        // Record tombstone audit entries on both primary and history
+        recordHistory(primaryId, "N/A", "N/A", opName,
+                "Tombstone Audit: Linked duplicate complaint " + complaint.getComplaintId() + " was formally deleted. Reason: " + confirmationReason.trim());
+        recordHistory(complaint.getComplaintId(), complaint.getStatus(), "DELETED", opName,
+                "Tombstone Audit: Duplicate record deleted by operator. Reason: " + confirmationReason.trim() + ". Linked to primary: " + primaryId);
+
+        database.removeComplaint(complaint.getComplaintId());
+        database.saveDatabase();
+        return true;
+    }
+
+    public Map<String, Object> getManagerReport() {
+        List<Complaint> all = database.getAllComplaints();
+        int total = all.size();
+        int registered = 0;
+        int assigned = 0;
+        int inProgress = 0;
+        int resolved = 0;
+        int waiting = 0;
+        int confirmedDuplicates = 0;
+
+        Map<String, Integer> categoryCounts = new HashMap<>();
+        Map<String, Integer> severityCounts = new HashMap<>();
+
+        for (Complaint c : all) {
+            String s = c.getStatus() != null ? c.getStatus() : "";
+            if ("Registered".equalsIgnoreCase(s)) registered++;
+            else if ("Assigned".equalsIgnoreCase(s)) assigned++;
+            else if ("InProgress".equalsIgnoreCase(s)) inProgress++;
+            else if ("Resolved".equalsIgnoreCase(s)) resolved++;
+
+            if (c.isWaiting()) waiting++;
+            if (c.isDuplicate()) confirmedDuplicates++;
+
+            String cat = c.getCategory() != null ? c.getCategory() : "Other";
+            categoryCounts.put(cat, categoryCounts.getOrDefault(cat, 0) + 1);
+
+            String sev = c.getSeverity() != null ? c.getSeverity() : "LOW";
+            severityCounts.put(sev, severityCounts.getOrDefault(sev, 0) + 1);
+        }
+
+        Map<String, Object> deptLoads = new HashMap<>();
+        for (Department d : getAllDepartments()) {
+            Map<String, Object> dData = new HashMap<>();
+            dData.put("capacity", d.getCapacity());
+            dData.put("currentLoad", d.getCurrentLoad());
+            dData.put("waitingQueueSize", d.getWaitingQueueSize());
+            deptLoads.put(d.getDepartmentName(), dData);
+        }
+
+        Map<String, Object> report = new HashMap<>();
+        report.put("total", total);
+        report.put("registered", registered);
+        report.put("assigned", assigned);
+        report.put("inProgress", inProgress);
+        report.put("resolved", resolved);
+        report.put("waiting", waiting);
+        report.put("confirmedDuplicates", confirmedDuplicates);
+        report.put("categoryCounts", categoryCounts);
+        report.put("severityCounts", severityCounts);
+        report.put("departmentLoads", deptLoads);
+        return report;
+    }
+
+    public Map<String, Object> getAdminReport() {
+        Map<String, Object> report = getManagerReport();
+
+        // Worker count by department
+        Map<String, Integer> workersByDept = new HashMap<>();
+        int activeWorkers = 0;
+        int inactiveWorkers = 0;
+        for (model.DepartmentStaff w : database.getAllWorkers()) {
+            String dept = w.getDepartment();
+            workersByDept.put(dept, workersByDept.getOrDefault(dept, 0) + 1);
+            if (w.isActive()) activeWorkers++;
+            else inactiveWorkers++;
+        }
+
+        report.put("workersByDepartment", workersByDept);
+        report.put("activeWorkers", activeWorkers);
+        report.put("inactiveWorkers", inactiveWorkers);
+        report.put("totalUsers", database.getUniqueUsers().size());
+        report.put("totalHistoryEvents", database.getAllHistoryList().size());
+        return report;
+    }
+
+    public String getManagerReportJson() {
+        return formatReportJson(getManagerReport());
+    }
+
+    public String getAdminReportJson() {
+        return formatReportJson(getAdminReport());
+    }
+
+    @SuppressWarnings("unchecked")
+    private String formatReportJson(Map<String, Object> map) {
+        StringBuilder sb = new StringBuilder("{");
+        int count = 0;
+        for (Map.Entry<String, Object> entry : map.entrySet()) {
+            if (count > 0) sb.append(",");
+            sb.append("\"").append(entry.getKey()).append("\":");
+            Object val = entry.getValue();
+            if (val instanceof Number || val instanceof Boolean) {
+                sb.append(val);
+            } else if (val instanceof Map) {
+                sb.append(formatReportJson((Map<String, Object>) val));
+            } else {
+                sb.append("\"").append(val != null ? val.toString().replace("\"", "\\\"") : "").append("\"");
+            }
+            count++;
+        }
+        sb.append("}");
+        return sb.toString();
     }
 }

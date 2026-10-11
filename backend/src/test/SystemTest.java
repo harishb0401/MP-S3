@@ -249,8 +249,14 @@ public class SystemTest {
         // EXECUTE TASK 6 SYNTHETIC DATA VALIDATION TEST SUITE
         boolean dataValidationPassed = SyntheticDataValidationTest.runAllTests();
 
-        if (testsPassed == totalTests && priorityTestsPassed && stateMachineTestsPassed && capacityTestsPassed && duplicateTestsPassed && oopTestsPassed && dataValidationPassed) {
-            System.out.println("\n>>> ALL SYSTEM, PRIORITY RANKING, STATE MACHINE, CAPACITY, DUPLICATE MANAGEMENT, OOP DESIGN & DEMO DATA REQUIREMENTS VERIFIED SUCCESSFULLY! <<<");
+        // EXECUTE ROLE-BASED PORTALS & ACCESS CONTROL TEST SUITE
+        boolean rolePortalsPassed = RoleBasedPortalsTest.runAllTests();
+
+        // EXECUTE ASSESSMENT & GPS GEOLOCATION TEST SUITE (28 SCENARIOS)
+        boolean assessmentGpsPassed = AssessmentAndGPSTest.runAllTests();
+
+        if (testsPassed == totalTests && priorityTestsPassed && stateMachineTestsPassed && capacityTestsPassed && duplicateTestsPassed && oopTestsPassed && dataValidationPassed && rolePortalsPassed && assessmentGpsPassed) {
+            System.out.println("\n>>> ALL SYSTEM, RBAC PORTALS, RISK ASSESSMENT, GPS GEOLOCATION, PRIORITY RANKING, STATE MACHINE, CAPACITY, DUPLICATE MANAGEMENT, OOP DESIGN & DEMO DATA REQUIREMENTS VERIFIED SUCCESSFULLY! <<<");
         } else {
             System.exit(1);
         }

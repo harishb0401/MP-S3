@@ -66,12 +66,38 @@ const ApiClient = {
         return this.handleResponse(response);
     },
 
-    // 4. Submit Complaint (Citizen)
-    async submitComplaint(category, location, description) {
+    // 4. Submit Complaint (Citizen - no severity/priority selection, optional GPS)
+    async submitComplaint(category, location, description, affectedPeople = 1, title = "", latitude = null, longitude = null, locationAccuracyMeters = null) {
+        const payload = {
+            category,
+            location,
+            description,
+            affectedPeople,
+            impact: affectedPeople,
+            title
+        };
+        if (latitude !== null && latitude !== undefined && latitude !== "" &&
+            longitude !== null && longitude !== undefined && longitude !== "") {
+            payload.latitude = Number(latitude);
+            payload.longitude = Number(longitude);
+            if (locationAccuracyMeters !== null && locationAccuracyMeters !== undefined && locationAccuracyMeters !== "") {
+                payload.locationAccuracyMeters = Number(locationAccuracyMeters);
+            }
+        }
         const response = await fetch(`${API_BASE_URL}/complaints`, {
             method: "POST",
             headers: this.getHeaders(),
-            body: JSON.stringify({ category, location, description })
+            body: JSON.stringify(payload)
+        });
+        return this.handleResponse(response);
+    },
+
+    // 4b. Assess Risk and Route Complaint (Manager & Admin)
+    async assessComplaint(id, severity, reason, department = "", staffName = "") {
+        const response = await fetch(`${API_BASE_URL}/complaints/${id}/assess`, {
+            method: "POST",
+            headers: this.getHeaders(),
+            body: JSON.stringify({ severity, reason, department, staffName })
         });
         return this.handleResponse(response);
     },
@@ -225,5 +251,100 @@ const ApiClient = {
             body: JSON.stringify({ candidateComplaintId, remarks })
         });
         return this.handleResponse(response);
+    },
+
+    // 21. Delete Confirmed Duplicate
+    async deleteConfirmedDuplicate(id, confirmationReason = "") {
+        const response = await fetch(`${API_BASE_URL}/complaints/${id}/duplicate`, {
+            method: "DELETE",
+            headers: this.getHeaders(),
+            body: JSON.stringify({ confirmationReason })
+        });
+        return this.handleResponse(response);
+    },
+
+    // 22. Worker Department Complaints
+    async getWorkerComplaints() {
+        const response = await fetch(`${API_BASE_URL}/worker/complaints`, {
+            method: "GET",
+            headers: this.getHeaders()
+        });
+        return this.handleResponse(response);
+    },
+
+    // 23. Manager Report
+    async getManagerReport() {
+        const response = await fetch(`${API_BASE_URL}/reports/manager`, {
+            method: "GET",
+            headers: this.getHeaders()
+        });
+        return this.handleResponse(response);
+    },
+
+    // 24. Admin Report
+    async getAdminReport() {
+        const response = await fetch(`${API_BASE_URL}/reports/admin`, {
+            method: "GET",
+            headers: this.getHeaders()
+        });
+        return this.handleResponse(response);
+    },
+
+    // 25. Worker Management (Admin)
+    async getWorkers() {
+        const response = await fetch(`${API_BASE_URL}/admin/workers`, {
+            method: "GET",
+            headers: this.getHeaders()
+        });
+        return this.handleResponse(response);
+    },
+
+    async createWorker(name, email, mobile, password, department) {
+        const response = await fetch(`${API_BASE_URL}/admin/workers`, {
+            method: "POST",
+            headers: this.getHeaders(),
+            body: JSON.stringify({ name, email, mobile, password, department })
+        });
+        return this.handleResponse(response);
+    },
+
+    async updateWorker(workerId, name, mobile, department, active) {
+        const response = await fetch(`${API_BASE_URL}/admin/workers/${workerId}`, {
+            method: "PUT",
+            headers: this.getHeaders(),
+            body: JSON.stringify({ name, mobile, department, active })
+        });
+        return this.handleResponse(response);
+    },
+
+    async resetWorkerPassword(workerId, password) {
+        const response = await fetch(`${API_BASE_URL}/admin/workers/${workerId}/reset-password`, {
+            method: "POST",
+            headers: this.getHeaders(),
+            body: JSON.stringify({ password })
+        });
+        return this.handleResponse(response);
+    },
+
+    // 26. Update Department Capacity (Admin)
+    async updateDepartmentCapacity(department, capacity) {
+        const response = await fetch(`${API_BASE_URL}/departments/capacity`, {
+            method: "PUT",
+            headers: this.getHeaders(),
+            body: JSON.stringify({ department, capacity })
+        });
+        return this.handleResponse(response);
+    },
+
+    // 27. Logout
+    async logout() {
+        try {
+            await fetch(`${API_BASE_URL}/auth/logout`, {
+                method: "POST",
+                headers: this.getHeaders()
+            });
+        } catch (ignored) {}
+        localStorage.removeItem("auth_token");
+        localStorage.removeItem("auth_role");
     }
 };

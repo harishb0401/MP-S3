@@ -19,11 +19,22 @@ public abstract class Grievance {
     protected String citizenId;
     protected String citizenName;
     protected String citizenMobile;
+    protected String title;
     protected String category;
     protected String description;
     protected String location;
     protected String departmentId;
     protected String department;
+
+    // GPS Location fields
+    protected Double latitude;
+    protected Double longitude;
+    protected Double locationAccuracyMeters;
+
+    // Assessment fields (Manager/Admin authorized)
+    protected String assessedBy;
+    protected String assessedAt;
+    protected String assessmentReason;
 
     // Impact fields
     protected int citizenReportedImpact;          // Original value, IMMUTABLE
@@ -31,8 +42,8 @@ public abstract class Grievance {
     protected String verificationReason;          // Mandatory on verification
     protected boolean isVerifiedLocked;           // Locked after notification sent
 
-    protected String severity;                    // CRITICAL, HIGH, MEDIUM, LOW
-    protected String priority;                    // Calculated Priority Level
+    protected String severity;                    // CRITICAL, HIGH, MEDIUM, LOW (null = UNASSESSED)
+    protected String priority;                    // Calculated Priority Level or UNASSESSED
     protected String status;                      // Registered, Assigned, InProgress, Resolved
     protected String assignedStaff;
     protected String resolutionNotes;
@@ -85,9 +96,14 @@ public abstract class Grievance {
         this.isVerifiedLocked = false;
         this.arrivalSequence = SEQUENCE_GENERATOR.incrementAndGet();
 
-        String effectivePriority = (priority != null && !priority.trim().isEmpty()) ? priority.trim().toUpperCase() : "MEDIUM";
-        this.priority = effectivePriority;
-        this.severity = effectivePriority;
+        if (priority != null && !priority.trim().isEmpty() && !"UNASSESSED".equalsIgnoreCase(priority.trim())) {
+            String effectivePriority = priority.trim().toUpperCase();
+            this.priority = effectivePriority;
+            this.severity = effectivePriority;
+        } else {
+            this.priority = null;
+            this.severity = null;
+        }
 
         String effectiveStatus = (status != null && !status.trim().isEmpty()) ? status.trim() : "Registered";
         this.status = effectiveStatus;
@@ -155,7 +171,16 @@ public abstract class Grievance {
         return getEffectiveImpact();
     }
 
+    public boolean isAssessed() {
+        return this.severity != null && !this.severity.trim().isEmpty() &&
+               !"UNASSESSED".equalsIgnoreCase(this.severity.trim()) &&
+               !"AWAITING_REVIEW".equalsIgnoreCase(this.severity.trim());
+    }
+
     public int getSeverityRank() {
+        if (!isAssessed()) {
+            return 999;
+        }
         String sev = this.severity != null ? this.severity.trim().toUpperCase() : "";
         if (sev.isEmpty() && this.priority != null) {
             sev = this.priority.trim().toUpperCase();
@@ -165,7 +190,7 @@ public abstract class Grievance {
             case "HIGH":     return 2;
             case "MEDIUM":   return 3;
             case "LOW":      return 4;
-            default:         return 5;
+            default:         return 999;
         }
     }
 
@@ -197,8 +222,18 @@ public abstract class Grievance {
     public String getDepartmentId() { return departmentId; }
     public void setDepartmentId(String departmentId) { this.departmentId = departmentId; }
 
+    public String getTitle() {
+        if (title != null && !title.trim().isEmpty()) return title.trim();
+        return description != null ? description : (category != null ? category : "Complaint");
+    }
+    public void setTitle(String title) { this.title = title; }
+
     public String getDepartment() { return department; }
     public void setDepartment(String department) { this.department = department; }
+
+    public String getAssignedDepartment() {
+        return department != null ? department : "Unassigned";
+    }
 
     public int getCitizenReportedImpact() { return citizenReportedImpact; }
     public void setCitizenReportedImpact(int impact) {
@@ -242,11 +277,42 @@ public abstract class Grievance {
 
     public String getSeverity() { return severity; }
     public void setSeverity(String severity) {
-        this.severity = severity != null ? severity.toUpperCase() : "MEDIUM";
+        if (severity == null || severity.trim().isEmpty() || "UNASSESSED".equalsIgnoreCase(severity.trim())) {
+            this.severity = null;
+        } else {
+            this.severity = severity.trim().toUpperCase();
+        }
     }
     public void forceSetRawSeverity(String severity) {
         this.severity = severity;
     }
+
+    public Double getLatitude() { return latitude; }
+    public void setLatitude(Double latitude) { this.latitude = latitude; }
+
+    public Double getLongitude() { return longitude; }
+    public void setLongitude(Double longitude) { this.longitude = longitude; }
+
+    public Double getLocationAccuracyMeters() { return locationAccuracyMeters; }
+    public void setLocationAccuracyMeters(Double locationAccuracyMeters) { this.locationAccuracyMeters = locationAccuracyMeters; }
+
+    public boolean hasGpsCoordinates() {
+        return latitude != null && longitude != null;
+    }
+
+    public String getGoogleMapsUrl() {
+        if (!hasGpsCoordinates()) return null;
+        return "https://www.google.com/maps?q=" + latitude + "," + longitude;
+    }
+
+    public String getAssessedBy() { return assessedBy; }
+    public void setAssessedBy(String assessedBy) { this.assessedBy = assessedBy; }
+
+    public String getAssessedAt() { return assessedAt; }
+    public void setAssessedAt(String assessedAt) { this.assessedAt = assessedAt; }
+
+    public String getAssessmentReason() { return assessmentReason; }
+    public void setAssessmentReason(String assessmentReason) { this.assessmentReason = assessmentReason; }
 
     public String getPriority() { return priority; }
     public void setPriority(String priority) {

@@ -59,14 +59,15 @@ Use only the actual credentials present in the verified database:
 
 | Role | Name | Email / Login Identifier | Password | Primary Scope / Portal View |
 | :--- | :--- | :--- | :--- | :--- |
-| **Administrator** | Municipal Officer | `admin@makkal.gov.in` | `admin123` | Full Administrative Dashboard & Triage |
-| **Chief Admin** | Chief Municipal Officer | `commissioner@makkal.gov.in` | `admin123` | Executive Oversight & Triage |
-| **Water Staff** | Officer Suresh | `water_staff@makkal.gov.in` | `admin123` | Water Supply Operations (`DEPT-WATER`) |
-| **Roads Staff** | Officer Karthik | `roads_staff@makkal.gov.in` | `admin123` | Roads Department Operations (`DEPT-ROADS`) |
-| **Waste Staff** | Officer Priya | `waste_staff@makkal.gov.in` | `admin123` | Waste Management (`DEPT-WASTE`) |
-| **Streetlight Staff**| Officer Ramesh | `light_staff@makkal.gov.in` | `admin123` | Streetlight Department (`DEPT-LIGHT`) |
-| **Citizen 1** | Ramesh | `ramesh@test.com` | `123456` | Citizen Dashboard & Grievance History |
-| **Citizen 2** | Kalai | `kalai@gmail.com` | `123456` | Citizen Dashboard & Grievance Filing |
+| **Citizen** | Ramesh | `ramesh@test.com` | `123456` | Citizen Portal: Submit Grievance & Track Own Complaints |
+| **Citizen (2)** | Kalai | `kalai@gmail.com` | `123456` | Citizen Portal: Submit Grievance & Track Own Complaints |
+| **Worker (Water)** | Officer Suresh | `water_staff@makkal.gov.in` | `admin123` | Worker Portal: Water Department Tasks (`Assigned` -> `InProgress` -> `Resolved`) |
+| **Worker (Roads)** | Officer Karthik | `roads_staff@makkal.gov.in` | `admin123` | Worker Portal: Roads Department Tasks |
+| **Worker (Waste)** | Officer Priya | `waste_staff@makkal.gov.in` | `admin123` | Worker Portal: Waste Management Department Tasks |
+| **Worker (Streetlights)**| Officer Ramesh | `light_staff@makkal.gov.in` | `admin123` | Worker Portal: Streetlight Department Tasks |
+| **Manager** | Triage Officer | `manager@makkal.gov.in` | `admin123` | Manager Portal: Triage, Route/Assign, Duplicate Review & Workload |
+| **Administrator** | Municipal Admin | `admin@makkal.gov.in` | `admin123` | Admin Portal: Global Oversight, Worker CRUD & Department Settings |
+| **Chief Admin** | Commissioner | `commissioner@makkal.gov.in` | `admin123` | Executive Admin Oversight |
 
 ---
 

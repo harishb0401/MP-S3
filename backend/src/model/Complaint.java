@@ -32,10 +32,14 @@ public class Complaint extends Grievance implements Comparable<Complaint> {
                      int citizenReportedImpact, String priority, String status) {
         super(id, complaintId, citizenId, citizenName, citizenMobile, category, description, location, department, citizenReportedImpact, priority, status);
 
-        // Fix: Do not silently initialize severity to LOW when priority/severity is provided
-        String effectivePriority = (priority != null && !priority.trim().isEmpty()) ? priority.trim().toUpperCase() : "MEDIUM";
-        this.priority = effectivePriority;
-        this.severity = normalizeSeverity(effectivePriority);
+        if (priority != null && !priority.trim().isEmpty() && !"UNASSESSED".equalsIgnoreCase(priority.trim())) {
+            String effectivePriority = priority.trim().toUpperCase();
+            this.priority = effectivePriority;
+            this.severity = normalizeSeverity(effectivePriority);
+        } else {
+            this.priority = "UNASSESSED";
+            this.severity = null;
+        }
 
         this.status = (status != null && !status.isEmpty()) ? ComplaintStatus.toCanonical(status) : ComplaintStatus.REGISTERED.getCanonicalName();
         if (this.status == null) this.status = status;
@@ -47,9 +51,16 @@ public class Complaint extends Grievance implements Comparable<Complaint> {
                      int citizenReportedImpact, String severity, String priority, String status) {
         super(id, complaintId, citizenId, citizenName, citizenMobile, category, description, location, department, citizenReportedImpact, priority, status);
 
-        String effectiveSeverity = (severity != null && !severity.trim().isEmpty()) ? severity : priority;
-        this.severity = normalizeSeverity(effectiveSeverity);
-        this.priority = (priority != null && !priority.trim().isEmpty()) ? priority.trim().toUpperCase() : this.severity;
+        if (severity != null && !severity.trim().isEmpty() && !"UNASSESSED".equalsIgnoreCase(severity.trim())) {
+            this.severity = normalizeSeverity(severity);
+            this.priority = (priority != null && !priority.trim().isEmpty() && !"UNASSESSED".equalsIgnoreCase(priority.trim())) ? priority.trim().toUpperCase() : this.severity;
+        } else if (priority != null && !priority.trim().isEmpty() && !"UNASSESSED".equalsIgnoreCase(priority.trim())) {
+            this.priority = priority.trim().toUpperCase();
+            this.severity = normalizeSeverity(this.priority);
+        } else {
+            this.severity = null;
+            this.priority = "UNASSESSED";
+        }
 
         this.status = (status != null && !status.isEmpty()) ? ComplaintStatus.toCanonical(status) : ComplaintStatus.REGISTERED.getCanonicalName();
         if (this.status == null) this.status = status;
@@ -69,6 +80,12 @@ public class Complaint extends Grievance implements Comparable<Complaint> {
             this.location = source.location;
             this.departmentId = source.departmentId;
             this.department = source.department;
+            this.latitude = source.latitude;
+            this.longitude = source.longitude;
+            this.locationAccuracyMeters = source.locationAccuracyMeters;
+            this.assessedBy = source.assessedBy;
+            this.assessedAt = source.assessedAt;
+            this.assessmentReason = source.assessmentReason;
             this.citizenReportedImpact = source.citizenReportedImpact;
             this.adminVerifiedImpact = source.adminVerifiedImpact;
             this.verificationReason = source.verificationReason;
@@ -109,24 +126,46 @@ public class Complaint extends Grievance implements Comparable<Complaint> {
         if (s.isEmpty() && fallbackPriority != null) {
             s = fallbackPriority.toUpperCase().trim();
         }
+        if (s.isEmpty() || "UNASSESSED".equals(s) || "AWAITING_REVIEW".equals(s) || "NULL".equals(s)) {
+            return 999;
+        }
         switch (s) {
             case "CRITICAL": return 0;
             case "HIGH": return 1;
             case "MEDIUM": return 2;
             case "LOW": return 3;
-            default: return 4;
+            default: return 999;
         }
     }
 
     public static String normalizeSeverity(String raw) {
-        if (raw == null) return "LOW";
+        if (raw == null) return null;
         String s = raw.trim().toUpperCase();
+        if (s.isEmpty() || "UNASSESSED".equals(s) || "NULL".equals(s)) return null;
         switch (s) {
             case "CRITICAL": return "CRITICAL";
             case "HIGH": return "HIGH";
             case "MEDIUM": return "MEDIUM";
             case "LOW": return "LOW";
-            default: return s.isEmpty() ? "LOW" : s;
+            default: return s;
+        }
+    }
+
+    public static void validateCoordinates(Double lat, Double lng, Double acc) {
+        if (lat == null && lng == null) {
+            return;
+        }
+        if (lat == null || lng == null) {
+            throw new IllegalArgumentException("Both latitude and longitude must be provided together.");
+        }
+        if (Double.isNaN(lat) || Double.isInfinite(lat) || lat < -90.0 || lat > 90.0) {
+            throw new IllegalArgumentException("Latitude must be between -90 and 90 degrees.");
+        }
+        if (Double.isNaN(lng) || Double.isInfinite(lng) || lng < -180.0 || lng > 180.0) {
+            throw new IllegalArgumentException("Longitude must be between -180 and 180 degrees.");
+        }
+        if (acc != null && (Double.isNaN(acc) || Double.isInfinite(acc) || acc < 0.0)) {
+            throw new IllegalArgumentException("Location accuracy must be a nonnegative finite number.");
         }
     }
 
@@ -272,8 +311,19 @@ public class Complaint extends Grievance implements Comparable<Complaint> {
         this.severity = severity;
     }
 
-    public String getPriority() { return priority; }
-    public void setPriority(String priority) { this.priority = priority; }
+    public String getPriority() {
+        if (priority != null && !priority.trim().isEmpty()) {
+            return priority;
+        }
+        return isAssessed() ? severity : "UNASSESSED";
+    }
+    public void setPriority(String priority) {
+        if (priority == null || priority.trim().isEmpty() || "UNASSESSED".equalsIgnoreCase(priority.trim())) {
+            this.priority = "UNASSESSED";
+        } else {
+            this.priority = priority.trim().toUpperCase();
+        }
+    }
 
     public String getStatus() { return status; }
     public void setStatus(String status) {

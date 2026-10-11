@@ -28,15 +28,62 @@ public abstract class User {
         this.createdAt = createdAt;
     }
 
+    private boolean active = true;
+
     // Abstract methods demonstrating Polymorphism
     public abstract String getDisplayName();
     public abstract boolean canVerifyComplaints();
     public abstract boolean canAssignDepartment();
     public abstract boolean canUpdateStatus();
 
-    // Permissions for duplicate candidate confirmation and rejection
+    // Role helper methods
+    public boolean isCitizen() {
+        return "CITIZEN".equalsIgnoreCase(role);
+    }
+
+    public boolean isWorker() {
+        return "WORKER".equalsIgnoreCase(role) || "STAFF".equalsIgnoreCase(role);
+    }
+
+    public boolean isManager() {
+        return "MANAGER".equalsIgnoreCase(role);
+    }
+
+    public boolean isAdmin() {
+        return "ADMIN".equalsIgnoreCase(role);
+    }
+
+    // Role-based permissions
+    public boolean canManageWorkers() {
+        return "ADMIN".equalsIgnoreCase(role);
+    }
+
     public boolean canManageDuplicates() {
-        return "ADMIN".equalsIgnoreCase(role) || "STAFF".equalsIgnoreCase(role);
+        return "ADMIN".equalsIgnoreCase(role) || "MANAGER".equalsIgnoreCase(role) || "STAFF".equalsIgnoreCase(role);
+    }
+
+    public boolean canConfirmDuplicateLink() {
+        return "ADMIN".equalsIgnoreCase(role) || "MANAGER".equalsIgnoreCase(role);
+    }
+
+    public boolean canDeleteDuplicate() {
+        return "ADMIN".equalsIgnoreCase(role) || "MANAGER".equalsIgnoreCase(role);
+    }
+
+    public boolean canAccessAllComplaints() {
+        return "ADMIN".equalsIgnoreCase(role) || "MANAGER".equalsIgnoreCase(role);
+    }
+
+    public boolean canAssessSeverity() {
+        return "ADMIN".equalsIgnoreCase(role) || "MANAGER".equalsIgnoreCase(role);
+    }
+
+    public boolean isActive() {
+        return active;
+    }
+
+    public void setActive(boolean active) {
+        this.active = active;
     }
 
     // Immutable rule: No user can modify citizen reported impact

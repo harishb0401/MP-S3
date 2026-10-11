@@ -17,16 +17,26 @@ public class StandardGrievancePriorityPolicy implements GrievancePriorityPolicy 
         if (c1 == null) return 1;
         if (c2 == null) return -1;
 
-        // 1. Severity Comparison: Highest first (Lower rank number = higher severity)
-        int sevCompare = Integer.compare(c1.getSeverityRank(), c2.getSeverityRank());
-        if (sevCompare != 0) {
-            return sevCompare;
-        }
+        // 0. Assessment status check:
+        // Assessed complaints have priority over unassessed complaints in the active queue.
+        // Unassessed complaints awaiting manager review are ordered strictly in FIFO arrival order.
+        boolean a1 = c1.isAssessed();
+        boolean a2 = c2.isAssessed();
+        if (a1 && !a2) return -1;
+        if (!a1 && a2) return 1;
 
-        // 2. Affected-person Count Comparison: Highest first (Descending order)
-        int impactCompare = Integer.compare(c2.getEffectiveImpact(), c1.getEffectiveImpact());
-        if (impactCompare != 0) {
-            return impactCompare;
+        if (a1 && a2) {
+            // 1. Severity Comparison for assessed complaints: Highest first (CRITICAL > HIGH > MEDIUM > LOW)
+            int sevCompare = Integer.compare(c1.getSeverityRank(), c2.getSeverityRank());
+            if (sevCompare != 0) {
+                return sevCompare;
+            }
+
+            // 2. Affected-person Count Comparison: Highest first (Descending order)
+            int impactCompare = Integer.compare(c2.getEffectiveImpact(), c1.getEffectiveImpact());
+            if (impactCompare != 0) {
+                return impactCompare;
+            }
         }
 
         // 3. Arrival Order: Earliest first

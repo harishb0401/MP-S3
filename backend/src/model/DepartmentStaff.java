@@ -28,7 +28,12 @@ public class DepartmentStaff extends User {
 
     public DepartmentStaff(String id, String username, String email, String mobile, String passwordHash,
                            String staffName, String departmentId, Department department, String createdAt) {
-        super(id, username, email, mobile, passwordHash, "STAFF",
+        this(id, username, email, mobile, passwordHash, "STAFF", staffName, departmentId, department, createdAt);
+    }
+
+    public DepartmentStaff(String id, String username, String email, String mobile, String passwordHash, String role,
+                           String staffName, String departmentId, Department department, String createdAt) {
+        super(id, username, email, mobile, passwordHash, (role != null && !role.isEmpty()) ? role : "STAFF",
                 department != null ? department.getDepartmentName() : "General", createdAt);
         this.staffId = id;
         this.staffName = staffName != null ? staffName.replaceAll("\\s*\\([^)]*\\)", "").trim() : "";
