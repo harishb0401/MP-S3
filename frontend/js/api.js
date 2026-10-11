@@ -196,5 +196,34 @@ const ApiClient = {
             body: JSON.stringify({ action, primaryComplaintId, reason })
         });
         return this.handleResponse(response);
+    },
+
+    // 18. Get Duplicate Candidates
+    async getDuplicateCandidates(id) {
+        const response = await fetch(`${API_BASE_URL}/complaints/${id}/duplicate-candidates`, {
+            method: "GET",
+            headers: this.getHeaders()
+        });
+        return this.handleResponse(response);
+    },
+
+    // 19. Confirm Duplicate Link
+    async confirmDuplicateLink(id, primaryComplaintId, remarks = "") {
+        const response = await fetch(`${API_BASE_URL}/complaints/${id}/duplicate/confirm`, {
+            method: "POST",
+            headers: this.getHeaders(),
+            body: JSON.stringify({ primaryComplaintId, remarks })
+        });
+        return this.handleResponse(response);
+    },
+
+    // 20. Reject Duplicate Candidate
+    async rejectDuplicateCandidate(id, candidateComplaintId, remarks = "") {
+        const response = await fetch(`${API_BASE_URL}/complaints/${id}/duplicate/reject`, {
+            method: "POST",
+            headers: this.getHeaders(),
+            body: JSON.stringify({ candidateComplaintId, remarks })
+        });
+        return this.handleResponse(response);
     }
 };

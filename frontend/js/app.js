@@ -450,7 +450,7 @@ async function loadCitizenDashboard() {
                 <td>${escapeHtml(c.location)}</td>
                 <td>${getPriorityBadge(c.priority)}</td>
                 <td>${escapeHtml(c.department)}</td>
-                <td>${getStatusBadge(c.status)}</td>
+                <td>${getStatusBadge(c.status, c.isWaiting)}</td>
                 <td>${c.createdAt || 'Today'}</td>
                 <td>
                     <button class="btn btn-secondary btn-sm" onclick="openComplaintModal('${c.complaintId}')">
@@ -513,7 +513,7 @@ function getFilteredStaffComplaints() {
 
         const matchesCat = !category || c.category === category;
         const matchesPrio = !priority || c.priority === priority;
-        const matchesStat = !status || c.status === status;
+        const matchesStat = !status || (c.status && c.status.toLowerCase().replace(/[\s_-]/g, '') === status.toLowerCase().replace(/[\s_-]/g, ''));
 
         return matchesQuery && matchesCat && matchesPrio && matchesStat;
     });
@@ -561,7 +561,7 @@ function renderStaffComplaintsTable() {
             <td>${escapeHtml(c.location)}</td>
             <td>${getPriorityBadge(c.priority)}</td>
             <td>${escapeHtml(c.department)}</td>
-            <td>${getStatusBadge(c.status)}</td>
+            <td>${getStatusBadge(c.status, c.isWaiting)}</td>
             <td>${c.createdAt || 'Today'}</td>
             <td>
                 <button class="btn btn-secondary btn-sm" onclick="openComplaintModal('${c.complaintId}')">
@@ -614,7 +614,7 @@ async function loadPriorityQueueView() {
                     <div style="display:flex; align-items:center; gap:10px; margin-bottom:4px;">
                         <strong>${c.complaintId}</strong> - ${escapeHtml(c.category)}
                         ${getPriorityBadge(c.priority)}
-                        ${getStatusBadge(c.status)}
+                        ${getStatusBadge(c.status, c.isWaiting)}
                     </div>
                     <div style="font-size:13px; color:var(--text-muted); display:flex; gap:16px;">
                         <span><i class="fa-solid fa-location-dot"></i> ${escapeHtml(c.location)}</span>
@@ -751,6 +751,9 @@ async function openComplaintModal(complaintId) {
         if (c.isDuplicate) {
             desc += `\n[Duplicate Case - Linked Primary: ${c.duplicateOfId || 'Master'}]`;
         }
+        if (c.isWaiting) {
+            desc += `\n[Department Capacity Status: Queued in Department Waiting PriorityQueue (Department Full)]`;
+        }
         document.getElementById("m-description").innerText = desc;
         document.getElementById("m-department").innerText = c.department || "Unassigned";
         document.getElementById("m-assigned-staff").innerText = c.assignedStaff || "Unassigned";
@@ -773,10 +776,59 @@ async function openComplaintModal(complaintId) {
             staffBox.style.display = "flex";
             document.getElementById("s-assign-dept-select").value = c.department || "Electrical";
             document.getElementById("s-assign-staff-input").value = c.assignedStaff === "Unassigned" ? "" : (c.assignedStaff || "");
-            document.getElementById("s-update-status-select").value = c.status || "PENDING";
             document.getElementById("s-resolution-input").value = c.resolutionNotes || "";
+
+            // Dynamic population of valid next actions based on State Machine
+            const statusSelect = document.getElementById("s-update-status-select");
+            const updateBtn = document.getElementById("btn-update-status");
+            const resolveInput = document.getElementById("s-resolution-input");
+            const resolveBtn = document.querySelector("#staff-controls-box button[onclick='handleStaffResolve()']");
+
+            const normStatus = (c.status || "").toUpperCase().replace(/[\s_-]/g, "");
+            statusSelect.innerHTML = "";
+
+            if (normStatus === "REGISTERED" || normStatus === "SUBMITTED" || normStatus === "PENDING") {
+                statusSelect.innerHTML = `<option value="Assigned">Assigned (Move to Department Queue)</option>`;
+                statusSelect.disabled = false;
+                if (updateBtn) updateBtn.disabled = false;
+                if (resolveBtn) resolveBtn.disabled = true;
+                if (resolveInput) resolveInput.disabled = true;
+            } else if (normStatus === "ASSIGNED") {
+                statusSelect.innerHTML = `<option value="InProgress">In Progress (Start Field Work)</option>`;
+                statusSelect.disabled = false;
+                if (updateBtn) updateBtn.disabled = false;
+                if (resolveBtn) resolveBtn.disabled = true;
+                if (resolveInput) resolveInput.disabled = true;
+            } else if (normStatus === "INPROGRESS") {
+                statusSelect.innerHTML = `<option value="Resolved">Resolved (Complete Grievance)</option>`;
+                statusSelect.disabled = false;
+                if (updateBtn) updateBtn.disabled = false;
+                if (resolveBtn) resolveBtn.disabled = false;
+                if (resolveInput) resolveInput.disabled = false;
+            } else if (normStatus === "RESOLVED" || normStatus === "CLOSED") {
+                statusSelect.innerHTML = `<option value="" disabled selected>Terminal State (Case Fully Resolved)</option>`;
+                statusSelect.disabled = true;
+                if (updateBtn) updateBtn.disabled = true;
+                if (resolveBtn) resolveBtn.disabled = true;
+                if (resolveInput) resolveInput.disabled = true;
+            } else {
+                statusSelect.innerHTML = `
+                    <option value="Assigned">Assigned</option>
+                    <option value="InProgress">In Progress</option>
+                    <option value="Resolved">Resolved</option>
+                `;
+                statusSelect.disabled = false;
+                if (updateBtn) updateBtn.disabled = false;
+                if (resolveBtn) resolveBtn.disabled = false;
+                if (resolveInput) resolveInput.disabled = false;
+            }
+
+            // Load Duplicate Candidate Controls
+            loadDuplicateCandidateControls(c);
         } else {
             staffBox.style.display = "none";
+            const dupBox = document.getElementById("duplicate-candidate-box");
+            if (dupBox) dupBox.style.display = "none";
         }
 
         document.getElementById("complaint-modal").classList.add("active");
@@ -785,8 +837,111 @@ async function openComplaintModal(complaintId) {
     }
 }
 
+async function loadDuplicateCandidateControls(complaint) {
+    const box = document.getElementById("duplicate-candidate-box");
+    const badge = document.getElementById("duplicate-candidate-badge");
+    const list = document.getElementById("duplicate-candidates-list");
+    if (!box || !list) return;
+
+    box.style.display = "flex";
+
+    if (complaint.isDuplicate) {
+        if (badge) {
+            badge.style.display = "inline-block";
+            badge.style.backgroundColor = "#dbeafe";
+            badge.style.color = "#1e40af";
+            badge.style.borderColor = "#bfdbfe";
+            badge.innerText = "Confirmed Duplicate";
+        }
+        list.innerHTML = `
+            <div style="background: var(--bg-surface); padding: 12px; border-radius: var(--radius-sm); border: 1px solid var(--border-color); font-size: 13px;">
+                <p style="margin: 0 0 6px 0; color: #1e40af; font-weight: 600;"><i class="fa-solid fa-link"></i> Confirmed Duplicate Link</p>
+                <p style="margin: 0; color: var(--text-main);">This grievance is confirmed as a duplicate linked to primary case: <strong>${escapeHtml(complaint.duplicateOfId || 'Master')}</strong>.</p>
+                <p style="margin: 6px 0 0 0; color: var(--text-muted); font-size: 12px;">Original complaint record and audit history are safely preserved.</p>
+            </div>
+        `;
+        return;
+    }
+
+    try {
+        const candidates = await ApiClient.getDuplicateCandidates(complaint.complaintId);
+        if (!candidates || candidates.length === 0) {
+            if (badge) {
+                badge.style.display = "none";
+            }
+            list.innerHTML = `
+                <div style="font-size: 13px; color: var(--text-muted); padding: 8px 0;">
+                    <i class="fa-solid fa-circle-check" style="color: #059669;"></i> No active duplicate candidates detected for this grievance.
+                </div>
+            `;
+            return;
+        }
+
+        if (badge) {
+            badge.style.display = "inline-block";
+            badge.style.backgroundColor = "#fef3c7";
+            badge.style.color = "#92400e";
+            badge.style.borderColor = "#fcd34d";
+            badge.innerText = `${candidates.length} Candidate${candidates.length > 1 ? 's' : ''} Detected`;
+        }
+
+        list.innerHTML = candidates.map(cand => `
+            <div style="background: var(--bg-surface); padding: 12px; border-radius: var(--radius-sm); border: 1px solid var(--border-color); display: flex; flex-direction: column; gap: 8px;">
+                <div style="display: flex; justify-content: space-between; align-items: center; font-size: 13px;">
+                    <div>
+                        <strong>Candidate Case: ${escapeHtml(cand.candidateComplaintId)}</strong>
+                        <span style="color: var(--text-muted); margin-left: 8px;">(${escapeHtml(cand.category)} | ${escapeHtml(cand.location)})</span>
+                    </div>
+                    <span class="badge badge-progress" style="font-size: 11px;">${escapeHtml(cand.status)}</span>
+                </div>
+                <div style="font-size: 12px; color: var(--text-muted);">
+                    <span><i class="fa-solid fa-triangle-exclamation" style="color: #d97706;"></i> <strong>Match Reason:</strong> ${escapeHtml(cand.reason)}</span>
+                    <span style="margin-left: 12px;"><i class="fa-solid fa-user"></i> Reported by: ${escapeHtml(cand.citizenName)}</span>
+                </div>
+                <div style="display: flex; gap: 8px; align-items: center; margin-top: 4px;">
+                    <input type="text" id="cand-remarks-${cand.candidateComplaintId}" class="form-control" placeholder="Operator verification remarks..." style="flex: 1; font-size: 12px; padding: 4px 8px;">
+                    <button class="btn btn-primary btn-sm" style="font-size: 12px; padding: 5px 10px;" onclick="handleConfirmDuplicateLink('${escapeHtml(complaint.complaintId)}', '${escapeHtml(cand.candidateComplaintId)}')">
+                        <i class="fa-solid fa-check"></i> Confirm Link
+                    </button>
+                    <button class="btn btn-secondary btn-sm" style="font-size: 12px; padding: 5px 10px;" onclick="handleRejectDuplicateCandidate('${escapeHtml(complaint.complaintId)}', '${escapeHtml(cand.candidateComplaintId)}')">
+                        <i class="fa-solid fa-xmark"></i> Reject Candidate
+                    </button>
+                </div>
+            </div>
+        `).join("");
+    } catch (e) {
+        list.innerHTML = `<div style="font-size: 12px; color: #dc2626;">Error querying duplicate candidates: ${escapeHtml(e.message)}</div>`;
+    }
+}
+
+async function handleConfirmDuplicateLink(sourceId, primaryCandidateId) {
+    const remarksInput = document.getElementById(`cand-remarks-${primaryCandidateId}`);
+    const remarks = remarksInput ? remarksInput.value.trim() : "";
+    try {
+        await ApiClient.confirmDuplicateLink(sourceId, primaryCandidateId, remarks);
+        showToast(`Duplicate link confirmed between <strong>${sourceId}</strong> and primary <strong>${primaryCandidateId}</strong>!`);
+        openComplaintModal(sourceId);
+        refreshCurrentView();
+    } catch (e) {
+        showToast("Failed to confirm duplicate link: " + e.message, "danger");
+    }
+}
+
+async function handleRejectDuplicateCandidate(sourceId, candidateId) {
+    const remarksInput = document.getElementById(`cand-remarks-${candidateId}`);
+    const remarks = remarksInput ? remarksInput.value.trim() : "";
+    try {
+        await ApiClient.rejectDuplicateCandidate(sourceId, candidateId, remarks);
+        showToast(`Candidate <strong>${candidateId}</strong> rejected for <strong>${sourceId}</strong>.`);
+        openComplaintModal(sourceId);
+        refreshCurrentView();
+    } catch (e) {
+        showToast("Failed to reject duplicate candidate: " + e.message, "danger");
+    }
+}
+
 function renderTrackingTimeline(status) {
-    const s = (status || "").toUpperCase();
+    const s = (status || "").toUpperCase().replace(/[\s_-]/g, "");
 
     const stepSubmitted = document.getElementById("step-submitted");
     const stepAssigned = document.getElementById("step-assigned");
@@ -794,20 +949,20 @@ function renderTrackingTimeline(status) {
     const stepResolved = document.getElementById("step-resolved");
 
     [stepSubmitted, stepAssigned, stepProgress, stepResolved].forEach(el => {
-        el.className = "timeline-step";
+        if (el) el.className = "timeline-step";
     });
 
-    stepSubmitted.classList.add("completed");
+    if (stepSubmitted) stepSubmitted.classList.add("completed");
 
     if (s === "ASSIGNED") {
-        stepAssigned.classList.add("active");
-    } else if (s === "IN_PROGRESS") {
-        stepAssigned.classList.add("completed");
-        stepProgress.classList.add("active");
+        if (stepAssigned) stepAssigned.classList.add("active");
+    } else if (s === "INPROGRESS") {
+        if (stepAssigned) stepAssigned.classList.add("completed");
+        if (stepProgress) stepProgress.classList.add("active");
     } else if (s === "RESOLVED" || s === "CLOSED") {
-        stepAssigned.classList.add("completed");
-        stepProgress.classList.add("completed");
-        stepResolved.classList.add("completed");
+        if (stepAssigned) stepAssigned.classList.add("completed");
+        if (stepProgress) stepProgress.classList.add("completed");
+        if (stepResolved) stepResolved.classList.add("completed");
     }
 }
 
@@ -886,15 +1041,18 @@ function getPriorityBadge(priority) {
     return `<span class="badge badge-${pClass}"><i class="fa-solid ${icon}"></i> ${priority}</span>`;
 }
 
-function getStatusBadge(status) {
-    const s = (status || "").toUpperCase();
+function getStatusBadge(status, isWaiting = false) {
+    if (isWaiting) {
+        return `<span class="badge" style="background-color: #fef3c7; color: #92400e; border: 1px solid #fcd34d;"><i class="fa-solid fa-hourglass-half"></i> Waiting (Queued)</span>`;
+    }
+    const s = (status || "").toUpperCase().replace(/[\s_-]/g, "");
     let sClass = "pending";
     let icon = "fa-clock";
 
     if (s === "ASSIGNED") { sClass = "assigned"; icon = "fa-user-check"; }
-    if (s === "IN_PROGRESS") { sClass = "progress"; icon = "fa-gears"; }
-    if (s === "RESOLVED") { sClass = "resolved"; icon = "fa-circle-check"; }
-    if (s === "CLOSED") { sClass = "closed"; icon = "fa-circle-xmark"; }
+    else if (s === "INPROGRESS") { sClass = "progress"; icon = "fa-gears"; }
+    else if (s === "RESOLVED" || s === "CLOSED") { sClass = "resolved"; icon = "fa-circle-check"; }
+    else if (s === "REGISTERED") { sClass = "pending"; icon = "fa-clock"; }
 
     return `<span class="badge badge-${sClass}"><i class="fa-solid ${icon}"></i> ${status}</span>`;
 }

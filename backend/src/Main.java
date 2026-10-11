@@ -34,6 +34,9 @@ public class Main {
         System.out.printf("| Total Complaints : %-5d | Pending Complaints   : %-5d |\n", stats.get("total"), stats.get("pending"));
         System.out.printf("| In Progress      : %-5d | Resolved Complaints  : %-5d |\n", stats.get("inProgress"), stats.get("resolved"));
         System.out.printf("| Critical Priority: %-5d |\n", stats.get("critical"));
+        System.out.println("-------------------------------------------------------------------------------");
+        System.out.println("[DEMO DATA STATUS] Preloaded synthetic demonstration complaints active.");
+        System.out.println("[DEMO LOCATIONS] Five canonical Makkal Nagar zones: " + model.LocationNormalizer.getCanonicalDemoLocations());
         System.out.println("-------------------------------------------------------------------------------\n");
 
         // Start REST API Server

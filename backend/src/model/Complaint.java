@@ -2,13 +2,18 @@ package model;
 
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
+import java.util.Comparator;
+import java.util.HashSet;
+import java.util.PriorityQueue;
+import java.util.Set;
+import java.util.concurrent.atomic.AtomicLong;
 
 /**
  * Model representing a Citizen Grievance / Complaint.
  * Implements Comparable<Complaint> for multi-criteria PriorityQueue prioritization:
- * 1. Severity (High > Medium > Low)
- * 2. Impact Count (Verified Impact if present, else Citizen Impact; Descending)
- * 3. Arrival Order (Submission Timestamp; Ascending FIFO)
+ * 1. Severity, highest first (CRITICAL > HIGH > MEDIUM > LOW).
+ * 2. Affected-person count, highest first (Descending order).
+ * 3. Arrival order, earliest first (FIFO timestamp with immutable arrival sequence tie-breaker).
  *
  * Enforces business rules:
  * - Citizen Reported Impact is immutable and cannot be overwritten.
@@ -16,80 +21,72 @@ import java.time.format.DateTimeFormatter;
  * - Verification Reason is mandatory.
  * - Verified data is locked after citizen notification.
  */
-public class Complaint implements Comparable<Complaint> {
-    private String id;
-    private String complaintId;
-    private String citizenId;
-    private String citizenName;
-    private String citizenMobile;
-    private String category;
-    private String description;
-    private String location;
-    private String departmentId;
-    private String department;
-    
-    // Impact fields
-    private int citizenReportedImpact;          // Original value, IMMUTABLE
-    private Integer adminVerifiedImpact;        // Stored separately
-    private String verificationReason;          // Mandatory on verification
-    private boolean isVerifiedLocked;           // Locked after notification sent
-
-    private String severity;                    // HIGH, MEDIUM, LOW
-    private String priority;                    // Calculated Priority Level
-    private String status;                      // Registered, Under Review, Assigned, In Progress, Resolved, Closed
-    private String assignedStaff;
-    private String resolutionNotes;
-
-    // Duplicate detection fields
-    private boolean isDuplicate;
-    private String duplicateOfId;
-
-    private String createdAt;
-    private String updatedAt;
-    private String resolvedAt;
+public class Complaint extends Grievance implements Comparable<Complaint> {
 
     public Complaint() {
-        this.status = "Registered";
-        this.assignedStaff = "Unassigned";
-        this.resolutionNotes = "";
-        this.isVerifiedLocked = false;
-        this.isDuplicate = false;
-        this.duplicateOfId = null;
-        this.citizenReportedImpact = 1; // default initial
-        String now = LocalDateTime.now().format(DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss"));
-        this.createdAt = now;
-        this.updatedAt = now;
-        this.resolvedAt = "";
+        super();
     }
 
     public Complaint(String id, String complaintId, String citizenId, String citizenName, String citizenMobile,
                      String category, String description, String location, String department,
                      int citizenReportedImpact, String priority, String status) {
-        this.id = id;
-        this.complaintId = complaintId;
-        this.citizenId = citizenId;
-        this.citizenName = citizenName;
-        this.citizenMobile = citizenMobile;
-        this.category = category;
-        this.description = description;
-        this.location = location;
-        this.department = department;
-        this.citizenReportedImpact = citizenReportedImpact > 0 ? citizenReportedImpact : 1;
-        this.adminVerifiedImpact = null;
-        this.verificationReason = "";
-        this.isVerifiedLocked = false;
-        this.severity = "LOW";
-        this.priority = priority != null ? priority : "MEDIUM";
-        this.status = (status != null && !status.isEmpty()) ? status : "Registered";
-        this.assignedStaff = "Unassigned";
-        this.resolutionNotes = "";
-        this.isDuplicate = false;
-        this.duplicateOfId = null;
+        super(id, complaintId, citizenId, citizenName, citizenMobile, category, description, location, department, citizenReportedImpact, priority, status);
 
-        String now = LocalDateTime.now().format(DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss"));
-        this.createdAt = now;
-        this.updatedAt = now;
-        this.resolvedAt = "";
+        // Fix: Do not silently initialize severity to LOW when priority/severity is provided
+        String effectivePriority = (priority != null && !priority.trim().isEmpty()) ? priority.trim().toUpperCase() : "MEDIUM";
+        this.priority = effectivePriority;
+        this.severity = normalizeSeverity(effectivePriority);
+
+        this.status = (status != null && !status.isEmpty()) ? ComplaintStatus.toCanonical(status) : ComplaintStatus.REGISTERED.getCanonicalName();
+        if (this.status == null) this.status = status;
+    }
+
+    // Extended constructor with explicit severity
+    public Complaint(String id, String complaintId, String citizenId, String citizenName, String citizenMobile,
+                     String category, String description, String location, String department,
+                     int citizenReportedImpact, String severity, String priority, String status) {
+        super(id, complaintId, citizenId, citizenName, citizenMobile, category, description, location, department, citizenReportedImpact, priority, status);
+
+        String effectiveSeverity = (severity != null && !severity.trim().isEmpty()) ? severity : priority;
+        this.severity = normalizeSeverity(effectiveSeverity);
+        this.priority = (priority != null && !priority.trim().isEmpty()) ? priority.trim().toUpperCase() : this.severity;
+
+        this.status = (status != null && !status.isEmpty()) ? ComplaintStatus.toCanonical(status) : ComplaintStatus.REGISTERED.getCanonicalName();
+        if (this.status == null) this.status = status;
+    }
+
+    // Copy constructor for polymorphic grievance subclasses and adapters
+    public Complaint(Complaint source) {
+        super();
+        if (source != null) {
+            this.id = source.id;
+            this.complaintId = source.complaintId;
+            this.citizenId = source.citizenId;
+            this.citizenName = source.citizenName;
+            this.citizenMobile = source.citizenMobile;
+            this.category = source.category;
+            this.description = source.description;
+            this.location = source.location;
+            this.departmentId = source.departmentId;
+            this.department = source.department;
+            this.citizenReportedImpact = source.citizenReportedImpact;
+            this.adminVerifiedImpact = source.adminVerifiedImpact;
+            this.verificationReason = source.verificationReason;
+            this.isVerifiedLocked = source.isVerifiedLocked;
+            this.severity = source.severity;
+            this.priority = source.priority;
+            this.status = source.status;
+            this.assignedStaff = source.assignedStaff;
+            this.resolutionNotes = source.resolutionNotes;
+            this.isDuplicate = source.isDuplicate;
+            this.duplicateOfId = source.duplicateOfId;
+            this.rejectedCandidateIds = new HashSet<>(source.getRejectedCandidateIds());
+            this.isWaiting = source.isWaiting;
+            this.arrivalSequence = source.arrivalSequence;
+            this.createdAt = source.createdAt;
+            this.updatedAt = source.updatedAt;
+            this.resolvedAt = source.resolvedAt;
+        }
     }
 
     // Convenience constructor for legacy callers
@@ -99,11 +96,18 @@ public class Complaint implements Comparable<Complaint> {
         this(id, complaintId, citizenId, citizenName, citizenMobile, category, description, location, department, 1, priority, status);
     }
 
-    // Priority comparator helper methods
-    public int getSeverityRank() {
+    /**
+     * Consistent Severity Ordering:
+     * Rank 0: CRITICAL - Emergency, hazard, structural or water disaster
+     * Rank 1: HIGH     - Major infrastructure interruption
+     * Rank 2: MEDIUM   - Regular municipal grievance
+     * Rank 3: LOW      - Minor / cosmetic grievance
+     * Rank 4: Default fallback for any unrecognized value
+     */
+    public static int getSeverityRank(String severity, String fallbackPriority) {
         String s = severity != null ? severity.toUpperCase().trim() : "";
-        if (s.isEmpty() && priority != null) {
-            s = priority.toUpperCase().trim();
+        if (s.isEmpty() && fallbackPriority != null) {
+            s = fallbackPriority.toUpperCase().trim();
         }
         switch (s) {
             case "CRITICAL": return 0;
@@ -114,6 +118,23 @@ public class Complaint implements Comparable<Complaint> {
         }
     }
 
+    public static String normalizeSeverity(String raw) {
+        if (raw == null) return "LOW";
+        String s = raw.trim().toUpperCase();
+        switch (s) {
+            case "CRITICAL": return "CRITICAL";
+            case "HIGH": return "HIGH";
+            case "MEDIUM": return "MEDIUM";
+            case "LOW": return "LOW";
+            default: return s.isEmpty() ? "LOW" : s;
+        }
+    }
+
+    // Priority comparator helper methods
+    public int getSeverityRank() {
+        return getSeverityRank(this.severity, this.priority);
+    }
+
     public int getEffectiveImpact() {
         if (adminVerifiedImpact != null && adminVerifiedImpact > 0) {
             return adminVerifiedImpact;
@@ -121,32 +142,47 @@ public class Complaint implements Comparable<Complaint> {
         return Math.max(1, citizenReportedImpact);
     }
 
+    public int getAffectedPersonCount() {
+        return getEffectiveImpact();
+    }
+
     /**
-     * Priority Comparator implementing exact specification:
-     * 1. Severity (High > Medium > Low)
-     * 2. Impact Count (Descending: higher impact count comes first)
-     * 3. Arrival Order (Ascending FIFO: earlier timestamp comes first)
+     * Reusable Comparator implementing exact priority ranking criteria:
+     * 1. Severity, highest first (CRITICAL > HIGH > MEDIUM > LOW).
+     * 2. Affected-person count, highest first (Descending order).
+     * 3. Arrival order, earliest first:
+     *    a. Submission timestamp (createdAt), earliest first (FIFO).
+     *    b. Immutable arrival sequence number as tie-breaker when timestamps are identical.
+     *    c. Deterministic unique identifier tie-breaker for distinct complaints.
      */
+    public static final GrievancePriorityPolicy DEFAULT_PRIORITY_POLICY = new StandardGrievancePriorityPolicy();
+    public static final Comparator<Complaint> PRIORITY_COMPARATOR = DEFAULT_PRIORITY_POLICY;
+
+    @Override
+    public String responsibleDepartment() {
+        if (department != null && !department.trim().isEmpty()) {
+            return department.trim();
+        }
+        return "General Administration";
+    }
+
+    /**
+     * Priority Queue reinsertion helper.
+     * Removes and re-inserts the complaint into the given queue to restore heap order.
+     */
+    public static boolean reinsertInQueue(PriorityQueue<Complaint> queue, Complaint complaint) {
+        if (queue == null || complaint == null) return false;
+        boolean removed = queue.remove(complaint);
+        if (removed) {
+            queue.add(complaint);
+            return true;
+        }
+        return false;
+    }
+
     @Override
     public int compareTo(Complaint other) {
-        if (other == null) return -1;
-
-        // 1. Severity Comparison
-        int sevCompare = Integer.compare(this.getSeverityRank(), other.getSeverityRank());
-        if (sevCompare != 0) {
-            return sevCompare;
-        }
-
-        // 2. Impact Count Comparison (Descending)
-        int impactCompare = Integer.compare(other.getEffectiveImpact(), this.getEffectiveImpact());
-        if (impactCompare != 0) {
-            return impactCompare;
-        }
-
-        // 3. Arrival Order Comparison (FIFO: earlier timestamp comes first)
-        String t1 = this.createdAt != null ? this.createdAt : "";
-        String t2 = other.createdAt != null ? other.createdAt : "";
-        return t1.compareTo(t2);
+        return DEFAULT_PRIORITY_POLICY.compare(this, other);
     }
 
     // Getters and Setters
@@ -222,14 +258,28 @@ public class Complaint implements Comparable<Complaint> {
     public boolean isVerifiedLocked() { return isVerifiedLocked; }
     public void setVerifiedLocked(boolean verifiedLocked) { isVerifiedLocked = verifiedLocked; }
 
+    public long getArrivalSequence() { return arrivalSequence; }
+    public void forceSetArrivalSequenceFromPersistence(long arrivalSequence) {
+        this.arrivalSequence = arrivalSequence;
+        SEQUENCE_GENERATOR.updateAndGet(curr -> Math.max(curr, arrivalSequence));
+    }
+
     public String getSeverity() { return severity; }
-    public void setSeverity(String severity) { this.severity = severity; }
+    public void setSeverity(String severity) {
+        this.severity = normalizeSeverity(severity);
+    }
+    public void forceSetRawSeverity(String severity) {
+        this.severity = severity;
+    }
 
     public String getPriority() { return priority; }
     public void setPriority(String priority) { this.priority = priority; }
 
     public String getStatus() { return status; }
-    public void setStatus(String status) { this.status = status; }
+    public void setStatus(String status) {
+        String canonical = ComplaintStatus.toCanonical(status);
+        this.status = canonical != null ? canonical : status;
+    }
 
     public String getAssignedStaff() { return assignedStaff; }
     public void setAssignedStaff(String assignedStaff) { this.assignedStaff = assignedStaff; }
@@ -242,6 +292,37 @@ public class Complaint implements Comparable<Complaint> {
 
     public String getDuplicateOfId() { return duplicateOfId; }
     public void setDuplicateOfId(String duplicateOfId) { this.duplicateOfId = duplicateOfId; }
+
+    public Set<String> getRejectedCandidateIds() { return rejectedCandidateIds; }
+    public boolean hasRejectedCandidate(String candidateId) {
+        return candidateId != null && rejectedCandidateIds.contains(candidateId.trim());
+    }
+    public void addRejectedCandidate(String candidateId) {
+        if (candidateId != null && !candidateId.trim().isEmpty()) {
+            rejectedCandidateIds.add(candidateId.trim());
+        }
+    }
+    public void removeRejectedCandidate(String candidateId) {
+        if (candidateId != null) {
+            rejectedCandidateIds.remove(candidateId.trim());
+        }
+    }
+    public String getRejectedCandidateIdsCsv() {
+        return String.join(";", rejectedCandidateIds);
+    }
+    public void setRejectedCandidateIdsFromCsv(String csv) {
+        rejectedCandidateIds.clear();
+        if (csv != null && !csv.trim().isEmpty()) {
+            for (String part : csv.split(";")) {
+                if (!part.trim().isEmpty()) {
+                    rejectedCandidateIds.add(part.trim());
+                }
+            }
+        }
+    }
+
+    public boolean isWaiting() { return isWaiting; }
+    public void setWaiting(boolean isWaiting) { this.isWaiting = isWaiting; }
 
     public String getCreatedAt() { return createdAt; }
     public void setCreatedAt(String createdAt) { this.createdAt = createdAt; }

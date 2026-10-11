@@ -34,6 +34,11 @@ public abstract class User {
     public abstract boolean canAssignDepartment();
     public abstract boolean canUpdateStatus();
 
+    // Permissions for duplicate candidate confirmation and rejection
+    public boolean canManageDuplicates() {
+        return "ADMIN".equalsIgnoreCase(role) || "STAFF".equalsIgnoreCase(role);
+    }
+
     // Immutable rule: No user can modify citizen reported impact
     public final boolean canModifyCitizenReportedImpact() {
         return false;

@@ -6,6 +6,8 @@ import model.Complaint;
 import model.ComplaintHistory;
 import model.Department;
 import model.DepartmentStaff;
+import model.Grievance;
+import model.GrievanceFactory;
 import model.Notification;
 import model.User;
 
@@ -77,7 +79,7 @@ public class Database {
         this.userMap = new ConcurrentHashMap<>();
         this.complaintList = new ArrayList<>();
         this.complaintMap = new ConcurrentHashMap<>();
-        this.priorityQueue = new PriorityQueue<>();
+        this.priorityQueue = new PriorityQueue<>(Complaint.PRIORITY_COMPARATOR);
         this.departmentMap = new ConcurrentHashMap<>();
         this.historyMap = new ConcurrentHashMap<>();
         this.notificationList = new ArrayList<>();
@@ -99,22 +101,29 @@ public class Database {
         Department general = new Department("DEPT-GEN", "General Administration", 15, 0);
 
         departmentMap.put(water.getDepartmentId(), water);
+        departmentMap.put(water.getDepartmentName(), water);
         departmentMap.put("Water Supply", water);
         departmentMap.put("Water", water);
 
         departmentMap.put(roads.getDepartmentId(), roads);
+        departmentMap.put(roads.getDepartmentName(), roads);
         departmentMap.put("Roads", roads);
         departmentMap.put("Road Damage", roads);
 
         departmentMap.put(waste.getDepartmentId(), waste);
+        departmentMap.put(waste.getDepartmentName(), waste);
         departmentMap.put("Waste Management", waste);
         departmentMap.put("Sanitation", waste);
+        departmentMap.put("Public Sanitation", waste);
 
         departmentMap.put(light.getDepartmentId(), light);
+        departmentMap.put(light.getDepartmentName(), light);
         departmentMap.put("Streetlight", light);
+        departmentMap.put("Streetlights", light);
         departmentMap.put("Electrical", light);
 
         departmentMap.put(general.getDepartmentId(), general);
+        departmentMap.put(general.getDepartmentName(), general);
         departmentMap.put("General Administration", general);
     }
 
@@ -217,8 +226,21 @@ public class Database {
         saveDatabase();
     }
 
+    private static boolean persistenceDisabled = false;
+
+    public static void setPersistenceDisabled(boolean disabled) {
+        persistenceDisabled = disabled;
+    }
+
+    public static boolean isPersistenceDisabled() {
+        return persistenceDisabled;
+    }
+
     // Save full system state to JSON
     public synchronized void saveDatabase() {
+        if (persistenceDisabled) {
+            return;
+        }
         try (FileWriter writer = new FileWriter(getDbFile(), false)) {
             StringBuilder json = new StringBuilder();
             json.append("{\n");
@@ -244,7 +266,7 @@ public class Database {
             for (int i = 0; i < complaintList.size(); i++) {
                 Complaint c = complaintList.get(i);
                 json.append(String.format(
-                        "    {\"id\":\"%s\",\"complaintId\":\"%s\",\"citizenId\":\"%s\",\"citizenName\":\"%s\",\"citizenMobile\":\"%s\",\"category\":\"%s\",\"description\":\"%s\",\"location\":\"%s\",\"departmentId\":\"%s\",\"department\":\"%s\",\"citizenReportedImpact\":%d,\"adminVerifiedImpact\":%s,\"verificationReason\":\"%s\",\"isVerifiedLocked\":%b,\"severity\":\"%s\",\"priority\":\"%s\",\"status\":\"%s\",\"assignedStaff\":\"%s\",\"resolutionNotes\":\"%s\",\"isDuplicate\":%b,\"duplicateOfId\":\"%s\",\"createdAt\":\"%s\",\"updatedAt\":\"%s\",\"resolvedAt\":\"%s\"}",
+                        "    {\"id\":\"%s\",\"complaintId\":\"%s\",\"citizenId\":\"%s\",\"citizenName\":\"%s\",\"citizenMobile\":\"%s\",\"category\":\"%s\",\"description\":\"%s\",\"location\":\"%s\",\"departmentId\":\"%s\",\"department\":\"%s\",\"citizenReportedImpact\":%d,\"adminVerifiedImpact\":%s,\"verificationReason\":\"%s\",\"isVerifiedLocked\":%b,\"severity\":\"%s\",\"priority\":\"%s\",\"status\":\"%s\",\"assignedStaff\":\"%s\",\"resolutionNotes\":\"%s\",\"isDuplicate\":%b,\"duplicateOfId\":\"%s\",\"rejectedCandidateIds\":\"%s\",\"isWaiting\":%b,\"arrivalSequence\":%d,\"createdAt\":\"%s\",\"updatedAt\":\"%s\",\"resolvedAt\":\"%s\"}",
                         escapeJson(c.getId()), escapeJson(c.getComplaintId()), escapeJson(c.getCitizenId()),
                         escapeJson(c.getCitizenName()), escapeJson(c.getCitizenMobile()), escapeJson(c.getCategory()),
                         escapeJson(c.getDescription()), escapeJson(c.getLocation()), escapeJson(c.getDepartmentId()),
@@ -254,6 +276,9 @@ public class Database {
                         escapeJson(c.getSeverity()), escapeJson(c.getPriority()), escapeJson(c.getStatus()),
                         escapeJson(c.getAssignedStaff()), escapeJson(c.getResolutionNotes()),
                         c.isDuplicate(), escapeJson(c.getDuplicateOfId()),
+                        escapeJson(c.getRejectedCandidateIdsCsv()),
+                        c.isWaiting(),
+                        c.getArrivalSequence(),
                         escapeJson(c.getCreatedAt()), escapeJson(c.getUpdatedAt()), escapeJson(c.getResolvedAt())
                 ));
                 if (i < complaintList.size() - 1) json.append(",");
@@ -353,6 +378,9 @@ public class Database {
                     " | Total Complaints: " + complaintList.size() +
                     " | History Records: " + getAllHistoryList().size() +
                     " | Notifications: " + notificationList.size());
+
+            // Startup demonstration data validation and diagnostic report
+            DataValidator.validateAndReport(this);
         } catch (Exception e) {
             System.err.println("[DATABASE WARNING] Could not parse existing database. Initializing fresh: " + e.getMessage());
         }
@@ -440,14 +468,27 @@ public class Database {
 
             c.setDuplicate("true".equalsIgnoreCase(extractJsonVal(objStr, "isDuplicate")));
             c.setDuplicateOfId(extractJsonVal(objStr, "duplicateOfId"));
+            c.setRejectedCandidateIdsFromCsv(extractJsonVal(objStr, "rejectedCandidateIds"));
+            c.setWaiting("true".equalsIgnoreCase(extractJsonVal(objStr, "isWaiting")));
+
+            String arrSeq = extractJsonIntVal(objStr, "arrivalSequence");
+            if (!arrSeq.isEmpty()) {
+                c.forceSetArrivalSequenceFromPersistence(Long.parseLong(arrSeq));
+            } else if (c.getComplaintId() != null && c.getComplaintId().startsWith("GRV-2026-")) {
+                try {
+                    long seq = Long.parseLong(c.getComplaintId().replace("GRV-2026-", ""));
+                    c.forceSetArrivalSequenceFromPersistence(seq);
+                } catch (Exception ignored) {}
+            }
 
             c.setCreatedAt(extractJsonVal(objStr, "createdAt"));
             c.setUpdatedAt(extractJsonVal(objStr, "updatedAt"));
             c.setResolvedAt(extractJsonVal(objStr, "resolvedAt"));
 
-            complaintList.add(c);
-            complaintMap.put(c.getComplaintId(), c);
-            complaintMap.put(c.getId(), c);
+            Complaint adapted = GrievanceFactory.adapt(c);
+            complaintList.add(adapted);
+            complaintMap.put(adapted.getComplaintId(), adapted);
+            complaintMap.put(adapted.getId(), adapted);
 
             // Update counter
             if (c.getComplaintId() != null && c.getComplaintId().startsWith("GRV-2026-")) {
@@ -558,8 +599,8 @@ public class Database {
         priorityQueue.clear();
         activeCategoryLocationSet.clear();
 
-        // Reset department loads
-        for (Department d : departmentMap.values()) {
+        // Reset department loads and waiting queues across unique departments
+        for (Department d : getAllUniqueDepartments()) {
             d.setCurrentLoad(0);
             d.getWaitingQueue().clear();
         }
@@ -575,26 +616,63 @@ public class Database {
                 if (c.getCategory() != null && c.getLocation() != null) {
                     activeCategoryLocationSet.add(buildDuplicateKey(c.getCategory(), c.getLocation()));
                 }
+            }
+        }
 
-                // Department Capacity allocation
-                Department dept = getDepartmentByAnyIdentifier(c.getDepartment());
+        // Capacity reconstruction:
+        // Pass 1: InProgress complaints consume capacity first
+        for (Complaint c : complaintList) {
+            boolean isResolved = "RESOLVED".equalsIgnoreCase(c.getStatus()) || "CLOSED".equalsIgnoreCase(c.getStatus());
+            if (isResolved) continue;
+
+            if ("IN_PROGRESS".equalsIgnoreCase(c.getStatus())) {
+                Department dept = findDepartment(c.getDepartmentId() != null ? c.getDepartmentId() : c.getDepartment());
+                if (dept == null) dept = getDepartmentByAnyIdentifier(c.getDepartment());
                 if (dept != null) {
-                    if ("IN_PROGRESS".equalsIgnoreCase(c.getStatus()) || "ASSIGNED".equalsIgnoreCase(c.getStatus())) {
-                        if (dept.getCurrentLoad() < dept.getCapacity()) {
-                            dept.incrementLoad();
-                        } else {
-                            // Exceeded capacity -> waiting queue
-                            dept.addToWaitingQueue(c);
-                        }
+                    if (dept.getCurrentLoad() < dept.getCapacity()) {
+                        dept.incrementLoad();
+                        c.setWaiting(false);
+                    } else {
+                        dept.addToWaitingQueue(c);
                     }
+                }
+            }
+        }
+
+        // Pass 2: Assigned complaints, prioritized by PRIORITY_COMPARATOR
+        List<Complaint> assignedComplaints = new ArrayList<>();
+        for (Complaint c : complaintList) {
+            boolean isResolved = "RESOLVED".equalsIgnoreCase(c.getStatus()) || "CLOSED".equalsIgnoreCase(c.getStatus());
+            if (!isResolved && "ASSIGNED".equalsIgnoreCase(c.getStatus())) {
+                assignedComplaints.add(c);
+            }
+        }
+        assignedComplaints.sort(Complaint.PRIORITY_COMPARATOR);
+
+        for (Complaint c : assignedComplaints) {
+            Department dept = findDepartment(c.getDepartmentId() != null ? c.getDepartmentId() : c.getDepartment());
+            if (dept == null) dept = getDepartmentByAnyIdentifier(c.getDepartment());
+            if (dept != null) {
+                if (c.isWaiting()) {
+                    dept.addToWaitingQueue(c);
+                } else if (dept.getCurrentLoad() < dept.getCapacity()) {
+                    dept.incrementLoad();
+                    c.setWaiting(false);
+                } else {
+                    dept.addToWaitingQueue(c);
                 }
             }
         }
     }
 
     public String buildDuplicateKey(String category, String location) {
-        return (category != null ? category.trim().toLowerCase() : "") + ":::" +
-               (location != null ? location.trim().toLowerCase() : "");
+        String normCat = model.LocationNormalizer.normalizeCategory(category);
+        String normLoc = model.LocationNormalizer.normalizeLocation(location);
+        if (normCat.isEmpty() || normLoc == null) {
+            return (category != null ? category.trim().toLowerCase() : "") + ":::" +
+                   (location != null ? location.trim().toLowerCase() : "");
+        }
+        return normCat + ":::" + normLoc;
     }
 
     public boolean isCategoryLocationActive(String category, String location) {
@@ -702,8 +780,39 @@ public class Database {
         return result;
     }
 
+    public PriorityQueue<Complaint> getPriorityQueue() {
+        return priorityQueue;
+    }
+
+    /**
+     * Removes and re-inserts a waiting complaint to maintain correct heap ordering.
+     * Does not mutate or reorder resolved complaints.
+     */
+    public synchronized boolean updateComplaintPriorityInQueues(Complaint complaint) {
+        if (complaint == null) return false;
+        boolean isResolved = "RESOLVED".equalsIgnoreCase(complaint.getStatus()) || "CLOSED".equalsIgnoreCase(complaint.getStatus());
+        if (isResolved) {
+            priorityQueue.remove(complaint);
+            Department dept = getDepartmentByAnyIdentifier(complaint.getDepartment());
+            if (dept != null) {
+                dept.removeFromWaitingQueue(complaint);
+            }
+            return false;
+        }
+
+        priorityQueue.remove(complaint);
+        priorityQueue.add(complaint);
+
+        Department dept = getDepartmentByAnyIdentifier(complaint.getDepartment());
+        if (dept != null) {
+            dept.updateComplaintPriority(complaint);
+        }
+        return true;
+    }
+
     public List<Complaint> getOrderedPriorityQueueList() {
-        PriorityQueue<Complaint> tempQueue = new PriorityQueue<>(priorityQueue);
+        PriorityQueue<Complaint> tempQueue = new PriorityQueue<>(Complaint.PRIORITY_COMPARATOR);
+        tempQueue.addAll(priorityQueue);
         List<Complaint> list = new ArrayList<>();
         while (!tempQueue.isEmpty()) {
             list.add(tempQueue.poll());
@@ -731,12 +840,64 @@ public class Database {
         return departmentMap.get("DEPT-GEN");
     }
 
+    /**
+     * Strict department lookup without falling back to General Administration.
+     * Returns null if department identifier or name is unknown.
+     */
+    public Department findDepartment(String idOrName) {
+        if (idOrName == null || idOrName.trim().isEmpty()) return null;
+        String trimmed = idOrName.trim();
+        Department d = departmentMap.get(trimmed);
+        if (d != null) return d;
+
+        for (Department dept : departmentMap.values()) {
+            if (dept.getDepartmentName().equalsIgnoreCase(trimmed) ||
+                dept.getDepartmentId().equalsIgnoreCase(trimmed)) {
+                return dept;
+            }
+        }
+        return null;
+    }
+
+    public boolean isValidDepartment(String idOrName) {
+        return findDepartment(idOrName) != null;
+    }
+
     public List<Department> getAllUniqueDepartments() {
         Map<String, Department> map = new HashMap<>();
         for (Department d : departmentMap.values()) {
             map.put(d.getDepartmentId(), d);
         }
         return new ArrayList<>(map.values());
+    }
+
+    /**
+     * Strict list of the four core municipal departments required by municipal mandate.
+     */
+    public static final List<String> CORE_DEPARTMENT_IDS = java.util.Collections.unmodifiableList(
+            java.util.Arrays.asList("DEPT-WATER", "DEPT-ROADS", "DEPT-WASTE", "DEPT-LIGHT")
+    );
+
+    /**
+     * Returns strictly the four core operational municipal departments.
+     * General Administration is excluded as it is strictly an administrative triage fallback.
+     */
+    public List<Department> getCoreDepartments() {
+        List<Department> cores = new ArrayList<>();
+        for (String id : CORE_DEPARTMENT_IDS) {
+            Department d = departmentMap.get(id);
+            if (d != null) cores.add(d);
+        }
+        return cores;
+    }
+
+    /**
+     * Checks if a department identifier or name belongs to one of the 4 core municipal departments.
+     */
+    public boolean isCoreDepartment(String idOrName) {
+        Department d = findDepartment(idOrName);
+        if (d == null) return false;
+        return CORE_DEPARTMENT_IDS.contains(d.getDepartmentId());
     }
 
     // History & Audit Trail Operations

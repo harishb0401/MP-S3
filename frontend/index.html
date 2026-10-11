@@ -484,11 +484,10 @@
                                 </select>
                                 <select id="staff-filter-status" class="form-control">
                                     <option value="">All Statuses</option>
-                                    <option value="PENDING">Pending</option>
-                                    <option value="ASSIGNED">Assigned</option>
-                                    <option value="IN_PROGRESS">In Progress</option>
-                                    <option value="RESOLVED">Resolved</option>
-                                    <option value="CLOSED">Closed</option>
+                                    <option value="Registered">Registered</option>
+                                    <option value="Assigned">Assigned</option>
+                                    <option value="InProgress">In Progress</option>
+                                    <option value="Resolved">Resolved</option>
                                 </select>
                             </div>
                         </div>
@@ -749,13 +748,11 @@
                         <label class="form-label">Transition Complaint Status</label>
                         <div style="display: flex; gap: 8px;">
                             <select id="s-update-status-select" class="form-control" style="flex: 1;">
-                                <option value="PENDING">Pending</option>
-                                <option value="ASSIGNED">Assigned</option>
-                                <option value="IN_PROGRESS">In Progress</option>
-                                <option value="RESOLVED">Resolved</option>
-                                <option value="CLOSED">Closed</option>
+                                <option value="Assigned">Assigned</option>
+                                <option value="InProgress">In Progress</option>
+                                <option value="Resolved">Resolved</option>
                             </select>
-                            <button class="btn btn-primary btn-sm" onclick="handleStaffUpdateStatus()">Update</button>
+                            <button class="btn btn-primary btn-sm" id="btn-update-status" onclick="handleStaffUpdateStatus()">Update</button>
                         </div>
                     </div>
 
@@ -768,6 +765,17 @@
                             </button>
                         </div>
                     </div>
+                </div>
+            </div>
+
+            <!-- Duplicate Candidate Operator Controls Box -->
+            <div id="duplicate-candidate-box" style="background: var(--bg-surface-secondary); border: 1px solid var(--border-color); padding: 16px; border-radius: var(--radius-md); display: none; flex-direction: column; gap: 12px; margin-top: 16px;">
+                <div style="display: flex; justify-content: space-between; align-items: center;">
+                    <h4 style="font-size: 14px; color: var(--primary); margin: 0;"><i class="fa-solid fa-clone"></i> DUPLICATE CANDIDATE DETECTION & CONFIRMATION</h4>
+                    <span id="duplicate-candidate-badge" class="badge" style="background-color: #fef3c7; color: #92400e; border: 1px solid #fcd34d; display: none;">0 Detected</span>
+                </div>
+                <div id="duplicate-candidates-list" style="display: flex; flex-direction: column; gap: 10px;">
+                    <!-- Populated dynamically -->
                 </div>
             </div>
         </div>

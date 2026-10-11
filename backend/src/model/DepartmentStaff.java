@@ -31,7 +31,7 @@ public class DepartmentStaff extends User {
         super(id, username, email, mobile, passwordHash, "STAFF",
                 department != null ? department.getDepartmentName() : "General", createdAt);
         this.staffId = id;
-        this.staffName = staffName;
+        this.staffName = staffName != null ? staffName.replaceAll("\\s*\\([^)]*\\)", "").trim() : "";
         this.departmentId = departmentId;
         this.department = department;
     }
@@ -39,7 +39,9 @@ public class DepartmentStaff extends User {
     @Override
     public String getDisplayName() {
         String deptName = (department != null) ? department.getDepartmentName() : getDepartment();
-        return staffName + " (" + (deptName != null && !deptName.isEmpty() ? deptName : "Unassigned") + ")";
+        String cleanName = (staffName != null && !staffName.isEmpty()) ? staffName : "Officer";
+        String suffix = " (" + (deptName != null && !deptName.isEmpty() ? deptName : "Unassigned") + ")";
+        return cleanName + suffix;
     }
 
     @Override

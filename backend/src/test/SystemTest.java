@@ -35,6 +35,9 @@ public class SystemTest {
         int testsPassed = 0;
         int totalTests = 8;
 
+        // Run automated tests in-memory to prevent polluting synthetic demo records
+        Database.setPersistenceDisabled(true);
+
         Database db = new Database();
         GrievanceManager manager = new GrievanceManager(db);
 
@@ -162,7 +165,7 @@ public class SystemTest {
         testDept.addToWaitingQueue(arrivingD);
 
         // Complaint A must still be in progress!
-        boolean inProgressUnaffected = "IN_PROGRESS".equals(inProgressA.getStatus()) && testDept.getCurrentLoad() == 1;
+        boolean inProgressUnaffected = ("IN_PROGRESS".equalsIgnoreCase(inProgressA.getStatus()) || "InProgress".equals(inProgressA.getStatus())) && testDept.getCurrentLoad() == 1;
 
         // Waiting queue order must have D first, then B, then C
         Complaint topWaiting = testDept.pollWaitingQueue();
@@ -196,12 +199,17 @@ public class SystemTest {
         Complaint orig = manager.createComplaint(citizenUser, "Streetlight", "Bulb broken", testLoc, 10);
         Complaint dup = manager.createComplaint(citizenUser, "Streetlight", "Light not glowing", testLoc, 15);
 
-        boolean dupDetected = dup.isDuplicate() && orig.getComplaintId().equals(dup.getDuplicateOfId());
+        List<model.DuplicateCandidate> candidates = manager.findDuplicateCandidates(dup.getComplaintId());
+        boolean candidateDetected = candidates.stream().anyMatch(c -> c.getCandidateComplaintId().equalsIgnoreCase(orig.getComplaintId()));
+        boolean notPrematurelyMerged = !dup.isDuplicate() && dup.getDuplicateOfId() == null;
         boolean mergeOk = manager.mergeDuplicate(dup.getComplaintId(), orig.getComplaintId(), adminUser, "Same streetlight confirmed");
+        boolean confirmedLinked = dup.isDuplicate() && orig.getComplaintId().equalsIgnoreCase(dup.getDuplicateOfId());
+        manager.assignDepartmentAndStaff(orig.getComplaintId(), "Streetlight Department", "Officer Ravi", adminUser);
+        manager.updateStatus(orig.getComplaintId(), "InProgress", "Field technician dispatched to site", adminUser);
         manager.resolveComplaint(orig.getComplaintId(), "Streetlight fixture replaced");
 
-        if (dupDetected && mergeOk && "Resolved".equalsIgnoreCase(dup.getStatus())) {
-            System.out.println("PASSED (Duplicate flagged by Category+Location, merged with audit record)");
+        if (candidateDetected && notPrematurelyMerged && mergeOk && confirmedLinked && "Resolved".equalsIgnoreCase(dup.getStatus())) {
+            System.out.println("PASSED (Candidate flagged by Category+Location, confirmed and merged with audit record)");
             testsPassed++;
         } else {
             System.out.println("FAILED (Duplicate detection/merge failed)");
@@ -221,10 +229,28 @@ public class SystemTest {
 
         System.out.println("\n-------------------------------------------------------------------------------");
         System.out.printf("RESULT: %d / %d TESTS PASSED (100%% Success Rate)\n", testsPassed, totalTests);
-        System.out.println("-------------------------------------------------------------------------------");
+        System.out.println("-------------------------------------------------------------------------------\n");
 
-        if (testsPassed == totalTests) {
-            System.out.println("\n>>> ALL SYSTEM REQUIREMENTS VERIFIED SUCCESSFULLY! <<<");
+        // EXECUTE TASK 1 PRIORITY RANKING TEST SUITE
+        boolean priorityTestsPassed = PriorityRankingTest.runAllTests();
+
+        // EXECUTE TASK 2 STATUS STATE MACHINE TEST SUITE
+        boolean stateMachineTestsPassed = StatusStateMachineTest.runAllTests();
+
+        // EXECUTE TASK 3 DEPARTMENT CAPACITY TEST SUITE
+        boolean capacityTestsPassed = DepartmentCapacityTest.runAllTests();
+
+        // EXECUTE TASK 4 DUPLICATE MANAGEMENT TEST SUITE
+        boolean duplicateTestsPassed = DuplicateManagementTest.runAllTests();
+
+        // EXECUTE TASK 5 OOP DESIGN TEST SUITE
+        boolean oopTestsPassed = OOPDesignTest.runAllTests();
+
+        // EXECUTE TASK 6 SYNTHETIC DATA VALIDATION TEST SUITE
+        boolean dataValidationPassed = SyntheticDataValidationTest.runAllTests();
+
+        if (testsPassed == totalTests && priorityTestsPassed && stateMachineTestsPassed && capacityTestsPassed && duplicateTestsPassed && oopTestsPassed && dataValidationPassed) {
+            System.out.println("\n>>> ALL SYSTEM, PRIORITY RANKING, STATE MACHINE, CAPACITY, DUPLICATE MANAGEMENT, OOP DESIGN & DEMO DATA REQUIREMENTS VERIFIED SUCCESSFULLY! <<<");
         } else {
             System.exit(1);
         }

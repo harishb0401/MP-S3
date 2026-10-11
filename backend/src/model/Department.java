@@ -13,12 +13,12 @@ public class Department {
     private String departmentName;
     private int capacity;
     private int currentLoad;
-    private PriorityQueue<Complaint> waitingQueue;
+    private DepartmentQueueManager queueManager;
 
     public Department() {
         this.capacity = 10;
         this.currentLoad = 0;
-        this.waitingQueue = new PriorityQueue<>();
+        this.queueManager = new DepartmentQueueManager(Complaint.DEFAULT_PRIORITY_POLICY);
     }
 
     public Department(String departmentId, String departmentName) {
@@ -26,19 +26,40 @@ public class Department {
     }
 
     public Department(String departmentId, String departmentName, int capacity, int currentLoad) {
+        this(departmentId, departmentName, capacity, currentLoad, Complaint.DEFAULT_PRIORITY_POLICY);
+    }
+
+    public Department(String departmentId, String departmentName, int capacity, int currentLoad, GrievancePriorityPolicy policy) {
         this.departmentId = departmentId;
         this.departmentName = departmentName;
         this.capacity = capacity > 0 ? capacity : 10;
         this.currentLoad = Math.max(0, currentLoad);
-        this.waitingQueue = new PriorityQueue<>();
+        this.queueManager = new DepartmentQueueManager(policy != null ? policy : Complaint.DEFAULT_PRIORITY_POLICY);
     }
 
-    public boolean hasAvailableCapacity() {
+    public synchronized boolean hasAvailableCapacity() {
         return currentLoad < capacity;
     }
 
+    /**
+     * Atomically tries to acquire 1 capacity slot.
+     * Returns true if acquired, false if department is at or above capacity.
+     */
+    public synchronized boolean tryAcquireCapacity() {
+        if (this.currentLoad < this.capacity) {
+            this.currentLoad++;
+            return true;
+        }
+        return false;
+    }
+
     public synchronized void incrementLoad() {
-        this.currentLoad++;
+        if (this.currentLoad < this.capacity) {
+            this.currentLoad++;
+        } else {
+            throw new IllegalStateException("CRITICAL INVARIANT VIOLATION: Cannot increment load beyond capacity (" +
+                    capacity + ") for department " + departmentName);
+        }
     }
 
     public synchronized void decrementLoad() {
@@ -48,33 +69,60 @@ public class Department {
     }
 
     public synchronized boolean addToWaitingQueue(Complaint complaint) {
-        if (complaint == null) return false;
-        // Avoid duplicate entries in waiting queue
-        if (!waitingQueue.contains(complaint)) {
-            return waitingQueue.add(complaint);
-        }
-        return false;
+        return queueManager.addToWaitingQueue(complaint);
     }
 
     public synchronized Complaint pollWaitingQueue() {
-        return waitingQueue.poll();
+        return queueManager.pollWaitingQueue();
+    }
+
+    public synchronized Complaint peekWaitingQueue() {
+        return queueManager.peekWaitingQueue();
+    }
+
+    public synchronized boolean containsInWaitingQueue(Complaint complaint) {
+        return queueManager.containsInWaitingQueue(complaint);
     }
 
     public synchronized boolean removeFromWaitingQueue(Complaint complaint) {
-        return waitingQueue.remove(complaint);
+        return queueManager.removeFromWaitingQueue(complaint);
+    }
+
+    /**
+     * Reorders a waiting complaint whose ranking fields have changed.
+     * Removes and re-inserts into the queue to restore heap order.
+     * Does not mutate or reorder resolved complaints.
+     */
+    public synchronized boolean updateComplaintPriority(Complaint complaint) {
+        return queueManager.updateComplaintPriority(complaint);
     }
 
     public synchronized List<Complaint> getWaitingQueueList() {
-        PriorityQueue<Complaint> copy = new PriorityQueue<>(waitingQueue);
-        List<Complaint> list = new ArrayList<>();
-        while (!copy.isEmpty()) {
-            list.add(copy.poll());
-        }
-        return list;
+        return queueManager.getWaitingQueueList();
     }
 
     public synchronized int getWaitingQueueSize() {
-        return waitingQueue.size();
+        return queueManager.getWaitingQueueSize();
+    }
+
+    public DepartmentQueueManager getQueueManager() {
+        return queueManager;
+    }
+
+    public GrievancePriorityPolicy getPriorityPolicy() {
+        return queueManager.getPriorityPolicy();
+    }
+
+    public synchronized boolean addAssignedComplaint(Complaint c) {
+        return queueManager.addAssignedComplaint(c);
+    }
+
+    public synchronized boolean removeAssignedComplaint(Complaint c) {
+        return queueManager.removeAssignedComplaint(c);
+    }
+
+    public List<Complaint> getAssignedComplaints() {
+        return queueManager.getAssignedComplaints();
     }
 
     public String getDepartmentId() {
@@ -105,16 +153,16 @@ public class Department {
         return currentLoad;
     }
 
-    public void setCurrentLoad(int currentLoad) {
-        this.currentLoad = Math.max(0, currentLoad);
+    public synchronized void setCurrentLoad(int currentLoad) {
+        this.currentLoad = Math.max(0, Math.min(currentLoad, capacity));
     }
 
     public PriorityQueue<Complaint> getWaitingQueue() {
-        return waitingQueue;
+        return queueManager.getWaitingQueue();
     }
 
     @Override
     public String toString() {
-        return departmentName + " [Capacity: " + currentLoad + "/" + capacity + ", Waiting: " + waitingQueue.size() + "]";
+        return departmentName + " [Capacity: " + currentLoad + "/" + capacity + ", Waiting: " + queueManager.getWaitingQueueSize() + "]";
     }
 }

@@ -6,6 +6,7 @@ import com.sun.net.httpserver.HttpServer;
 import model.Complaint;
 import model.ComplaintHistory;
 import model.Department;
+import model.DuplicateCandidate;
 import model.Notification;
 import model.User;
 
@@ -140,6 +141,27 @@ public class ServerManager {
                         return;
                     }
 
+                    // Duplicate candidates: /api/complaints/:id/duplicate-candidates
+                    if (subPath.endsWith("/duplicate-candidates") && "GET".equalsIgnoreCase(method)) {
+                        String id = subPath.replace("/duplicate-candidates", "");
+                        handleGetDuplicateCandidates(exchange, id);
+                        return;
+                    }
+
+                    // Duplicate confirm link: /api/complaints/:id/duplicate/confirm
+                    if (subPath.endsWith("/duplicate/confirm") && "POST".equalsIgnoreCase(method)) {
+                        String id = subPath.replace("/duplicate/confirm", "");
+                        handleConfirmDuplicateLink(exchange, id, body);
+                        return;
+                    }
+
+                    // Duplicate reject candidate: /api/complaints/:id/duplicate/reject
+                    if (subPath.endsWith("/duplicate/reject") && "POST".equalsIgnoreCase(method)) {
+                        String id = subPath.replace("/duplicate/reject", "");
+                        handleRejectDuplicateCandidate(exchange, id, body);
+                        return;
+                    }
+
                     // Duplicate management: /api/complaints/:id/duplicate
                     if (subPath.endsWith("/duplicate") && "POST".equalsIgnoreCase(method)) {
                         String id = subPath.replace("/duplicate", "");
@@ -165,6 +187,13 @@ public class ServerManager {
                     if (subPath.endsWith("/assign") && "POST".equalsIgnoreCase(method)) {
                         String id = subPath.replace("/assign", "");
                         handleAssignDepartment(exchange, id, body);
+                        return;
+                    }
+
+                    // Department Reassignment: /api/complaints/:id/reassign
+                    if (subPath.endsWith("/reassign") && "POST".equalsIgnoreCase(method)) {
+                        String id = subPath.replace("/reassign", "");
+                        handleReassignDepartment(exchange, id, body);
                         return;
                     }
 
@@ -304,7 +333,10 @@ public class ServerManager {
             return;
         }
 
-        Complaint created = manager.createComplaint(user, category, description, location, impact);
+        String severity = extractVal(body, "severity");
+        if (severity.isEmpty()) severity = extractVal(body, "priority");
+
+        Complaint created = manager.createComplaint(user, category, description, location, impact, severity);
         sendJsonResponse(exchange, 201, formatComplaintJson(created));
     }
 
@@ -411,32 +443,153 @@ public class ServerManager {
         sendJsonResponse(exchange, 200, sb.toString());
     }
 
-    private void handleDuplicateAction(HttpExchange exchange, String id, String body) throws Exception {
+    private void handleGetDuplicateCandidates(HttpExchange exchange, String id) throws Exception {
         User user = getAuthenticatedUser(exchange);
-        if (user == null || !user.canVerifyComplaints()) {
-            sendJsonResponse(exchange, 403, "{\"error\":\"Forbidden: Admin privileges required.\"}");
+        if (user == null || !user.canManageDuplicates()) {
+            sendJsonResponse(exchange, 403, "{\"error\":\"Forbidden: Staff or Admin privileges required to view duplicate candidates.\"}");
             return;
         }
 
-        String action = extractVal(body, "action"); // "merge" or "separate"
-        if ("merge".equalsIgnoreCase(action)) {
+        List<DuplicateCandidate> candidates = manager.findDuplicateCandidates(id);
+        StringBuilder sb = new StringBuilder("[");
+        for (int i = 0; i < candidates.size(); i++) {
+            DuplicateCandidate dc = candidates.get(i);
+            sb.append(String.format(
+                    "{\"sourceComplaintId\":\"%s\",\"candidateComplaintId\":\"%s\",\"reason\":\"%s\",\"category\":\"%s\",\"location\":\"%s\",\"status\":\"%s\",\"citizenName\":\"%s\",\"createdAt\":\"%s\"}",
+                    esc(dc.getSourceComplaintId()), esc(dc.getCandidateComplaintId()), esc(dc.getReason()),
+                    esc(dc.getCategory()), esc(dc.getLocation()), esc(dc.getStatus()),
+                    esc(dc.getCitizenName()), esc(dc.getCreatedAt())
+            ));
+            if (i < candidates.size() - 1) sb.append(",");
+        }
+        sb.append("]");
+        sendJsonResponse(exchange, 200, sb.toString());
+    }
+
+    private void handleConfirmDuplicateLink(HttpExchange exchange, String id, String body) throws Exception {
+        User user = getAuthenticatedUser(exchange);
+        if (user == null || !user.canManageDuplicates()) {
+            sendJsonResponse(exchange, 403, "{\"error\":\"Forbidden: Staff or Admin privileges required to confirm duplicate link.\"}");
+            return;
+        }
+
+        String primaryId = extractVal(body, "primaryComplaintId");
+        if (primaryId.isEmpty()) primaryId = extractVal(body, "candidateId");
+        String remarks = extractVal(body, "remarks");
+        if (remarks.isEmpty()) remarks = extractVal(body, "reason");
+
+        if (primaryId.isEmpty()) {
+            sendJsonResponse(exchange, 400, "{\"error\":\"primaryComplaintId is required.\"}");
+            return;
+        }
+
+        try {
+            boolean success = manager.confirmDuplicateLink(id, primaryId, user, remarks);
+            if (!success) {
+                sendJsonResponse(exchange, 400, "{\"error\":\"Could not confirm duplicate link.\"}");
+                return;
+            }
+            sendJsonResponse(exchange, 200, "{\"message\":\"Duplicate link confirmed successfully to " + esc(primaryId) + "\"}");
+        } catch (IllegalStateException | IllegalArgumentException | SecurityException e) {
+            sendJsonResponse(exchange, 400, "{\"error\":\"" + esc(e.getMessage()) + "\"}");
+        }
+    }
+
+    private void handleRejectDuplicateCandidate(HttpExchange exchange, String id, String body) throws Exception {
+        User user = getAuthenticatedUser(exchange);
+        if (user == null || !user.canManageDuplicates()) {
+            sendJsonResponse(exchange, 403, "{\"error\":\"Forbidden: Staff or Admin privileges required to reject duplicate candidate.\"}");
+            return;
+        }
+
+        String candidateId = extractVal(body, "candidateComplaintId");
+        if (candidateId.isEmpty()) candidateId = extractVal(body, "candidateId");
+        String remarks = extractVal(body, "remarks");
+        if (remarks.isEmpty()) remarks = extractVal(body, "reason");
+
+        if (candidateId.isEmpty()) {
+            sendJsonResponse(exchange, 400, "{\"error\":\"candidateComplaintId is required.\"}");
+            return;
+        }
+
+        try {
+            boolean success = manager.rejectDuplicateCandidate(id, candidateId, user, remarks);
+            if (!success) {
+                sendJsonResponse(exchange, 400, "{\"error\":\"Could not reject duplicate candidate.\"}");
+                return;
+            }
+            sendJsonResponse(exchange, 200, "{\"message\":\"Duplicate candidate rejected successfully.\"}");
+        } catch (IllegalStateException | IllegalArgumentException | SecurityException e) {
+            sendJsonResponse(exchange, 400, "{\"error\":\"" + esc(e.getMessage()) + "\"}");
+        }
+    }
+
+    private void handleDuplicateAction(HttpExchange exchange, String id, String body) throws Exception {
+        User user = getAuthenticatedUser(exchange);
+        if (user == null || !user.canManageDuplicates()) {
+            sendJsonResponse(exchange, 403, "{\"error\":\"Forbidden: Staff or Admin privileges required.\"}");
+            return;
+        }
+
+        String action = extractVal(body, "action"); // "confirm", "merge", "reject", or "separate"
+        if ("confirm".equalsIgnoreCase(action)) {
             String primaryId = extractVal(body, "primaryComplaintId");
+            if (primaryId.isEmpty()) primaryId = extractVal(body, "candidateId");
+            String remarks = extractVal(body, "remarks");
+            if (remarks.isEmpty()) remarks = extractVal(body, "reason");
+            try {
+                boolean success = manager.confirmDuplicateLink(id, primaryId, user, remarks);
+                if (!success) {
+                    sendJsonResponse(exchange, 400, "{\"error\":\"Could not confirm duplicate link.\"}");
+                    return;
+                }
+                sendJsonResponse(exchange, 200, "{\"message\":\"Duplicate link confirmed successfully to " + esc(primaryId) + "\"}");
+            } catch (IllegalStateException | IllegalArgumentException | SecurityException e) {
+                sendJsonResponse(exchange, 400, "{\"error\":\"" + esc(e.getMessage()) + "\"}");
+            }
+        } else if ("reject".equalsIgnoreCase(action)) {
+            String candidateId = extractVal(body, "candidateComplaintId");
+            if (candidateId.isEmpty()) candidateId = extractVal(body, "candidateId");
+            String remarks = extractVal(body, "remarks");
+            if (remarks.isEmpty()) remarks = extractVal(body, "reason");
+            try {
+                boolean success = manager.rejectDuplicateCandidate(id, candidateId, user, remarks);
+                if (!success) {
+                    sendJsonResponse(exchange, 400, "{\"error\":\"Could not reject duplicate candidate.\"}");
+                    return;
+                }
+                sendJsonResponse(exchange, 200, "{\"message\":\"Duplicate candidate rejected successfully.\"}");
+            } catch (IllegalStateException | IllegalArgumentException | SecurityException e) {
+                sendJsonResponse(exchange, 400, "{\"error\":\"" + esc(e.getMessage()) + "\"}");
+            }
+        } else if ("merge".equalsIgnoreCase(action)) {
+            String primaryId = extractVal(body, "primaryComplaintId");
+            if (primaryId.isEmpty()) primaryId = extractVal(body, "candidateId");
             String reason = extractVal(body, "reason");
-            boolean success = manager.mergeDuplicate(id, primaryId, user, reason);
-            if (!success) {
-                sendJsonResponse(exchange, 400, "{\"error\":\"Could not merge duplicate complaint.\"}");
-                return;
+            if (reason.isEmpty()) reason = extractVal(body, "remarks");
+            try {
+                boolean success = manager.mergeDuplicate(id, primaryId, user, reason);
+                if (!success) {
+                    sendJsonResponse(exchange, 400, "{\"error\":\"Could not merge duplicate complaint.\"}");
+                    return;
+                }
+                sendJsonResponse(exchange, 200, "{\"message\":\"Duplicate merged successfully into " + esc(primaryId) + "\"}");
+            } catch (IllegalStateException | IllegalArgumentException | SecurityException e) {
+                sendJsonResponse(exchange, 400, "{\"error\":\"" + esc(e.getMessage()) + "\"}");
             }
-            sendJsonResponse(exchange, 200, "{\"message\":\"Duplicate merged successfully into " + primaryId + "\"}");
         } else if ("separate".equalsIgnoreCase(action)) {
-            boolean success = manager.keepSeparate(id, user);
-            if (!success) {
-                sendJsonResponse(exchange, 400, "{\"error\":\"Could not mark complaint as separate.\"}");
-                return;
+            try {
+                boolean success = manager.keepSeparate(id, user);
+                if (!success) {
+                    sendJsonResponse(exchange, 400, "{\"error\":\"Could not mark complaint as separate.\"}");
+                    return;
+                }
+                sendJsonResponse(exchange, 200, "{\"message\":\"Complaint marked as independent separate case.\"}");
+            } catch (IllegalStateException | IllegalArgumentException | SecurityException e) {
+                sendJsonResponse(exchange, 400, "{\"error\":\"" + esc(e.getMessage()) + "\"}");
             }
-            sendJsonResponse(exchange, 200, "{\"message\":\"Complaint marked as independent separate case.\"}");
         } else {
-            sendJsonResponse(exchange, 400, "{\"error\":\"Invalid duplicate action. Use 'merge' or 'separate'.\"}");
+            sendJsonResponse(exchange, 400, "{\"error\":\"Invalid duplicate action. Use 'confirm', 'reject', 'merge', or 'separate'.\"}");
         }
     }
 
@@ -491,19 +644,26 @@ public class ServerManager {
 
         String status = extractVal(body, "status");
         String remarks = extractVal(body, "remarks");
+        boolean explicitCancellation = "true".equalsIgnoreCase(extractVal(body, "explicitCancellation"));
+        boolean explicitReassignment = "true".equalsIgnoreCase(extractVal(body, "explicitReassignment"));
+
         if (status.isEmpty()) {
             sendJsonResponse(exchange, 400, "{\"error\":\"Status field is required.\"}");
             return;
         }
 
-        boolean success = manager.updateStatus(id, status, remarks, user);
-        if (!success) {
-            sendJsonResponse(exchange, 404, "{\"error\":\"Complaint not found.\"}");
-            return;
-        }
+        try {
+            boolean success = manager.updateStatus(id, status, remarks, user, explicitCancellation, explicitReassignment);
+            if (!success) {
+                sendJsonResponse(exchange, 404, "{\"error\":\"Complaint not found.\"}");
+                return;
+            }
 
-        Complaint updated = manager.getComplaintById(id);
-        sendJsonResponse(exchange, 200, formatComplaintJson(updated));
+            Complaint updated = manager.getComplaintById(id);
+            sendJsonResponse(exchange, 200, formatComplaintJson(updated));
+        } catch (IllegalStateException | IllegalArgumentException e) {
+            sendJsonResponse(exchange, 400, "{\"error\":\"" + esc(e.getMessage()) + "\"}");
+        }
     }
 
     private void handleAssignDepartment(HttpExchange exchange, String id, String body) throws Exception {
@@ -516,14 +676,43 @@ public class ServerManager {
         String department = extractVal(body, "department");
         String staffName = extractVal(body, "staffName");
 
-        boolean success = manager.assignDepartmentAndStaff(id, department, staffName, user);
-        if (!success) {
-            sendJsonResponse(exchange, 404, "{\"error\":\"Complaint not found.\"}");
+        try {
+            boolean success = manager.assignDepartmentAndStaff(id, department, staffName, user);
+            if (!success) {
+                sendJsonResponse(exchange, 404, "{\"error\":\"Complaint not found.\"}");
+                return;
+            }
+
+            Complaint updated = manager.getComplaintById(id);
+            sendJsonResponse(exchange, 200, formatComplaintJson(updated));
+        } catch (IllegalStateException | IllegalArgumentException e) {
+            sendJsonResponse(exchange, 400, "{\"error\":\"" + esc(e.getMessage()) + "\"}");
+        }
+    }
+
+    private void handleReassignDepartment(HttpExchange exchange, String id, String body) throws Exception {
+        User user = getAuthenticatedUser(exchange);
+        if (user == null || !user.canAssignDepartment()) {
+            sendJsonResponse(exchange, 403, "{\"error\":\"Forbidden: Only Municipal Admin can reassign departments.\"}");
             return;
         }
 
-        Complaint updated = manager.getComplaintById(id);
-        sendJsonResponse(exchange, 200, formatComplaintJson(updated));
+        String department = extractVal(body, "department");
+        String staffName = extractVal(body, "staffName");
+        String reason = extractVal(body, "reason");
+
+        try {
+            boolean success = manager.reassignComplaint(id, department, staffName, reason, user);
+            if (!success) {
+                sendJsonResponse(exchange, 404, "{\"error\":\"Complaint not found.\"}");
+                return;
+            }
+
+            Complaint updated = manager.getComplaintById(id);
+            sendJsonResponse(exchange, 200, formatComplaintJson(updated));
+        } catch (IllegalStateException | IllegalArgumentException e) {
+            sendJsonResponse(exchange, 400, "{\"error\":\"" + esc(e.getMessage()) + "\"}");
+        }
     }
 
     private void handleResolveComplaint(HttpExchange exchange, String id, String body) throws Exception {
@@ -534,14 +723,18 @@ public class ServerManager {
         }
 
         String resolutionNotes = extractVal(body, "resolutionNotes");
-        boolean success = manager.resolveComplaint(id, resolutionNotes, user);
-        if (!success) {
-            sendJsonResponse(exchange, 404, "{\"error\":\"Complaint not found.\"}");
-            return;
-        }
+        try {
+            boolean success = manager.resolveComplaint(id, resolutionNotes, user);
+            if (!success) {
+                sendJsonResponse(exchange, 404, "{\"error\":\"Complaint not found.\"}");
+                return;
+            }
 
-        Complaint updated = manager.getComplaintById(id);
-        sendJsonResponse(exchange, 200, formatComplaintJson(updated));
+            Complaint updated = manager.getComplaintById(id);
+            sendJsonResponse(exchange, 200, formatComplaintJson(updated));
+        } catch (IllegalStateException | IllegalArgumentException e) {
+            sendJsonResponse(exchange, 400, "{\"error\":\"" + esc(e.getMessage()) + "\"}");
+        }
     }
 
     // ------------------- HELPERS & SERIALIZERS -------------------
@@ -600,8 +793,19 @@ public class ServerManager {
     }
 
     private String formatComplaintJson(Complaint c) {
+        StringBuilder rejs = new StringBuilder("[");
+        int rIdx = 0;
+        if (c.getRejectedCandidateIds() != null) {
+            for (String rId : c.getRejectedCandidateIds()) {
+                if (rIdx > 0) rejs.append(",");
+                rejs.append("\"").append(esc(rId)).append("\"");
+                rIdx++;
+            }
+        }
+        rejs.append("]");
+
         return String.format(
-                "{\"id\":\"%s\",\"complaintId\":\"%s\",\"citizenId\":\"%s\",\"citizenName\":\"%s\",\"citizenMobile\":\"%s\",\"category\":\"%s\",\"description\":\"%s\",\"location\":\"%s\",\"departmentId\":\"%s\",\"department\":\"%s\",\"citizenReportedImpact\":%d,\"adminVerifiedImpact\":%s,\"verificationReason\":\"%s\",\"isVerifiedLocked\":%b,\"severity\":\"%s\",\"priority\":\"%s\",\"status\":\"%s\",\"assignedStaff\":\"%s\",\"resolutionNotes\":\"%s\",\"isDuplicate\":%b,\"duplicateOfId\":\"%s\",\"createdAt\":\"%s\",\"updatedAt\":\"%s\",\"resolvedAt\":\"%s\"}",
+                "{\"id\":\"%s\",\"complaintId\":\"%s\",\"citizenId\":\"%s\",\"citizenName\":\"%s\",\"citizenMobile\":\"%s\",\"category\":\"%s\",\"description\":\"%s\",\"location\":\"%s\",\"departmentId\":\"%s\",\"department\":\"%s\",\"citizenReportedImpact\":%d,\"adminVerifiedImpact\":%s,\"verificationReason\":\"%s\",\"isVerifiedLocked\":%b,\"severity\":\"%s\",\"priority\":\"%s\",\"status\":\"%s\",\"assignedStaff\":\"%s\",\"resolutionNotes\":\"%s\",\"isDuplicate\":%b,\"duplicateOfId\":\"%s\",\"rejectedCandidateIds\":%s,\"isWaiting\":%b,\"arrivalSequence\":%d,\"createdAt\":\"%s\",\"updatedAt\":\"%s\",\"resolvedAt\":\"%s\"}",
                 esc(c.getId()), esc(c.getComplaintId()), esc(c.getCitizenId()), esc(c.getCitizenName()),
                 esc(c.getCitizenMobile()), esc(c.getCategory()), esc(c.getDescription()), esc(c.getLocation()),
                 esc(c.getDepartmentId()), esc(c.getDepartment()), c.getCitizenReportedImpact(),
@@ -609,6 +813,9 @@ public class ServerManager {
                 esc(c.getVerificationReason()), c.isVerifiedLocked(),
                 esc(c.getSeverity()), esc(c.getPriority()), esc(c.getStatus()), esc(c.getAssignedStaff()),
                 esc(c.getResolutionNotes()), c.isDuplicate(), esc(c.getDuplicateOfId()),
+                rejs.toString(),
+                c.isWaiting(),
+                c.getArrivalSequence(),
                 esc(c.getCreatedAt()), esc(c.getUpdatedAt()), esc(c.getResolvedAt())
         );
     }
