@@ -9,6 +9,7 @@ const pageSize = 5;
 let isSidebarCollapsed = false;
 let currentWizardStep = 1;
 let attachedFileName = null;
+let attachedImageDataUrl = null;
 
 // Initialize Application
 document.addEventListener("DOMContentLoaded", () => {
@@ -444,8 +445,14 @@ function initWizardForm() {
         if (document.getElementById("w-email")) document.getElementById("w-email").value = currentUser.email || "";
     }
     attachedFileName = null;
+    attachedImageDataUrl = null;
+    const fileInput = document.getElementById("w-file-input");
+    if (fileInput) {
+        fileInput.value = "";
+        fileInput.style.borderColor = "";
+    }
     const previewBox = document.getElementById("file-preview-box");
-    if (previewBox) previewBox.innerText = "No file attached.";
+    if (previewBox) previewBox.innerHTML = '<span style="color:var(--text-muted); font-style:italic;">No image attached yet.</span>';
     renderWizardStep(1);
 }
 
@@ -458,6 +465,27 @@ function nextWizardStep(step) {
             const desc = document.getElementById("w-description").value.trim();
             if (!cat || !loc || !desc) {
                 showToast("Please fill in Category, Location, and Description!", "danger");
+                return;
+            }
+        }
+
+        // Validate Step 3: Photo Evidence is COMPULSORY
+        if (currentWizardStep === 3) {
+            const fileInput = document.getElementById("w-file-input");
+            if (!attachedFileName || !fileInput || !fileInput.files || fileInput.files.length === 0) {
+                showToast("Photo evidence is compulsory! Please upload an image of the problem to proceed.", "danger");
+                if (fileInput) {
+                    fileInput.focus();
+                    fileInput.style.borderColor = "#dc2626";
+                }
+                const previewBox = document.getElementById("file-preview-box");
+                if (previewBox) {
+                    previewBox.innerHTML = `
+                        <div style="padding:10px; background:#fee2e2; border:1px solid #f87171; border-radius:6px; color:#991b1b; font-weight:600;">
+                            <i class="fa-solid fa-circle-exclamation"></i> Uploading a photo is compulsory. Please select an image file.
+                        </div>
+                    `;
+                }
                 return;
             }
         }
@@ -500,17 +528,68 @@ function renderWizardStep(step) {
             document.getElementById("rev-affected").innerText = `${document.getElementById("w-affected").value} citizens`;
         }
         document.getElementById("rev-description").innerText = document.getElementById("w-description").value;
-        document.getElementById("rev-attachment").innerText = attachedFileName || "None Attached";
+
+        const revAttachment = document.getElementById("rev-attachment");
+        if (revAttachment) {
+            if (attachedImageDataUrl) {
+                revAttachment.innerHTML = `
+                    <div style="display:flex; align-items:center; gap:12px; margin-top:4px;">
+                        <img src="${attachedImageDataUrl}" alt="Photo Evidence Preview" style="width:52px; height:52px; object-fit:cover; border-radius:6px; border:1px solid var(--border-color); box-shadow:0 2px 4px rgba(0,0,0,0.1);">
+                        <div>
+                            <span style="color:#059669; font-weight:600;"><i class="fa-solid fa-circle-check"></i> ${attachedFileName}</span>
+                            <div style="font-size:12px; color:var(--text-muted);">Compulsory photo evidence attached</div>
+                        </div>
+                    </div>
+                `;
+            } else {
+                revAttachment.innerHTML = `<span style="color:#dc2626; font-weight:600;"><i class="fa-solid fa-triangle-exclamation"></i> Missing (Compulsory)</span>`;
+            }
+        }
     }
 }
 
 function previewFile(e) {
-    const file = e.target.files[0];
+    const file = e.target.files && e.target.files[0];
+    const previewBox = document.getElementById("file-preview-box");
+    const input = document.getElementById("w-file-input");
     if (file) {
+        if (!file.type.startsWith("image/")) {
+            showToast("Only image files (JPG, PNG, WEBP, GIF) are allowed. Photo evidence is compulsory!", "danger");
+            e.target.value = "";
+            attachedFileName = null;
+            attachedImageDataUrl = null;
+            if (previewBox) {
+                previewBox.innerHTML = `<div style="padding:10px; background:#fee2e2; border:1px solid #f87171; border-radius:6px; color:#991b1b; font-weight:600;"><i class="fa-solid fa-triangle-exclamation"></i> Invalid file type! Please select an image file.</div>`;
+            }
+            if (input) input.style.borderColor = "#dc2626";
+            return;
+        }
+
         attachedFileName = file.name;
-        document.getElementById("file-preview-box").innerHTML = `
-            <span style="color:var(--primary); font-weight:600;"><i class="fa-solid fa-paperclip"></i> Attached: ${file.name}</span> (${Math.round(file.size/1024)} KB)
-        `;
+        if (input) input.style.borderColor = "#10b981";
+        const reader = new FileReader();
+        reader.onload = function(evt) {
+            attachedImageDataUrl = evt.target.result;
+            if (previewBox) {
+                previewBox.innerHTML = `
+                    <div style="display:flex; align-items:center; gap:14px; margin-top:10px; padding:10px 14px; background:var(--bg-surface-secondary); border-radius:8px; border:1px solid #10b981;">
+                        <img src="${attachedImageDataUrl}" alt="Photo Evidence Preview" style="width:72px; height:72px; object-fit:cover; border-radius:6px; border:1px solid var(--border-color); box-shadow:0 2px 6px rgba(0,0,0,0.1);">
+                        <div>
+                            <div style="color:#059669; font-weight:600;"><i class="fa-solid fa-circle-check"></i> Image Uploaded: ${file.name}</div>
+                            <div style="font-size:12px; color:var(--text-muted); margin-top:3px;">Size: ${(file.size / 1024).toFixed(1)} KB &bull; Verified site photo</div>
+                        </div>
+                    </div>
+                `;
+            }
+        };
+        reader.readAsDataURL(file);
+    } else {
+        attachedFileName = null;
+        attachedImageDataUrl = null;
+        if (previewBox) {
+            previewBox.innerHTML = `<div style="padding:10px; background:#fee2e2; border:1px solid #f87171; border-radius:6px; color:#991b1b; font-weight:600;"><i class="fa-solid fa-triangle-exclamation"></i> Photo evidence is compulsory.</div>`;
+        }
+        if (input) input.style.borderColor = "#dc2626";
     }
 }
 
@@ -623,11 +702,28 @@ function updatePriorityHint() {
 
 async function handleWizardSubmit(e) {
     e.preventDefault();
+
+    // Enforce compulsory image upload
+    const fileInput = document.getElementById("w-file-input");
+    if (!attachedFileName || !fileInput || !fileInput.files || fileInput.files.length === 0) {
+        showToast("Photo evidence is compulsory! Please upload an image of the problem to submit.", "danger");
+        nextWizardStep(3);
+        if (fileInput) {
+            fileInput.focus();
+            fileInput.style.borderColor = "#dc2626";
+        }
+        return;
+    }
+
     const title = document.getElementById("w-title") ? document.getElementById("w-title").value.trim() : "";
     const category = document.getElementById("w-category").value;
     const location = document.getElementById("w-location").value.trim();
     const affected = document.getElementById("w-affected") ? parseInt(document.getElementById("w-affected").value) : 1;
-    const description = document.getElementById("w-description").value.trim();
+    let description = document.getElementById("w-description").value.trim();
+
+    if (attachedFileName) {
+        description += ` [Photo Evidence: ${attachedFileName}]`;
+    }
 
     const latStr = document.getElementById("w-latitude") ? document.getElementById("w-latitude").value : "";
     const lngStr = document.getElementById("w-longitude") ? document.getElementById("w-longitude").value : "";
@@ -637,9 +733,11 @@ async function handleWizardSubmit(e) {
     const lng = lngStr ? parseFloat(lngStr) : null;
     const acc = accStr ? parseFloat(accStr) : null;
 
+    const imageToSend = attachedImageDataUrl || "";
+
     try {
-        const created = await ApiClient.submitComplaint(category, location, description, affected, title, lat, lng, acc);
-        showToast(`Complaint <strong>${created.complaintId}</strong> registered successfully! Submitted for manager risk assessment.`);
+        const created = await ApiClient.submitComplaint(category, location, description, affected, title, lat, lng, acc, imageToSend);
+        showToast(`Complaint <strong>${created.complaintId}</strong> registered successfully with photo evidence! Submitted for manager risk assessment.`);
         switchView("citizen-dashboard");
     } catch (err) {
         showToast("Failed to submit complaint: " + err.message, "danger");
@@ -686,22 +784,25 @@ async function loadCitizenDashboard() {
             return;
         }
 
-        tbody.innerHTML = complaints.map(c => `
+        tbody.innerHTML = complaints.map(c => {
+            const photoThumb = c.imageUrl ? `<img src="${c.imageUrl}" alt="Photo Evidence" style="width:34px; height:34px; object-fit:cover; border-radius:4px; border:1px solid var(--border-color); cursor:pointer; margin-right:8px; vertical-align:middle;" onclick="openImageLightbox('${c.imageUrl}', 'Complaint ${c.complaintId} - Site Photo Evidence')" title="Click to enlarge photo">` : '';
+            return `
             <tr>
                 <td><strong>${c.complaintId}</strong></td>
-                <td>${escapeHtml(c.category)}</td>
+                <td><div style="display:flex; align-items:center;">${photoThumb}<span>${escapeHtml(c.category)}</span></div></td>
                 <td>${escapeHtml(c.location)}</td>
                 <td>${getPriorityBadge(c.priority)}</td>
                 <td>${escapeHtml(c.department || 'Awaiting Routing')}</td>
                 <td>${getStatusBadge(c.status, c.isWaiting)}</td>
                 <td>${c.createdAt || 'Today'}</td>
                 <td>
-                    <button class="btn btn-secondary btn-sm" onclick="openComplaintModal('${c.complaintId}')">
+                    <button class="btn btn-secondary btn-sm" onclick="openComplaintModal('${c.complaintId}')" title="View Case Details & Photo Evidence">
                         <i class="fa-solid fa-eye"></i> Track Case
                     </button>
                 </td>
             </tr>
-        `).join("");
+        `;
+        }).join("");
     } catch (e) {
         showToast("Error loading citizen complaints: " + e.message, "danger");
     }
@@ -768,10 +869,21 @@ async function loadWorkerDashboard() {
                 if (c.latitude && c.longitude) {
                     locHtml += `<br><span style="font-size:11px; color:#059669;"><i class="fa-solid fa-location-crosshairs"></i> GPS: ${c.latitude}, ${c.longitude}</span> &bull; <a href="https://www.google.com/maps?q=${c.latitude},${c.longitude}" target="_blank" rel="noopener" style="font-size:11px; color:var(--primary); text-decoration:underline;"><i class="fa-solid fa-map-location-dot"></i> View on Google Maps</a>`;
                 }
+
+                const photoThumb = c.imageUrl ? `<img src="${c.imageUrl}" alt="Evidence" style="width:38px; height:38px; object-fit:cover; border-radius:4px; border:1px solid var(--border-color); cursor:pointer; vertical-align:middle; margin-right:8px;" onclick="openImageLightbox('${c.imageUrl}', 'Complaint ${c.complaintId} - Site Photo Evidence')" title="Click to view full size photo">` : '';
+
                 return `
                 <tr>
                     <td><strong>${c.complaintId}</strong></td>
-                    <td>${escapeHtml(c.category)}<br><small style="color:var(--text-muted);">${locHtml}</small></td>
+                    <td>
+                        <div style="display:flex; align-items:center;">
+                            ${photoThumb}
+                            <div>
+                                <span>${escapeHtml(c.category)}</span><br>
+                                <small style="color:var(--text-muted);">${locHtml}</small>
+                            </div>
+                        </div>
+                    </td>
                     <td>${getPriorityBadge(c.priority)}<br><small style="color:var(--text-muted);">${c.citizenReportedImpact || c.affectedPeople || 1} people affected</small></td>
                     <td>${escapeHtml(c.citizenName || 'Citizen')}</td>
                     <td>${getStatusBadge(c.status, c.isWaiting)}</td>
@@ -779,7 +891,7 @@ async function loadWorkerDashboard() {
                     <td>
                         <div class="table-action-group">
                             ${actionBtn}
-                            <button class="btn btn-secondary btn-sm" onclick="openComplaintModal('${c.complaintId}')" title="View Details"><i class="fa-solid fa-eye"></i></button>
+                            <button class="btn btn-secondary btn-sm" onclick="openComplaintModal('${c.complaintId}')" title="View Case Details & Photo Evidence"><i class="fa-solid fa-eye"></i></button>
                         </div>
                     </td>
                 </tr>
@@ -907,19 +1019,31 @@ async function loadManagerDashboard() {
                         ? getPriorityBadge(c.severity || c.priority)
                         : `<span class="badge" style="background:#f1f5f9; color:#475569; border:1px solid #cbd5e1;"><i class="fa-solid fa-hourglass"></i> Unassessed</span>`;
 
+                    const photoThumb = c.imageUrl ? `<img src="${c.imageUrl}" alt="Photo" style="width:36px; height:36px; object-fit:cover; border-radius:4px; border:1px solid var(--border-color); cursor:pointer; vertical-align:middle; margin-right:8px;" onclick="openImageLightbox('${c.imageUrl}', 'Complaint ${c.complaintId} - Site Photo Evidence')" title="Click to view photo evidence">` : '';
+
                     return `
                     <tr>
                         <td><strong>${c.complaintId}</strong><br><small style="color:var(--text-muted);">${c.createdAt || ''}</small></td>
                         <td><strong>${escapeHtml(c.citizenName || 'Citizen')}</strong><br><small style="color:var(--text-muted);">${escapeHtml(c.description ? (c.description.length > 50 ? c.description.substring(0, 50) + '...' : c.description) : '')}</small></td>
-                        <td><span class="badge" style="background:var(--primary-light); color:var(--primary);">${escapeHtml(c.category)}</span></td>
+                        <td>
+                            <div style="display:flex; align-items:center;">
+                                ${photoThumb}
+                                <span class="badge" style="background:var(--primary-light); color:var(--primary);">${escapeHtml(c.category)}</span>
+                            </div>
+                        </td>
                         <td>${locCell}</td>
                         <td>${assessmentBadge}<br><small style="color:var(--text-muted);">${c.citizenReportedImpact || c.affectedPeople || 1} affected</small></td>
                         <td>${c.arrivalOrder ? '#' + c.arrivalOrder : (c.arrivalSequence ? '#' + c.arrivalSequence : '-')}</td>
                         <td>${c.duplicateCandidates && c.duplicateCandidates.length > 0 ? '<span class="badge" style="background:#fef3c7; color:#92400e;"><i class="fa-solid fa-clone"></i> ' + c.duplicateCandidates.length + ' Candidates</span>' : '<span style="color:var(--text-dim);">None</span>'}</td>
                         <td>
-                            <button class="btn btn-primary btn-sm" onclick="openAssignModal('${c.complaintId}')">
-                                <i class="fa-solid fa-stamp"></i> Assess & Assign
-                            </button>
+                            <div class="table-action-group">
+                                <button class="btn btn-primary btn-sm" onclick="openAssignModal('${c.complaintId}')">
+                                    <i class="fa-solid fa-stamp"></i> Assess & Assign
+                                </button>
+                                <button class="btn btn-secondary btn-sm" onclick="openComplaintModal('${c.complaintId}')" title="View Case File & Photo Evidence">
+                                    <i class="fa-solid fa-eye"></i>
+                                </button>
+                            </div>
                         </td>
                     </tr>
                 `;
@@ -1080,6 +1204,21 @@ async function openAssignModal(complaintId) {
     if (complaint.latitude && complaint.longitude) {
         gpsSnippet = `<br><span style="color:#059669; font-weight:600;"><i class="fa-solid fa-location-crosshairs"></i> GPS: ${complaint.latitude}, ${complaint.longitude}</span> &bull; <a href="https://www.google.com/maps?q=${complaint.latitude},${complaint.longitude}" target="_blank" rel="noopener" style="color:var(--primary); text-decoration:underline;">View on Google Maps</a>`;
     }
+    let photoSnippet = "";
+    if (complaint.imageUrl) {
+        photoSnippet = `
+            <div style="display:flex; align-items:center; gap:12px; margin-top:8px; padding:8px 12px; background:var(--bg-surface); border-radius:6px; border:1px solid var(--border-color);">
+                <img src="${complaint.imageUrl}" alt="Photo Evidence" style="width:64px; height:50px; object-fit:cover; border-radius:4px; cursor:pointer; border:1px solid var(--border-color);" onclick="openImageLightbox('${complaint.imageUrl}', 'Complaint ${complaint.complaintId} - Site Photo Evidence')">
+                <div style="flex:1;">
+                    <div style="font-weight:600; font-size:12px; color:var(--text-main);"><i class="fa-solid fa-camera" style="color:var(--primary);"></i> Citizen Site Photo Evidence</div>
+                    <button type="button" class="btn btn-sm btn-secondary" style="padding:2px 8px; font-size:11px; margin-top:3px;" onclick="openImageLightbox('${complaint.imageUrl}', 'Complaint ${complaint.complaintId} - Site Photo Evidence')">
+                        <i class="fa-solid fa-expand"></i> Inspect Photo
+                    </button>
+                </div>
+            </div>
+        `;
+    }
+
     const detailsBox = document.getElementById("assign-modal-details-summary");
     if (detailsBox) {
         detailsBox.innerHTML = `
@@ -1088,6 +1227,7 @@ async function openAssignModal(complaintId) {
             <div><strong>Registered At:</strong> ${complaint.createdAt || 'N/A'}</div>
             <div><strong>Current Assessment:</strong> ${complaint.isAssessed ? getPriorityBadge(complaint.severity) : '<span class="badge" style="background:#f1f5f9; color:#475569;"><i class="fa-solid fa-hourglass"></i> Unassessed</span>'}</div>
             <div style="margin-top:4px; font-style:italic; color:var(--text-muted); font-size:12px;">"${escapeHtml(complaint.description || '')}"</div>
+            ${photoSnippet}
         `;
     }
 
@@ -1550,23 +1690,26 @@ function renderStaffComplaintsTable() {
         return;
     }
 
-    tbody.innerHTML = paginatedItems.map(c => `
+    tbody.innerHTML = paginatedItems.map(c => {
+        const photoThumb = c.imageUrl ? `<img src="${c.imageUrl}" alt="Photo" style="width:34px; height:34px; object-fit:cover; border-radius:4px; border:1px solid var(--border-color); cursor:pointer; vertical-align:middle; margin-right:8px;" onclick="openImageLightbox('${c.imageUrl}', 'Complaint ${c.complaintId} - Site Photo Evidence')" title="Click to view photo evidence">` : '';
+        return `
         <tr>
             <td><strong>${c.complaintId}</strong></td>
             <td>${escapeHtml(c.citizenName)}</td>
-            <td>${escapeHtml(c.category)}</td>
+            <td><div style="display:flex; align-items:center;">${photoThumb}<span>${escapeHtml(c.category)}</span></div></td>
             <td>${escapeHtml(c.location)}</td>
             <td>${getPriorityBadge(c.priority)}</td>
             <td>${escapeHtml(c.department)}</td>
             <td>${getStatusBadge(c.status, c.isWaiting)}</td>
             <td>${c.createdAt || 'Today'}</td>
             <td>
-                <button class="btn btn-secondary btn-sm" onclick="openComplaintModal('${c.complaintId}')">
+                <button class="btn btn-secondary btn-sm" onclick="openComplaintModal('${c.complaintId}')" title="Manage Case & View Photo Evidence">
                     <i class="fa-solid fa-sliders"></i> Manage
                 </button>
             </td>
         </tr>
-    `).join("");
+    `;
+    }).join("");
 }
 
 function prevPage() {
@@ -1776,6 +1919,30 @@ async function openComplaintModal(complaintId) {
         } else {
             notesBox.innerText = "No resolution description notes recorded yet.";
             notesBox.style.color = "var(--text-muted)";
+        }
+
+        // Render Photo Evidence for all roles (Citizen, Worker, Manager, Admin)
+        const photoBox = document.getElementById("m-photo-evidence");
+        if (photoBox) {
+            if (c.imageUrl && c.imageUrl.trim()) {
+                photoBox.innerHTML = `
+                    <div style="display:flex; align-items:center; gap:16px; width:100%; flex-wrap:wrap;">
+                        <div style="position:relative; cursor:pointer;" onclick="openImageLightbox('${c.imageUrl}', 'Complaint ${c.complaintId} - Site Photo Evidence')">
+                            <img src="${c.imageUrl}" alt="Citizen Site Photo Evidence" style="width:140px; height:105px; object-fit:cover; border-radius:6px; border:2px solid var(--border-color); box-shadow:0 3px 10px rgba(0,0,0,0.12); cursor:pointer;">
+                            <div style="position:absolute; bottom:5px; right:5px; background:rgba(0,0,0,0.7); color:#fff; border-radius:4px; padding:2px 6px; font-size:10px;"><i class="fa-solid fa-magnifying-glass-plus"></i> Enlarge</div>
+                        </div>
+                        <div style="flex:1; min-width:200px;">
+                            <div style="font-weight:600; color:var(--text-main); font-size:13px;"><i class="fa-solid fa-circle-check" style="color:#059669;"></i> Compulsory Site Evidence Verified</div>
+                            <div style="font-size:12px; color:var(--text-muted); margin:4px 0 10px 0;">Official photograph uploaded by citizen during complaint filing. Available to Manager, Worker, and Admin.</div>
+                            <button type="button" class="btn btn-secondary btn-sm" onclick="openImageLightbox('${c.imageUrl}', 'Complaint ${c.complaintId} - Site Photo Evidence')">
+                                <i class="fa-solid fa-expand"></i> Click to View Full Resolution Photo
+                            </button>
+                        </div>
+                    </div>
+                `;
+            } else {
+                photoBox.innerHTML = `<span style="color:var(--text-muted); font-size:13px;"><i class="fa-solid fa-image"></i> No photo evidence attached.</span>`;
+            }
         }
 
         // Render Step Timeline Graphic
@@ -2111,4 +2278,20 @@ function escapeHtml(str) {
     return str.replace(/[&<>"']/g, m => ({
         '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#039;'
     })[m]);
+}
+
+// ------------------- IMAGE LIGHTBOX (ENLARGEMENT FOR ALL ROLES) ------------------- //
+function openImageLightbox(src, caption) {
+    const modal = document.getElementById("image-lightbox-modal");
+    const img = document.getElementById("lightbox-img");
+    const cap = document.getElementById("lightbox-caption");
+    if (!modal || !img) return;
+    img.src = src;
+    if (cap) cap.innerHTML = `<i class="fa-solid fa-camera"></i> ${escapeHtml(caption || "Citizen Photo Evidence")}`;
+    modal.classList.add("active");
+}
+
+function closeImageLightbox() {
+    const modal = document.getElementById("image-lightbox-modal");
+    if (modal) modal.classList.remove("active");
 }

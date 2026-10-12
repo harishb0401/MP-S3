@@ -461,19 +461,25 @@
                                         <i class="fa-solid fa-arrow-left"></i> Back
                                     </button>
                                     <button type="button" class="btn btn-primary" onclick="nextWizardStep(3)">
-                                        Next: Evidence <i class="fa-solid fa-arrow-right"></i>
+                                        Next: Photo Evidence * <i class="fa-solid fa-arrow-right"></i>
                                     </button>
                                 </div>
                             </div>
 
                             <!-- Pane 3: Evidence & Upload -->
                             <div class="wizard-pane" id="w-pane-3">
-                                <h3 style="font-size: 16px; margin-bottom: 16px; color: var(--primary);">Step 3: Attach Photos / Documents</h3>
+                                <h3 style="font-size: 16px; margin-bottom: 16px; color: var(--primary);">Step 3: Attach Photo Evidence <span style="color: #dc2626; font-size: 14px;">(Compulsory *)</span></h3>
                                 <div class="form-group full-width">
-                                    <label class="form-label">Upload Photo Evidence (Optional)</label>
-                                    <input type="file" id="w-file-input" class="form-control" accept="image/*,.pdf" onchange="previewFile(event)">
+                                    <label class="form-label" style="display: flex; justify-content: space-between; align-items: center;">
+                                        <span>Upload Photo Evidence <strong style="color: #dc2626;">* (Compulsory)</strong></span>
+                                        <span style="font-size: 12px; color: var(--text-muted); font-weight: normal;">Supported: JPG, PNG, WEBP</span>
+                                    </label>
+                                    <input type="file" id="w-file-input" class="form-control" accept="image/*" onchange="previewFile(event)" required style="padding: 8px;">
+                                    <p style="font-size: 12px; color: var(--text-muted); margin: 6px 0 0 0;">
+                                        <i class="fa-solid fa-camera"></i> An actual photograph of the grievance is mandatory for verification and department dispatch.
+                                    </p>
                                     <div id="file-preview-box" style="margin-top: 12px; font-size: 13px; color: var(--text-muted);">
-                                        No file attached.
+                                        No image attached yet.
                                     </div>
                                 </div>
 
@@ -482,7 +488,7 @@
                                         <i class="fa-solid fa-shield-halved" style="color: var(--primary);"></i> Municipal Triage Process
                                     </h4>
                                     <p style="font-size: 12px; color: var(--text-muted); margin: 0;">
-                                        All submitted complaints are registered as unassessed and reviewed by authorized municipal managers who conduct an objective risk assessment before routing to field teams.
+                                        All submitted complaints are registered with mandatory photo evidence and reviewed by authorized municipal managers who conduct an objective risk assessment before routing to field teams.
                                     </p>
                                 </div>
 
@@ -1114,6 +1120,16 @@
                     <label class="form-label">Description</label>
                     <div id="m-description" style="line-height: 1.5; color: var(--text-main);">-</div>
                 </div>
+                <!-- Site Photo Evidence Box -->
+                <div class="form-group full-width" id="m-photo-evidence-container">
+                    <label class="form-label" style="display: flex; justify-content: space-between; align-items: center;">
+                        <span><i class="fa-solid fa-camera" style="color: var(--primary);"></i> Citizen Site Photo Evidence</span>
+                        <span class="badge" style="background:#eff6ff; color:#1d4ed8; font-size:11px;"><i class="fa-solid fa-circle-check"></i> Field Verification Photo</span>
+                    </label>
+                    <div id="m-photo-evidence" style="background: var(--bg-surface-secondary); padding: 14px; border-radius: var(--radius-sm); border: 1px solid var(--border-color); display: flex; align-items: center; justify-content: center; min-height: 100px;">
+                        <!-- Rendered dynamically -->
+                    </div>
+                </div>
                 <div class="form-group">
                     <label class="form-label">Assigned Department</label>
                     <div id="m-department" style="font-weight: 600; color: var(--accent-gold);">-</div>
@@ -1377,6 +1393,19 @@
                     <button type="submit" class="btn btn-primary" style="background:#dc2626;"><i class="fa-solid fa-trash-can"></i> Confirm Deletion</button>
                 </div>
             </form>
+        </div>
+    </div>
+
+    <!-- 10. IMAGE LIGHTBOX ENLARGEMENT MODAL (SHARED BY CITIZEN, WORKER, MANAGER, ADMIN) -->
+    <div class="modal-overlay" id="image-lightbox-modal" onclick="closeImageLightbox()" style="z-index: 99999; background: rgba(0,0,0,0.85); backdrop-filter: blur(4px);">
+        <div style="position: relative; max-width: 90vw; max-height: 90vh; display: flex; flex-direction: column; align-items: center; justify-content: center;" onclick="event.stopPropagation()">
+            <button type="button" class="close-btn" onclick="closeImageLightbox()" style="position: absolute; top: -45px; right: 0; color: #fff; font-size: 26px; background: transparent; border: none; cursor: pointer;">
+                <i class="fa-solid fa-xmark"></i>
+            </button>
+            <img id="lightbox-img" src="" alt="Enlarged Evidence Photo" style="max-width: 85vw; max-height: 80vh; object-fit: contain; border-radius: 8px; box-shadow: 0 10px 30px rgba(0,0,0,0.6); border: 2px solid rgba(255,255,255,0.2);">
+            <div id="lightbox-caption" style="color: #f1f5f9; margin-top: 12px; font-size: 13px; text-align: center; font-weight: 500;">
+                <i class="fa-solid fa-camera"></i> Citizen Submitted Photo Evidence
+            </div>
         </div>
     </div>
 

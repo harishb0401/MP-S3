@@ -91,6 +91,7 @@ CREATE TABLE complaint (
     department_id VARCHAR(50) NULL,
     assigned_staff VARCHAR(100) DEFAULT 'Unassigned',
     resolution_notes TEXT NULL,
+    image_url MEDIUMTEXT NULL,
     
     -- Duplicate detection links
     is_duplicate BOOLEAN DEFAULT FALSE,

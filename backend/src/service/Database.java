@@ -11,6 +11,14 @@ import model.GrievanceFactory;
 import model.Manager;
 import model.Notification;
 import model.User;
+import repository.AssignmentRepository;
+import repository.AuditLogRepository;
+import repository.ComplaintRepository;
+import repository.DepartmentRepository;
+import repository.DuplicateRepository;
+import repository.ReportRepository;
+import repository.StatusUpdateRepository;
+import repository.UserRepository;
 
 import java.io.File;
 import java.io.FileWriter;
@@ -18,6 +26,7 @@ import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.security.MessageDigest;
+import java.sql.SQLException;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -77,6 +86,16 @@ public class Database {
     private int notificationCounter = 0;
 
     private String customDbFile = null;
+    private boolean useMySql = false;
+
+    private UserRepository userRepository = new UserRepository();
+    private DepartmentRepository departmentRepository = new DepartmentRepository();
+    private ComplaintRepository complaintRepository = new ComplaintRepository();
+    private AssignmentRepository assignmentRepository = new AssignmentRepository();
+    private StatusUpdateRepository statusUpdateRepository = new StatusUpdateRepository();
+    private DuplicateRepository duplicateRepository = new DuplicateRepository();
+    private AuditLogRepository auditLogRepository = new AuditLogRepository();
+    private ReportRepository reportRepository = new ReportRepository();
 
     public Database() {
         this(null);
@@ -95,13 +114,77 @@ public class Database {
         this.activeSessions = new ConcurrentHashMap<>();
 
         initializeDepartments();
-        ensureDatabaseFile();
-        loadDatabase();
+
+        if (customDbFilePath == null && !persistenceDisabled && DatabaseConnection.testConnection()) {
+            this.useMySql = true;
+            System.out.println("[DATABASE PERSISTENCE] Primary Source of Truth: MySQL 8.0 (" + DatabaseConfig.getDatabaseName() + ")");
+            loadFromMySql();
+        } else {
+            this.useMySql = false;
+            ensureDatabaseFile();
+            loadDatabase();
+        }
         seedInitialAccounts();
     }
 
     public String getEffectiveDbFile() {
         return (customDbFile != null && !customDbFile.trim().isEmpty()) ? customDbFile : getDbFile();
+    }
+
+    public synchronized void loadFromMySql() {
+        try {
+            // 1. Departments
+            List<Department> depts = departmentRepository.findAll();
+            if (depts != null && !depts.isEmpty()) {
+                departmentMap.clear();
+                for (Department d : depts) {
+                    departmentMap.put(d.getDepartmentId(), d);
+                    departmentMap.put(d.getDepartmentName(), d);
+                }
+            }
+            // 2. Users
+            List<User> users = userRepository.findAll();
+            if (users != null) {
+                userMap.clear();
+                for (User u : users) {
+                    userMap.put(u.getId(), u);
+                    userMap.put(u.getEmail().toLowerCase(), u);
+                    userMap.put(u.getUsername().toLowerCase(), u);
+                }
+            }
+            // 3. Complaints
+            List<Complaint> complaints = complaintRepository.findAll();
+            if (complaints != null) {
+                complaintList.clear();
+                complaintMap.clear();
+                priorityQueue.clear();
+                activeCategoryLocationSet.clear();
+                int maxCounter = 0;
+                for (Complaint c : complaints) {
+                    complaintList.add(c);
+                    complaintMap.put(c.getComplaintId(), c);
+                    complaintMap.put(c.getId(), c);
+                    if (!"RESOLVED".equalsIgnoreCase(c.getStatus()) && !"CLOSED".equalsIgnoreCase(c.getStatus())) {
+                        priorityQueue.add(c);
+                        activeCategoryLocationSet.add(buildDuplicateKey(c.getCategory(), c.getLocation()));
+                    }
+                    if (c.getComplaintId() != null && c.getComplaintId().startsWith("GRV-2026-")) {
+                        try {
+                            int num = Integer.parseInt(c.getComplaintId().substring("GRV-2026-".length()));
+                            if (num > maxCounter) maxCounter = num;
+                        } catch (Exception ignored) {}
+                    }
+                }
+                this.complaintCounter = maxCounter;
+            }
+            rebuildPriorityQueueAndCapacity();
+            System.out.println("[MYSQL DATABASE LOADED] Users: " + getUniqueUsers().size() +
+                    " | Complaints: " + complaintList.size() +
+                    " | PriorityQueue size: " + priorityQueue.size());
+        } catch (SQLException e) {
+            System.err.println("[MYSQL ERROR] Could not load data from MySQL: " + e.getMessage());
+            throw new RuntimeException("MySQL Initialization Error: " + e.getMessage(), e);
+        }
     }
 
     private void initializeDepartments() {
@@ -251,6 +334,20 @@ public class Database {
             userMap.put(staffLight.getId(), staffLight);
         }
 
+        // 3. Initial Citizen
+        if (getUserById("C001") == null && getUserByEmail("ramesh@test.com") == null) {
+            Citizen citizen = new Citizen(
+                    "C001", "Ramesh", "ramesh@test.com", "9876543210",
+                    hashPassword("123456"), "2026-09-14 10:00:00"
+            );
+            userMap.put(citizen.getEmail().toLowerCase(), citizen);
+            userMap.put(citizen.getId(), citizen);
+            userMap.put(citizen.getUsername().toLowerCase(), citizen);
+            if (useMySql) {
+                try { userRepository.save(citizen); } catch (Exception ignored) {}
+            }
+        }
+
         saveDatabase();
     }
 
@@ -264,8 +361,14 @@ public class Database {
         return persistenceDisabled;
     }
 
-    // Save full system state to JSON
+    // Save full system state to JSON (only active in standalone file/test mode)
     public synchronized void saveDatabase() {
+        if (useMySql) {
+            // MySQL 8.0 is the primary source of truth.
+            // All operations are committed directly to MySQL via PreparedStatements.
+            // Do not silently fall back or duplicate writes to database.json.
+            return;
+        }
         if (persistenceDisabled && customDbFile == null) {
             return;
         }
@@ -294,7 +397,7 @@ public class Database {
             for (int i = 0; i < complaintList.size(); i++) {
                 Complaint c = complaintList.get(i);
                 json.append(String.format(
-                        "    {\"id\":\"%s\",\"complaintId\":\"%s\",\"citizenId\":\"%s\",\"citizenName\":\"%s\",\"citizenMobile\":\"%s\",\"category\":\"%s\",\"description\":\"%s\",\"location\":\"%s\",\"latitude\":%s,\"longitude\":%s,\"locationAccuracyMeters\":%s,\"departmentId\":\"%s\",\"department\":\"%s\",\"citizenReportedImpact\":%d,\"adminVerifiedImpact\":%s,\"verificationReason\":\"%s\",\"isVerifiedLocked\":%b,\"severity\":\"%s\",\"priority\":\"%s\",\"status\":\"%s\",\"assignedStaff\":\"%s\",\"resolutionNotes\":\"%s\",\"assessedBy\":\"%s\",\"assessedAt\":\"%s\",\"assessmentReason\":\"%s\",\"isDuplicate\":%b,\"duplicateOfId\":\"%s\",\"rejectedCandidateIds\":\"%s\",\"isWaiting\":%b,\"arrivalSequence\":%d,\"createdAt\":\"%s\",\"updatedAt\":\"%s\",\"resolvedAt\":\"%s\"}",
+                        "    {\"id\":\"%s\",\"complaintId\":\"%s\",\"citizenId\":\"%s\",\"citizenName\":\"%s\",\"citizenMobile\":\"%s\",\"category\":\"%s\",\"description\":\"%s\",\"location\":\"%s\",\"latitude\":%s,\"longitude\":%s,\"locationAccuracyMeters\":%s,\"departmentId\":\"%s\",\"department\":\"%s\",\"citizenReportedImpact\":%d,\"adminVerifiedImpact\":%s,\"verificationReason\":\"%s\",\"isVerifiedLocked\":%b,\"severity\":\"%s\",\"priority\":\"%s\",\"status\":\"%s\",\"assignedStaff\":\"%s\",\"resolutionNotes\":\"%s\",\"imageUrl\":\"%s\",\"assessedBy\":\"%s\",\"assessedAt\":\"%s\",\"assessmentReason\":\"%s\",\"isDuplicate\":%b,\"duplicateOfId\":\"%s\",\"rejectedCandidateIds\":\"%s\",\"isWaiting\":%b,\"arrivalSequence\":%d,\"createdAt\":\"%s\",\"updatedAt\":\"%s\",\"resolvedAt\":\"%s\"}",
                         escapeJson(c.getId()), escapeJson(c.getComplaintId()), escapeJson(c.getCitizenId()),
                         escapeJson(c.getCitizenName()), escapeJson(c.getCitizenMobile()), escapeJson(c.getCategory()),
                         escapeJson(c.getDescription()), escapeJson(c.getLocation()),
@@ -309,6 +412,7 @@ public class Database {
                         (c.getPriority() == null ? "UNASSESSED" : escapeJson(c.getPriority())),
                         escapeJson(c.getStatus()),
                         escapeJson(c.getAssignedStaff()), escapeJson(c.getResolutionNotes()),
+                        (c.getImageUrl() == null ? "" : escapeJson(c.getImageUrl())),
                         escapeJson(c.getAssessedBy()), escapeJson(c.getAssessedAt()), escapeJson(c.getAssessmentReason()),
                         c.isDuplicate(), escapeJson(c.getDuplicateOfId()),
                         escapeJson(c.getRejectedCandidateIdsCsv()),
@@ -530,6 +634,7 @@ public class Database {
             c.setStatus(extractJsonVal(objStr, "status"));
             c.setAssignedStaff(extractJsonVal(objStr, "assignedStaff"));
             c.setResolutionNotes(extractJsonVal(objStr, "resolutionNotes"));
+            c.setImageUrl(extractJsonVal(objStr, "imageUrl"));
 
             c.setDuplicate("true".equalsIgnoreCase(extractJsonVal(objStr, "isDuplicate")));
             c.setDuplicateOfId(extractJsonVal(objStr, "duplicateOfId"));
@@ -798,7 +903,7 @@ public class Database {
 
     public synchronized User registerUser(String name, String email, String mobile, String rawPassword, String role, String department) {
         String lowerEmail = email.toLowerCase().trim();
-        if (userMap.containsKey(lowerEmail)) {
+        if (getUserByEmail(lowerEmail) != null) {
             return null; // Already exists
         }
 
@@ -818,19 +923,72 @@ public class Database {
 
         userMap.put(lowerEmail, user);
         userMap.put(userId, user);
-        userMap.put(user.getUsername().toLowerCase(), user);
-        saveDatabase();
+        if (user.getUsername() != null && !user.getUsername().trim().isEmpty()) {
+            userMap.put(user.getUsername().toLowerCase().trim(), user);
+        }
+
+        if (useMySql) {
+            try {
+                userRepository.save(user);
+                auditLogRepository.log(userId, "REGISTER_USER", "USER", userId, "Registered " + user.getRole() + ": " + user.getEmail());
+            } catch (SQLException e) {
+                System.err.println("[MYSQL USER ERROR] " + e.getMessage());
+                throw new RuntimeException("MySQL Persistence Error: " + e.getMessage(), e);
+            }
+        } else {
+            saveDatabase();
+        }
         return user;
     }
 
     public User getUserByEmail(String email) {
         if (email == null) return null;
-        return userMap.get(email.toLowerCase().trim());
+        String cleanEmail = email.toLowerCase().trim();
+        if ("admin".equals(cleanEmail) || "stf1001".equals(cleanEmail)) {
+            cleanEmail = "admin@makkal.gov.in";
+        } else if ("manager".equals(cleanEmail) || "mgr1001".equals(cleanEmail)) {
+            cleanEmail = "manager@makkal.gov.in";
+        } else if ("suresh".equals(cleanEmail) || "water".equals(cleanEmail) || "stf-w01".equals(cleanEmail)) {
+            cleanEmail = "water_staff@makkal.gov.in";
+        } else if ("ramesh".equals(cleanEmail) || "c001".equals(cleanEmail)) {
+            cleanEmail = "ramesh@test.com";
+        }
+        User u = userMap.get(cleanEmail);
+        if (u == null && useMySql) {
+            try {
+                u = userRepository.findByEmail(cleanEmail);
+                if (u != null) {
+                    userMap.put(u.getId(), u);
+                    userMap.put(u.getEmail().toLowerCase().trim(), u);
+                    if (u.getUsername() != null && !u.getUsername().trim().isEmpty()) {
+                        userMap.put(u.getUsername().toLowerCase().trim(), u);
+                    }
+                }
+            } catch (SQLException ignored) {}
+        }
+        return u;
     }
 
     public User getUserById(String id) {
         if (id == null) return null;
-        return userMap.get(id);
+        String cleanId = id.trim();
+        if ("STF1001".equalsIgnoreCase(cleanId)) {
+            cleanId = "ADM1001";
+        }
+        User u = userMap.get(cleanId);
+        if (u == null && useMySql) {
+            try {
+                u = userRepository.findById(cleanId);
+                if (u != null) {
+                    userMap.put(u.getId(), u);
+                    userMap.put(u.getEmail().toLowerCase().trim(), u);
+                    if (u.getUsername() != null && !u.getUsername().trim().isEmpty()) {
+                        userMap.put(u.getUsername().toLowerCase().trim(), u);
+                    }
+                }
+            } catch (SQLException ignored) {}
+        }
+        return u;
     }
 
     public String createSession(User user) {
@@ -893,7 +1051,19 @@ public class Database {
         userMap.put(lowerEmail, worker);
         userMap.put(workerId, worker);
         userMap.put(worker.getUsername().toLowerCase(), worker);
-        saveDatabase();
+
+        if (useMySql) {
+            try {
+                userRepository.save(worker);
+                auditLogRepository.log(adminActor.getId(), "CREATE_WORKER", "USER", workerId,
+                        "Created worker: " + worker.getStaffName() + " for " + worker.getDepartment());
+            } catch (SQLException e) {
+                System.err.println("[MYSQL WORKER ERROR] " + e.getMessage());
+                throw new RuntimeException("MySQL Persistence Error: " + e.getMessage(), e);
+            }
+        } else {
+            saveDatabase();
+        }
         return worker;
     }
 
@@ -937,7 +1107,18 @@ public class Database {
             handoverWorkerComplaints(worker, adminActor, deptChanged ? "Worker transferred from " + prevDept + " to " + worker.getDepartment() : "Worker deactivated by administrator");
         }
 
-        saveDatabase();
+        if (useMySql) {
+            try {
+                userRepository.save(worker);
+                auditLogRepository.log(adminActor.getId(), "UPDATE_WORKER", "USER", workerId,
+                        "Updated worker details for " + worker.getStaffName());
+            } catch (SQLException e) {
+                System.err.println("[MYSQL WORKER ERROR] " + e.getMessage());
+                throw new RuntimeException("MySQL Persistence Error: " + e.getMessage(), e);
+            }
+        } else {
+            saveDatabase();
+        }
         return worker;
     }
 
@@ -953,7 +1134,19 @@ public class Database {
             throw new IllegalArgumentException("Worker not found with ID: " + workerId);
         }
         u.setPasswordHash(hashPassword(newPassword.trim()));
-        saveDatabase();
+
+        if (useMySql) {
+            try {
+                userRepository.save(u);
+                auditLogRepository.log(adminActor.getId(), "PASSWORD_RESET", "USER", workerId,
+                        "Password reset by administrator for worker ID " + workerId);
+            } catch (SQLException e) {
+                System.err.println("[MYSQL WORKER ERROR] " + e.getMessage());
+                throw new RuntimeException("MySQL Persistence Error: " + e.getMessage(), e);
+            }
+        } else {
+            saveDatabase();
+        }
         return true;
     }
 
@@ -1006,8 +1199,51 @@ public class Database {
             activeCategoryLocationSet.add(buildDuplicateKey(complaint.getCategory(), complaint.getLocation()));
         }
 
-        saveDatabase();
+        if (useMySql) {
+            try {
+                complaintRepository.save(complaint);
+                if (complaint.getDepartmentId() != null) {
+                    assignmentRepository.recordAssignment(complaint.getId(), complaint.getDepartmentId(),
+                            complaint.getAssignedStaff(), "System", "Active", "Initial Registration");
+                }
+                auditLogRepository.log(complaint.getCitizenId(), "REGISTER_COMPLAINT", "COMPLAINT",
+                        complaint.getComplaintId(), "Registered at " + complaint.getLocation() + " (Impact: " + complaint.getCitizenReportedImpact() + ")");
+            } catch (SQLException e) {
+                System.err.println("[MYSQL PERSISTENCE ERROR] " + e.getMessage());
+                throw new RuntimeException("MySQL Persistence Error: " + e.getMessage(), e);
+            }
+        } else {
+            saveDatabase();
+        }
     }
+
+    public synchronized void updateComplaint(Complaint complaint) {
+        if (complaint == null) return;
+        complaintMap.put(complaint.getComplaintId(), complaint);
+        if (complaint.getId() != null) complaintMap.put(complaint.getId(), complaint);
+
+        if (useMySql) {
+            try {
+                complaintRepository.update(complaint);
+            } catch (SQLException e) {
+                System.err.println("[MYSQL UPDATE ERROR] " + e.getMessage());
+                throw new RuntimeException("MySQL Persistence Error: " + e.getMessage(), e);
+            }
+        } else {
+            saveDatabase();
+        }
+    }
+
+    public UserRepository getUserRepository() { return userRepository; }
+    public DepartmentRepository getDepartmentRepository() { return departmentRepository; }
+    public ComplaintRepository getComplaintRepository() { return complaintRepository; }
+    public AssignmentRepository getAssignmentRepository() { return assignmentRepository; }
+    public StatusUpdateRepository getStatusUpdateRepository() { return statusUpdateRepository; }
+    public DuplicateRepository getDuplicateRepository() { return duplicateRepository; }
+    public AuditLogRepository getAuditLogRepository() { return auditLogRepository; }
+    public ReportRepository getReportRepository() { return reportRepository; }
+    public boolean isUsingMySql() { return useMySql; }
+    public void setUseMySql(boolean flag) { this.useMySql = flag; }
 
     public Complaint getComplaintById(String id) {
         if (id == null) return null;
@@ -1119,6 +1355,10 @@ public class Database {
         return new ArrayList<>(map.values());
     }
 
+    public List<Department> getAllDepartments() {
+        return getAllUniqueDepartments();
+    }
+
     /**
      * Strict list of the four core municipal departments required by municipal mandate.
      */
@@ -1151,7 +1391,18 @@ public class Database {
     // History & Audit Trail Operations
     public synchronized void addHistory(ComplaintHistory history) {
         historyMap.computeIfAbsent(history.getComplaintId(), k -> new ArrayList<>()).add(history);
-        saveDatabase();
+        if (useMySql) {
+            try {
+                statusUpdateRepository.recordUpdate(history.getComplaintId(), history.getOldStatus(),
+                        history.getNewStatus(), history.getUpdatedBy(), history.getRemarks());
+                auditLogRepository.log(history.getUpdatedBy(), "STATUS_UPDATE", "COMPLAINT",
+                        history.getComplaintId(), "Transition: " + history.getOldStatus() + " -> " + history.getNewStatus() + ". Remarks: " + history.getRemarks());
+            } catch (SQLException e) {
+                System.err.println("[MYSQL STATUS ERROR] Failed to record status update: " + e.getMessage());
+            }
+        } else {
+            saveDatabase();
+        }
     }
 
     public List<ComplaintHistory> getComplaintHistory(String complaintId) {

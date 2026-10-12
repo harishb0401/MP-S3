@@ -255,8 +255,11 @@ public class SystemTest {
         // EXECUTE ASSESSMENT & GPS GEOLOCATION TEST SUITE (28 SCENARIOS)
         boolean assessmentGpsPassed = AssessmentAndGPSTest.runAllTests();
 
-        if (testsPassed == totalTests && priorityTestsPassed && stateMachineTestsPassed && capacityTestsPassed && duplicateTestsPassed && oopTestsPassed && dataValidationPassed && rolePortalsPassed && assessmentGpsPassed) {
-            System.out.println("\n>>> ALL SYSTEM, RBAC PORTALS, RISK ASSESSMENT, GPS GEOLOCATION, PRIORITY RANKING, STATE MACHINE, CAPACITY, DUPLICATE MANAGEMENT, OOP DESIGN & DEMO DATA REQUIREMENTS VERIFIED SUCCESSFULLY! <<<");
+        // EXECUTE MYSQL PERSISTENCE & MIGRATION TEST SUITE (17 SCENARIOS)
+        boolean migrationTestsPassed = DatabaseMigrationTest.runAllTests();
+
+        if (testsPassed == totalTests && priorityTestsPassed && stateMachineTestsPassed && capacityTestsPassed && duplicateTestsPassed && oopTestsPassed && dataValidationPassed && rolePortalsPassed && assessmentGpsPassed && migrationTestsPassed) {
+            System.out.println("\n>>> ALL SYSTEM, RBAC PORTALS, RISK ASSESSMENT, GPS GEOLOCATION, PRIORITY RANKING, STATE MACHINE, CAPACITY, DUPLICATE MANAGEMENT, OOP DESIGN, DEMO DATA & MYSQL MIGRATION REQUIREMENTS VERIFIED SUCCESSFULLY! <<<");
         } else {
             System.exit(1);
         }

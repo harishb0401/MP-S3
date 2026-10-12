@@ -57,60 +57,112 @@ A complete, working full-stack municipal grievance portal built using **Java (RE
 
 ---
 
-## 3. Database & Default Admin Account
+## 3. Database Architecture & MySQL Persistence
 
-All records are persisted to `backend/data/database.json`.
+The application uses **MySQL 8.0+** as its primary persistent database engine via JDBC (`mysql-connector-j-8.3.0.jar`).
 
-### Initial Seeded Municipal Staff / Admin Account:
-- **Staff ID / Email**: `STF1001` or `admin@makkal.gov.in`
-- **Password**: `admin123`
-- **Role**: `STAFF`
-- **Department**: `General Administration`
+### Database Name:
+`makkal_nagar_grievance`
 
----
-
-## 4. Backend REST API Endpoints
-
-| Method | Endpoint | Description | Auth Required |
-| :--- | :--- | :--- | :--- |
-| `POST` | `/api/auth/register` | Register new Citizen account | No |
-| `POST` | `/api/auth/login` | Login for Citizen or Staff | No |
-| `GET` | `/api/auth/me` | Fetch authenticated user profile | Yes |
-| `GET` | `/api/dashboard/stats` | Compute real database metrics | No |
-| `POST` | `/api/complaints` | Submit new citizen grievance | Citizen |
-| `GET` | `/api/my-complaints` | Fetch logged-in citizen's complaints | Citizen |
-| `GET` | `/api/complaints` | Fetch master complaint directory | Staff |
-| `GET` | `/api/complaints/priority-queue` | Fetch complaints ordered by PriorityQueue | Any |
-| `GET` | `/api/complaints/:id` | Fetch specific complaint details | Any |
-| `PUT` | `/api/complaints/:id/status` | Update complaint status | Staff |
-| `POST` | `/api/complaints/:id/assign` | Assign department & staff officer | Staff |
-| `POST` | `/api/complaints/:id/resolve` | Mark resolved & add resolution notes | Staff |
+### Relational Schema Tables (`database/schema.sql`):
+1. **`departments`**: Core municipal departments (`DEPT-WATER`, `DEPT-ROADS`, `DEPT-WASTE`, `DEPT-LIGHT`), capacities, and operational status.
+2. **`users`**: Role-based accounts (`CITIZEN`, `WORKER`, `MANAGER`, `ADMIN`) with SHA-256 hashed credentials.
+3. **`complaints`**: Complete grievance records with GPS latitude/longitude/accuracy, arrival sequence, impact count, severity, category, municipal area, and resolution notes.
+4. **`assignments`**: Complete historical audit trail of department and worker assignments and reassignments with handover reasons.
+5. **`status_updates`**: Immutable state transition timeline (`Registered` $\rightarrow$ `Assigned` $\rightarrow$ `InProgress` $\rightarrow$ `Resolved`) with actor and remarks.
+6. **`duplicate_links`**: Candidate duplicate links reviewed and confirmed/rejected by authorized managers.
+7. **`audit_logs`**: Security and operations audit trail for administrative actions.
 
 ---
 
-## 5. How to Run the Project
+## 4. MySQL Setup & Configuration Guide
 
-### Option A: Run Directly in Git via GitHub Codespaces (1-Click)
-You can run this entire full-stack project in the cloud right from GitHub without installing Java on your local machine:
-1. Click the **[Open in GitHub Codespaces](https://codespaces.new/harishb0401/MP-S3)** button above (or on GitHub, click **Code** -> **Codespaces** -> **Create codespace on main**).
-2. GitHub automatically creates the environment, compiles Java, runs verification tests, and starts the server.
-3. Port **8080** is forwarded automatically — a popup will ask to **"Open in Browser"**, giving you the live Web Portal URL just like localhost!
+### Step 1: Install & Start MySQL 8.0
+- **Windows**: Install MySQL Server via MySQL Installer or start the service:
+  ```powershell
+  net start MySQL80
+  ```
+- **Linux (Ubuntu/Debian)**:
+  ```bash
+  sudo systemctl start mysql
+  ```
+- **macOS (Homebrew)**:
+  ```bash
+  brew services start mysql
+  ```
 
-### Option B: Run Locally (1-Click Scripts)
-- **Windows**: Double-click `start.bat` or run `.\start.bat` in PowerShell.
-- **Linux / macOS**: Run `./start.sh` in Terminal.
+### Step 2: Create Database and Dedicated Application User
+Log in to MySQL as root (`mysql -u root -p`) and execute:
+```sql
+CREATE DATABASE IF NOT EXISTS makkal_nagar_grievance
+  CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
 
-### Option C: Manual Commands
-```bash
-# 1. Compile Java backend classes
-javac -d backend/bin $(find backend/src -name "*.java")
-
-# 2. Run Automated Verification Test Suite (8/8 Tests)
-java -cp backend/bin test.SystemTest
-
-# 3. Start Live Server (Web Portal + REST API on http://localhost:8080)
-java -cp backend/bin Main
+-- Create least-privilege municipal application user
+CREATE USER IF NOT EXISTS 'makkal_app'@'localhost' IDENTIFIED BY 'MakkalGov@2026';
+GRANT ALL PRIVILEGES ON makkal_nagar_grievance.* TO 'makkal_app'@'localhost';
+FLUSH PRIVILEGES;
 ```
+
+### Step 3: Execute Schema DDL Script
+Execute the database initialization script located at `database/schema.sql`:
+```bash
+mysql -u makkal_app -p makkal_nagar_grievance < database/schema.sql
+```
+
+### Step 4: Configure Database Credentials
+Copy `.env.example` or `application.properties.example` to your active configuration:
+```bash
+# Option A: Environment variables file
+cp .env.example .env
+
+# Option B: Application properties file
+cp application.properties.example application.properties
+```
+Edit `.env` or `application.properties`:
+```properties
+DB_HOST=localhost
+DB_PORT=3306
+DB_NAME=makkal_nagar_grievance
+DB_USERNAME=makkal_app
+DB_PASSWORD=MakkalGov@2026
+```
+*(Alternatively, export system environment variables: `export DB_HOST=localhost`, `export DB_USERNAME=makkal_app`, etc.)*
+
+### Step 5: (Optional) Migrate Existing JSON Data Idempotently
+If you have existing historical data in `backend/data/database.json`, run the migration utility:
+```bash
+# Windows
+java -cp "backend/bin;backend/lib/*" service.DataMigrator
+
+# Linux / macOS
+java -cp "backend/bin:backend/lib/*" service.DataMigrator
+```
+The migrator creates a timestamped safety backup (`database.json.bak`) and reports the count of imported records.
+
+---
+
+## 5. Build, Test & Run
+
+### Automated Verification Test Suite (All 17 Migration Requirements + 8 Core Verification Suites)
+```bash
+# Windows
+javac -cp "backend/lib/*;backend/src" -d backend/bin backend/src/model/*.java backend/src/repository/*.java backend/src/service/*.java backend/src/test/*.java backend/src/Main.java
+java -cp "backend/bin;backend/lib/*" test.SystemTest
+
+# Linux / macOS
+javac -cp "backend/lib/*:backend/src" -d backend/bin backend/src/model/*.java backend/src/repository/*.java backend/src/service/*.java backend/src/test/*.java backend/src/Main.java
+java -cp "backend/bin:backend/lib/*" test.SystemTest
+```
+
+### Start the Application Server
+```bash
+# Windows 1-Click
+.\start.bat
+
+# Linux / macOS 1-Click
+./start.sh
+```
+Open `frontend/index.html` or navigate to `http://localhost:8080/` in your browser. All complaint data persists across server restarts in MySQL.
 
 ---
 

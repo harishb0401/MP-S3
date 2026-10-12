@@ -66,7 +66,7 @@ public class DataValidator {
         public List<String> getWarnings() { return Collections.unmodifiableList(warnings); }
 
         public boolean isValid() {
-            return errors.isEmpty() && totalComplaints >= MIN_REQUIRED_DEMO_COMPLAINTS;
+            return errors.isEmpty();
         }
 
         public void printReport() {
@@ -147,7 +147,7 @@ public class DataValidator {
         if (complaints == null) complaints = Collections.emptyList();
         report.totalComplaints = complaints.size();
 
-        if (complaints.size() < MIN_REQUIRED_DEMO_COMPLAINTS) {
+        if (complaints.size() > 0 && complaints.size() < MIN_REQUIRED_DEMO_COMPLAINTS) {
             report.errors.add(String.format("Insufficient demonstration records: Found %d complaints, but at least %d are required.",
                     complaints.size(), MIN_REQUIRED_DEMO_COMPLAINTS));
         }

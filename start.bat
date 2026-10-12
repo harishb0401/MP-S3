@@ -5,7 +5,7 @@ echo ===========================================================================
 
 echo [1/3] Compiling Java backend classes...
 if not exist backend\bin mkdir backend\bin
-javac -d backend/bin backend/src/model/*.java backend/src/service/*.java backend/src/test/*.java backend/src/Main.java
+javac -cp "backend/lib/*" -d backend/bin backend/src/model/*.java backend/src/repository/*.java backend/src/service/*.java backend/src/test/*.java backend/src/Main.java
 if %errorlevel% neq 0 (
     echo [ERROR] Compilation failed!
     pause
@@ -13,8 +13,8 @@ if %errorlevel% neq 0 (
 )
 
 echo [2/3] Running Automated System Verification Tests...
-java -cp backend/bin test.SystemTest
+java -cp "backend/bin;backend/lib/*" test.SystemTest
 
 echo [3/3] Starting Full-Stack Server on http://localhost:8080/
 start http://localhost:8080/
-java -cp backend/bin Main
+java -cp "backend/bin;backend/lib/*" Main

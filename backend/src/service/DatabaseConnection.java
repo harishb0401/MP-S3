@@ -5,17 +5,10 @@ import java.sql.DriverManager;
 import java.sql.SQLException;
 
 /**
- * MySQL Database Connection Manager.
- * Provides JDBC connection pooling and status verification for production MySQL deployments.
+ * Production MySQL Database Connection Manager.
+ * Provides JDBC connection lifecycle, status verification, and transactional execution.
  */
 public class DatabaseConnection {
-    private static final String DEFAULT_URL = "jdbc:mysql://localhost:3306/municipal_grievance_db?useSSL=false&serverTimezone=UTC&allowPublicKeyRetrieval=true";
-    private static final String DEFAULT_USER = "root";
-    private static final String DEFAULT_PASS = "";
-
-    private static String dbUrl = System.getenv("DB_URL") != null ? System.getenv("DB_URL") : DEFAULT_URL;
-    private static String dbUser = System.getenv("DB_USER") != null ? System.getenv("DB_USER") : DEFAULT_USER;
-    private static String dbPass = System.getenv("DB_PASS") != null ? System.getenv("DB_PASS") : DEFAULT_PASS;
 
     private static boolean driverAvailable = false;
 
@@ -34,9 +27,12 @@ public class DatabaseConnection {
 
     public static Connection getConnection() throws SQLException {
         if (!driverAvailable) {
-            throw new SQLException("MySQL JDBC Driver (com.mysql.cj.jdbc.Driver) is not on classpath.");
+            throw new SQLException("MySQL JDBC Driver (com.mysql.cj.jdbc.Driver) is not present on the Java classpath.");
         }
-        return DriverManager.getConnection(dbUrl, dbUser, dbPass);
+        String url = DatabaseConfig.getJdbcUrl();
+        String user = DatabaseConfig.getUsername();
+        String pass = DatabaseConfig.getPassword();
+        return DriverManager.getConnection(url, user, pass);
     }
 
     public static boolean testConnection() {
@@ -50,11 +46,51 @@ public class DatabaseConnection {
 
     public static String getStatusMessage() {
         if (!driverAvailable) {
-            return "MySQL Driver not loaded. Running in High-Speed In-Memory & JSON Persistent Storage mode.";
+            return "[MYSQL STATUS] Driver not loaded. Ensure mysql-connector-j JAR is on classpath (backend/lib/).";
         }
         if (testConnection()) {
-            return "MySQL Database Connected successfully at " + dbUrl;
+            return "[MYSQL STATUS] Connected successfully to " + DatabaseConfig.getDatabaseName() + " via " + DatabaseConfig.getSafeConfigSummary();
         }
-        return "MySQL Driver loaded, but database server not reachable. Running in High-Speed Persistent Storage mode.";
+        return "[MYSQL STATUS] Driver loaded, but database server is not reachable at " + DatabaseConfig.getHost() + ":" + DatabaseConfig.getPort() +
+               ". Check MySQL service status and credentials in .env/application.properties.";
+    }
+
+    public static void printStartupDiagnostics() {
+        System.out.println("-------------------------------------------------------------------------------");
+        System.out.println("                 MYSQL DATABASE CONFIGURATION & CONNECTIVITY");
+        System.out.println("-------------------------------------------------------------------------------");
+        System.out.println("JDBC Driver Available : " + (driverAvailable ? "YES (com.mysql.cj.jdbc.Driver)" : "NO (Missing JAR)"));
+        System.out.println("Target Configuration   : " + DatabaseConfig.getSafeConfigSummary());
+        System.out.println("JDBC URL               : " + DatabaseConfig.getJdbcUrl());
+        boolean connected = testConnection();
+        System.out.println("Connection Test        : " + (connected ? "CONNECTED (200 OK)" : "UNREACHABLE"));
+        if (!connected) {
+            System.out.println("-------------------------------------------------------------------------------");
+            System.out.println("[HOW TO START MYSQL]");
+            System.out.println("  1. Ensure MySQL 8.0 service is running: net start mysql (Windows) or systemctl start mysql");
+            System.out.println("  2. Create database: mysql -u root -p -e 'CREATE DATABASE makkal_nagar_grievance;'");
+            System.out.println("  3. Initialize tables: mysql -u root -p makkal_nagar_grievance < database/schema.sql");
+            System.out.println("  4. Set credentials in .env or application.properties if non-default");
+        }
+        System.out.println("-------------------------------------------------------------------------------\n");
+    }
+
+    @FunctionalInterface
+    public interface TransactionCallback<T> {
+        T execute(Connection conn) throws Exception;
+    }
+
+    public static <T> T executeTransaction(TransactionCallback<T> callback) throws Exception {
+        try (Connection conn = getConnection()) {
+            conn.setAutoCommit(false);
+            try {
+                T result = callback.execute(conn);
+                conn.commit();
+                return result;
+            } catch (Exception ex) {
+                conn.rollback();
+                throw ex;
+            }
+        }
     }
 }

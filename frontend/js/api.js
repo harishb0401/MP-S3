@@ -67,7 +67,7 @@ const ApiClient = {
     },
 
     // 4. Submit Complaint (Citizen - no severity/priority selection, optional GPS)
-    async submitComplaint(category, location, description, affectedPeople = 1, title = "", latitude = null, longitude = null, locationAccuracyMeters = null) {
+    async submitComplaint(category, location, description, affectedPeople = 1, title = "", latitude = null, longitude = null, locationAccuracyMeters = null, imageUrl = null) {
         const payload = {
             category,
             location,
@@ -76,6 +76,9 @@ const ApiClient = {
             impact: affectedPeople,
             title
         };
+        if (imageUrl) {
+            payload.imageUrl = imageUrl;
+        }
         if (latitude !== null && latitude !== undefined && latitude !== "" &&
             longitude !== null && longitude !== undefined && longitude !== "") {
             payload.latitude = Number(latitude);

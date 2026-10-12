@@ -76,7 +76,7 @@ public class GrievanceManager {
 
     // 1. CREATE COMPLAINT (CITIZEN PORTAL) - STARTS EXPLICITLY UNASSESSED
     public Complaint createComplaint(User citizen, String category, String description, String location,
-                                    int citizenReportedImpact, Double latitude, Double longitude, Double locationAccuracyMeters, String title) {
+                                    int citizenReportedImpact, Double latitude, Double longitude, Double locationAccuracyMeters, String title, String imageUrl) {
         String id = "GRV-GUID-" + UUID.randomUUID().toString().substring(0, 8);
         String complaintId = database.generateComplaintId();
 
@@ -115,6 +115,7 @@ public class GrievanceManager {
         complaint.setLatitude(latitude);
         complaint.setLongitude(longitude);
         complaint.setLocationAccuracyMeters(locationAccuracyMeters);
+        complaint.setImageUrl(imageUrl);
 
         database.addComplaint(complaint);
 
@@ -124,6 +125,11 @@ public class GrievanceManager {
         recordHistory(complaintId, "None", "Registered", citizen.getDisplayName(), remarks);
 
         return complaint;
+    }
+
+    public Complaint createComplaint(User citizen, String category, String description, String location,
+                                    int citizenReportedImpact, Double latitude, Double longitude, Double locationAccuracyMeters, String title) {
+        return createComplaint(citizen, category, description, location, citizenReportedImpact, latitude, longitude, locationAccuracyMeters, title, null);
     }
 
     public Complaint createComplaint(User citizen, String category, String description, String location, int citizenReportedImpact, String suppliedSeverity, String title) {
@@ -265,6 +271,7 @@ public class GrievanceManager {
         }
         recordHistory(complaintId, oldStatus, complaint.getStatus(), assessor.getDisplayName(), remarks);
 
+        database.updateComplaint(complaint);
         database.saveDatabase();
         return true;
     }
@@ -544,6 +551,7 @@ public class GrievanceManager {
         }
 
         complaint.setUpdatedAt(now);
+        database.updateComplaint(complaint);
         database.saveDatabase();
         return true;
     }
@@ -598,6 +606,7 @@ public class GrievanceManager {
         String remarks = (remarksText != null && !remarksText.trim().isEmpty()) ? remarksText.trim() : "Status updated to " + targetCanonical;
         recordHistory(complaintId, oldStatus, targetCanonical, userDisplay, remarks);
 
+        database.updateComplaint(complaint);
         database.saveDatabase();
         return true;
     }

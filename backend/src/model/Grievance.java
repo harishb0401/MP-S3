@@ -56,6 +56,9 @@ public abstract class Grievance {
     // Department capacity & queue status
     protected boolean isWaiting;
 
+    // Evidence Photo field
+    protected String imageUrl;
+
     // Arrival order & sequence fields
     protected long arrivalSequence;               // Immutable sequential arrival order assigned on registration
     protected String createdAt;
@@ -372,4 +375,7 @@ public abstract class Grievance {
 
     public String getResolvedAt() { return resolvedAt; }
     public void setResolvedAt(String resolvedAt) { this.resolvedAt = resolvedAt; }
+
+    public String getImageUrl() { return imageUrl; }
+    public void setImageUrl(String imageUrl) { this.imageUrl = imageUrl; }
 }

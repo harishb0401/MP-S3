@@ -1,0 +1,21 @@
+# Compiled Java Classes
+backend/bin/
+*.class
+
+# Environment and Credentials Files
+.env
+.env.local
+application.properties
+local.properties
+*.secret
+
+# IDE and OS
+.idea/
+*.iml
+.vscode/
+.DS_Store
+Thumbs.db
+
+# Logs and Backups
+*.log
+backend/data/*.bak

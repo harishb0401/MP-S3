@@ -1,0 +1,15 @@
+# ==============================================================================
+# MySQL Database Configuration Example (application.properties)
+# Copy this file to application.properties and configure with your credentials.
+# ==============================================================================
+
+db.host=localhost
+db.port=3306
+db.name=makkal_nagar_grievance
+db.username=makkal_app
+db.password=your_secure_password_here
+
+# Connection pool / timeout settings
+db.connection.timeout=5000
+
+server.port=8080
