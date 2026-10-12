@@ -47,6 +47,7 @@ public abstract class Grievance {
     protected String status;                      // Registered, Assigned, InProgress, Resolved
     protected String assignedStaff;
     protected String resolutionNotes;
+    protected String operationalAction;           // Manager-controlled operational decision / action
 
     // Duplicate detection fields
     protected boolean isDuplicate;
@@ -69,6 +70,7 @@ public abstract class Grievance {
         this.status = "Registered";
         this.assignedStaff = "Unassigned";
         this.resolutionNotes = "";
+        this.operationalAction = "Field Inspection & Maintenance";
         this.isVerifiedLocked = false;
         this.isDuplicate = false;
         this.duplicateOfId = null;
@@ -378,4 +380,12 @@ public abstract class Grievance {
 
     public String getImageUrl() { return imageUrl; }
     public void setImageUrl(String imageUrl) { this.imageUrl = imageUrl; }
+
+    public String getOperationalAction() {
+        return operationalAction != null && !operationalAction.trim().isEmpty() ? operationalAction : "Field Inspection & Maintenance";
+    }
+    public void setOperationalAction(String operationalAction) {
+        this.operationalAction = operationalAction;
+    }
 }
+

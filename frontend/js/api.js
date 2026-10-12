@@ -142,21 +142,39 @@ const ApiClient = {
     },
 
     // 9. Update Status (Staff)
-    async updateStatus(id, status) {
+    async updateStatus(id, status, remarks = "", operationalAction = "") {
+        const payload = { status, remarks };
+        if (operationalAction) {
+            payload.operationalAction = operationalAction;
+        }
         const response = await fetch(`${API_BASE_URL}/complaints/${id}/status`, {
             method: "PUT",
             headers: this.getHeaders(),
-            body: JSON.stringify({ status })
+            body: JSON.stringify(payload)
         });
         return this.handleResponse(response);
     },
 
     // 10. Assign Department & Staff
-    async assignDepartment(id, department, staffName) {
+    async assignDepartment(id, department, staffName, reason = "", severity = "", operationalAction = "") {
+        const payload = { department, staffName, reason, severity };
+        if (operationalAction) {
+            payload.operationalAction = operationalAction;
+        }
         const response = await fetch(`${API_BASE_URL}/complaints/${id}/assign`, {
             method: "POST",
             headers: this.getHeaders(),
-            body: JSON.stringify({ department, staffName })
+            body: JSON.stringify(payload)
+        });
+        return this.handleResponse(response);
+    },
+
+    // 10b. Reassign Department & Staff
+    async reassignDepartment(id, department, staffName, reason = "") {
+        const response = await fetch(`${API_BASE_URL}/complaints/${id}/reassign`, {
+            method: "POST",
+            headers: this.getHeaders(),
+            body: JSON.stringify({ department, staffName, reason })
         });
         return this.handleResponse(response);
     },
@@ -262,6 +280,30 @@ const ApiClient = {
             method: "DELETE",
             headers: this.getHeaders(),
             body: JSON.stringify({ confirmationReason })
+        });
+        return this.handleResponse(response);
+    },
+
+    // 21b. Delete Complaint (Admin & Manager)
+    async deleteComplaint(id, reason = "") {
+        const response = await fetch(`${API_BASE_URL}/complaints/${id}`, {
+            method: "DELETE",
+            headers: this.getHeaders(),
+            body: JSON.stringify({ reason })
+        });
+        return this.handleResponse(response);
+    },
+
+    // 21c. Check Duplicate Complaints (Pre-submit / duplicate candidate lookup)
+    async checkDuplicates(category, location, currentId = "") {
+        const params = new URLSearchParams({
+            category: category || "",
+            location: location || "",
+            currentId: currentId || ""
+        });
+        const response = await fetch(`${API_BASE_URL}/complaints/check-duplicate?${params.toString()}`, {
+            method: "GET",
+            headers: this.getHeaders()
         });
         return this.handleResponse(response);
     },

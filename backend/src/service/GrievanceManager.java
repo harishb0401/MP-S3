@@ -16,12 +16,16 @@ import model.User;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
+import java.sql.SQLException;
+import repository.AuditLogRepository;
+import repository.DuplicateRepository;
 
 /**
  * Core Business Logic Controller for the Municipal Grievance System.
@@ -37,6 +41,14 @@ import java.util.UUID;
  */
 public class GrievanceManager {
     private Database database;
+    private DuplicateRepository duplicateRepository = new DuplicateRepository();
+    private AuditLogRepository auditLogRepository = new AuditLogRepository();
+    private final Set<String> notifiedDuplicatePairs = Collections.synchronizedSet(new HashSet<>());
+
+    private String getDuplicatePairKey(String id1, String id2) {
+        if (id1 == null || id2 == null) return "";
+        return id1.compareTo(id2) < 0 ? (id1 + ":" + id2) : (id2 + ":" + id1);
+    }
 
     public GrievanceManager(Database database) {
         this.database = database;
@@ -123,6 +135,9 @@ public class GrievanceManager {
         String gpsInfo = complaint.hasGpsCoordinates() ? String.format(" [GPS: %.6f, %.6f]", latitude, longitude) : "";
         String remarks = "Complaint registered by citizen with Reported Impact: " + impact + " at " + location + gpsInfo + ". Status: Registered (Awaiting Manager Risk Assessment).";
         recordHistory(complaintId, "None", "Registered", citizen.getDisplayName(), remarks);
+
+        // Automated Duplicate Detection & Admin/Manager Alerting (Requirement 2)
+        checkAndAlertDuplicateCandidates(complaint);
 
         return complaint;
     }
@@ -450,6 +465,9 @@ public class GrievanceManager {
 
     // 3. ASSIGN DEPARTMENT & STAFF WITH CAPACITY MANAGEMENT
     public synchronized boolean assignDepartmentAndStaff(String complaintId, String departmentName, String staffName, User actor) {
+        if (actor != null && !actor.canAssignDepartment()) {
+            throw new SecurityException("Unauthorized: Only Municipal Managers or Administrators can assign departments or workers.");
+        }
         Complaint complaint = database.getComplaintById(complaintId);
         if (complaint == null) return false;
 
@@ -590,6 +608,9 @@ public class GrievanceManager {
         // If target status is RESOLVED -> free up department capacity and promote waiting complaints
         if (targetStatusEnum == ComplaintStatus.RESOLVED) {
             complaint.setResolvedAt(now);
+            if (remarksText != null && !remarksText.trim().isEmpty()) {
+                complaint.setResolutionNotes(remarksText.trim());
+            }
 
             if (dept != null) {
                 if (complaint.isWaiting()) {
@@ -678,6 +699,9 @@ public class GrievanceManager {
      * waiting queue management, and transaction-like state preservation on failure.
      */
     public synchronized boolean reassignComplaint(String complaintId, String newDepartment, String newStaff, String reason, User actor) {
+        if (actor != null && !actor.canAssignDepartment()) {
+            throw new SecurityException("Unauthorized: Only Municipal Managers or Administrators can reassign complaints.");
+        }
         Complaint complaint = database.getComplaintById(complaintId);
         if (complaint == null) return false;
 
@@ -870,6 +894,32 @@ public class GrievanceManager {
         }
 
         return candidates;
+    }
+
+    /**
+     * Checks for duplicate candidates and sends duplicate alert notifications to Admin and Manager.
+     * Prevents repeated notifications for the same duplicate relationship.
+     */
+    public void checkAndAlertDuplicateCandidates(Complaint complaint) {
+        if (complaint == null) return;
+        List<DuplicateCandidate> candidates = findDuplicateCandidates(complaint.getComplaintId());
+        for (DuplicateCandidate cand : candidates) {
+            String pairKey = getDuplicatePairKey(complaint.getComplaintId(), cand.getCandidateComplaintId());
+            if (!notifiedDuplicatePairs.contains(pairKey)) {
+                notifiedDuplicatePairs.add(pairKey);
+                Notification notif = new Notification(
+                        database.generateNotificationId(),
+                        "ADMIN_OR_MANAGER",
+                        complaint.getComplaintId(),
+                        complaint.getCitizenReportedImpact(),
+                        0,
+                        "Possible Duplicate Alert: Complaint " + complaint.getComplaintId() +
+                        " (" + complaint.getCategory() + " at " + complaint.getLocation() +
+                        ") matches existing complaint " + cand.getCandidateComplaintId() + "."
+                );
+                database.addNotification(notif);
+            }
+        }
     }
 
     /**
@@ -1241,6 +1291,62 @@ public class GrievanceManager {
         recordHistory(complaint.getComplaintId(), complaint.getStatus(), "DELETED", opName,
                 "Tombstone Audit: Duplicate record deleted by operator. Reason: " + confirmationReason.trim() + ". Linked to primary: " + primaryId);
 
+        database.removeComplaint(complaint.getComplaintId());
+        database.saveDatabase();
+        return true;
+    }
+
+    /**
+     * Formal complaint deletion workflow for Admin and Manager portals.
+     * Enforces:
+     * - Only ADMIN and MANAGER roles authorized on backend
+     * - Citizens and Workers rejected with SecurityException
+     * - Department capacity released if complaint was active
+     * - Waiting queue cleanup if complaint was waiting
+     * - Tombstone recorded in sequential audit trail
+     * - Removal from database and priority queues
+     */
+    public synchronized boolean deleteComplaint(String complaintId, User operator, String reason) {
+        if (operator == null || (!operator.isAdmin() && !operator.isManager())) {
+            throw new SecurityException("Unauthorized: Only Administrators and Managers can delete complaints.");
+        }
+        if (complaintId == null || complaintId.trim().isEmpty()) {
+            throw new IllegalArgumentException("Complaint ID cannot be empty.");
+        }
+
+        Complaint complaint = database.getComplaintById(complaintId.trim());
+        if (complaint == null) {
+            throw new IllegalArgumentException("Complaint not found or already deleted: " + complaintId);
+        }
+
+        String opName = operator.getDisplayName();
+        String opRole = operator.getRole();
+        String cleanReason = (reason != null && !reason.trim().isEmpty()) ? reason.trim() : "Administrative deletion";
+
+        // 1. Release department capacity if active or remove from waiting queue
+        Department dept = database.findDepartment(complaint.getDepartmentId() != null ? complaint.getDepartmentId() : complaint.getDepartment());
+        if (dept == null) dept = database.getDepartmentByAnyIdentifier(complaint.getDepartment());
+        if (dept != null) {
+            String now = LocalDateTime.now().format(DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss"));
+            if (complaint.isWaiting()) {
+                dept.removeFromWaitingQueue(complaint);
+                complaint.setWaiting(false);
+            } else if ("ASSIGNED".equalsIgnoreCase(complaint.getStatus()) || "IN_PROGRESS".equalsIgnoreCase(complaint.getStatus())) {
+                dept.decrementLoad();
+                promoteAllEligibleWaitingComplaints(dept, now);
+            }
+        }
+
+        // 2. Record tombstone in audit log before removing
+        recordHistory(complaint.getComplaintId(), complaint.getStatus(), "DELETED", opName,
+                String.format("Tombstone Audit: Complaint deleted by %s (%s). Reason: %s", opRole, opName, cleanReason));
+
+        try {
+            auditLogRepository.log(operator.getId(), "DELETE_COMPLAINT", "Complaint", complaint.getComplaintId(),
+                    String.format("Deleted by %s (%s). Reason: %s", opName, opRole, cleanReason));
+        } catch (Exception ignored) {}
+
+        // 3. Remove complaint from persistent storage and in-memory caches
         database.removeComplaint(complaint.getComplaintId());
         database.saveDatabase();
         return true;

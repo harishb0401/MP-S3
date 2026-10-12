@@ -124,7 +124,7 @@ public class DatabaseConfig {
             return explicitUrl.trim();
         }
         return String.format(
-                "jdbc:mysql://%s:%d/%s?useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=UTC&characterEncoding=UTF-8",
+                "jdbc:mysql://%s:%d/%s?useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=UTC&characterEncoding=UTF-8&maxAllowedPacket=67108864",
                 getHost(), getPort(), getDatabaseName()
         );
     }

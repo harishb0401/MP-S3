@@ -39,6 +39,18 @@ public class ComplaintRepository {
              PreparedStatement ps = conn.prepareStatement(sql)) {
             setComplaintParams(ps, c);
             ps.executeUpdate();
+        } catch (SQLException e) {
+            if (e.getMessage() != null && e.getMessage().toLowerCase().contains("packet") && c.getImageUrl() != null) {
+                System.err.println("[MYSQL WARNING] Large image payload exceeded packet size. Retrying complaint save without large inline image.");
+                c.setImageUrl("");
+                try (Connection conn2 = DatabaseConnection.getConnection();
+                     PreparedStatement ps2 = conn2.prepareStatement(sql)) {
+                    setComplaintParams(ps2, c);
+                    ps2.executeUpdate();
+                    return;
+                }
+            }
+            throw e;
         }
     }
 
@@ -307,4 +319,15 @@ public class ComplaintRepository {
 
         return c;
     }
+
+    public synchronized boolean delete(String id, String complaintNumber) throws SQLException {
+        String sql = "DELETE FROM complaints WHERE id = ? OR complaint_number = ?";
+        try (Connection conn = DatabaseConnection.getConnection();
+             PreparedStatement ps = conn.prepareStatement(sql)) {
+            ps.setString(1, id != null ? id.trim() : "");
+            ps.setString(2, complaintNumber != null ? complaintNumber.trim() : "");
+            return ps.executeUpdate() > 0;
+        }
+    }
 }
+

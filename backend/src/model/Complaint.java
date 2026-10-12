@@ -95,6 +95,7 @@ public class Complaint extends Grievance implements Comparable<Complaint> {
             this.status = source.status;
             this.assignedStaff = source.assignedStaff;
             this.resolutionNotes = source.resolutionNotes;
+            this.operationalAction = source.operationalAction;
             this.isDuplicate = source.isDuplicate;
             this.duplicateOfId = source.duplicateOfId;
             this.rejectedCandidateIds = new HashSet<>(source.getRejectedCandidateIds());

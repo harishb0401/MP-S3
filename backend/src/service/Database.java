@@ -1183,6 +1183,39 @@ public class Database {
             if (c.getId() != null) complaintMap.remove(c.getId());
             complaintList.remove(c);
             priorityQueue.remove(c);
+
+            // Clean up active category/location set
+            activeCategoryLocationSet.remove(buildDuplicateKey(c.getCategory(), c.getLocation()));
+
+            // Clean up any child complaints linking to this complaint as duplicate
+            for (Complaint other : complaintList) {
+                if (other.getDuplicateOfId() != null &&
+                    (other.getDuplicateOfId().equalsIgnoreCase(complaintId) ||
+                     (c.getId() != null && other.getDuplicateOfId().equalsIgnoreCase(c.getId())))) {
+                    other.setDuplicateOfId(null);
+                    other.setDuplicate(false);
+                }
+                if (other.getRejectedCandidateIds() != null) {
+                    other.getRejectedCandidateIds().remove(complaintId);
+                    if (c.getId() != null) other.getRejectedCandidateIds().remove(c.getId());
+                }
+            }
+
+            // Remove related notifications
+            notificationList.removeIf(n -> n.getComplaintId() != null &&
+                (n.getComplaintId().equalsIgnoreCase(complaintId) ||
+                 (c.getId() != null && n.getComplaintId().equalsIgnoreCase(c.getId()))));
+
+            if (useMySql) {
+                try {
+                    complaintRepository.delete(c.getId(), c.getComplaintId());
+                } catch (SQLException e) {
+                    System.err.println("[MYSQL DELETE ERROR] " + e.getMessage());
+                    throw new RuntimeException("MySQL Persistence Error: " + e.getMessage(), e);
+                }
+            } else {
+                saveDatabase();
+            }
             return true;
         }
         return false;
@@ -1340,6 +1373,26 @@ public class Database {
                 return dept;
             }
         }
+
+        // Check common municipal department aliases
+        String lower = trimmed.toLowerCase();
+        if (lower.contains("water")) {
+            Department wd = departmentMap.get("DEPT-WATER");
+            if (wd != null) return wd;
+        } else if (lower.contains("road")) {
+            Department rd = departmentMap.get("DEPT-ROADS");
+            if (rd != null) return rd;
+        } else if (lower.contains("waste") || lower.contains("sanitat")) {
+            Department sd = departmentMap.get("DEPT-WASTE");
+            if (sd != null) return sd;
+        } else if (lower.contains("light") || lower.contains("electr")) {
+            Department ld = departmentMap.get("DEPT-LIGHT");
+            if (ld != null) return ld;
+        } else if (lower.contains("gen") || lower.contains("admin")) {
+            Department gd = departmentMap.get("DEPT-GEN");
+            if (gd != null) return gd;
+        }
+
         return null;
     }
 
@@ -1423,7 +1476,30 @@ public class Database {
         saveDatabase();
     }
 
+    public List<Notification> getNotificationsForUser(User user) {
+        if (user == null) return new ArrayList<>();
+        List<Notification> list = new ArrayList<>();
+        String uId = user.getId();
+        for (Notification n : notificationList) {
+            if (n.getCitizenId() != null) {
+                String target = n.getCitizenId();
+                if (target.equalsIgnoreCase(uId) ||
+                    ((user.isAdmin() || user.isManager()) && target.equalsIgnoreCase("ADMIN_OR_MANAGER")) ||
+                    (user.isAdmin() && (target.equalsIgnoreCase("ADMIN") || target.equalsIgnoreCase("ALL_ADMINS"))) ||
+                    (user.isManager() && (target.equalsIgnoreCase("MANAGER") || target.equalsIgnoreCase("ALL_MANAGERS")))) {
+                    list.add(n);
+                }
+            }
+        }
+        return list;
+    }
+
     public List<Notification> getNotificationsByCitizenId(String citizenId) {
+        if (citizenId == null) return new ArrayList<>();
+        User u = getUserById(citizenId);
+        if (u != null) {
+            return getNotificationsForUser(u);
+        }
         List<Notification> list = new ArrayList<>();
         for (Notification n : notificationList) {
             if (n.getCitizenId() != null && n.getCitizenId().equalsIgnoreCase(citizenId)) {

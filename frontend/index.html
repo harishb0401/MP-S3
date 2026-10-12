@@ -366,7 +366,7 @@
                             </div>
                         </div>
 
-                        <form id="wizard-form" onsubmit="handleWizardSubmit(event)">
+                        <form id="wizard-form" onsubmit="handleWizardSubmit(event)" novalidate>
                             <!-- Pane 1: Citizen Info -->
                             <div class="wizard-pane active" id="w-pane-1">
                                 <h3 style="font-size: 16px; margin-bottom: 16px; color: var(--primary);">Step 1: Contact Verification</h3>
@@ -396,13 +396,13 @@
                                 <h3 style="font-size: 16px; margin-bottom: 16px; color: var(--primary);">Step 2: Complaint Specifics</h3>
                                 <div class="form-grid">
                                     <div class="form-group full-width">
-                                        <label class="form-label">Complaint Title *</label>
-                                        <input type="text" id="w-title" class="form-control" placeholder="Brief summary, e.g. Drinking water pipeline leak" required>
+                                        <label class="form-label">Complaint Title</label>
+                                        <input type="text" id="w-title" class="form-control" placeholder="Brief summary, e.g. Drinking water pipeline leak">
                                     </div>
 
                                     <div class="form-group">
                                         <label class="form-label">Complaint Category *</label>
-                                        <select id="w-category" class="form-control" required>
+                                        <select id="w-category" class="form-control">
                                             <option value="">Select Category...</option>
                                             <option value="Water Supply">Water Supply</option>
                                             <option value="Roads">Roads</option>
@@ -413,7 +413,7 @@
 
                                     <div class="form-group">
                                         <label class="form-label">Municipal Area (Makkal Nagar Zones) *</label>
-                                        <select id="w-location" class="form-control" required>
+                                        <select id="w-location" class="form-control">
                                             <option value="">Select Canonical Location...</option>
                                             <option value="Central Market">Central Market</option>
                                             <option value="North Street">North Street</option>
@@ -425,13 +425,13 @@
 
                                     <div class="form-group">
                                         <label class="form-label">Number of Affected People *</label>
-                                        <input type="number" id="w-affected" class="form-control" min="1" value="15" placeholder="e.g. 50" required>
+                                        <input type="number" id="w-affected" class="form-control" min="1" value="15" placeholder="e.g. 50">
                                     </div>
 
                                     <!-- Exact GPS Coordinates Component -->
                                     <div class="form-group full-width" style="background: var(--bg-surface-secondary); padding: 16px; border-radius: var(--radius-md); border: 1px solid var(--border-color); margin-top: 4px;">
                                         <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 10px;">
-                                            <div>
+                                             <div>
                                                 <label class="form-label" style="margin-bottom: 2px;">
                                                     <i class="fa-solid fa-location-crosshairs" style="color: var(--primary);"></i> Exact GPS Coordinates (Optional)
                                                 </label>
@@ -453,7 +453,7 @@
 
                                     <div class="form-group full-width">
                                         <label class="form-label">Detailed Problem Description *</label>
-                                        <textarea id="w-description" class="form-control" placeholder="Describe the factual problem, water contamination, crater on road, or waste overflow..." required></textarea>
+                                        <textarea id="w-description" class="form-control" placeholder="Describe the factual problem, water contamination, crater on road, or waste overflow..."></textarea>
                                     </div>
                                 </div>
                                 <div style="margin-top: 24px; display: flex; justify-content: space-between;">
@@ -461,22 +461,22 @@
                                         <i class="fa-solid fa-arrow-left"></i> Back
                                     </button>
                                     <button type="button" class="btn btn-primary" onclick="nextWizardStep(3)">
-                                        Next: Photo Evidence * <i class="fa-solid fa-arrow-right"></i>
+                                        Next: Photo Evidence <i class="fa-solid fa-arrow-right"></i>
                                     </button>
                                 </div>
                             </div>
 
                             <!-- Pane 3: Evidence & Upload -->
                             <div class="wizard-pane" id="w-pane-3">
-                                <h3 style="font-size: 16px; margin-bottom: 16px; color: var(--primary);">Step 3: Attach Photo Evidence <span style="color: #dc2626; font-size: 14px;">(Compulsory *)</span></h3>
+                                <h3 style="font-size: 16px; margin-bottom: 16px; color: var(--primary);">Step 3: Attach Photo Evidence</h3>
                                 <div class="form-group full-width">
                                     <label class="form-label" style="display: flex; justify-content: space-between; align-items: center;">
-                                        <span>Upload Photo Evidence <strong style="color: #dc2626;">* (Compulsory)</strong></span>
+                                        <span>Upload Photo Evidence <span style="font-size: 12px; color: var(--text-muted); font-weight: normal;">(Recommended for fast field inspection)</span></span>
                                         <span style="font-size: 12px; color: var(--text-muted); font-weight: normal;">Supported: JPG, PNG, WEBP</span>
                                     </label>
-                                    <input type="file" id="w-file-input" class="form-control" accept="image/*" onchange="previewFile(event)" required style="padding: 8px;">
+                                    <input type="file" id="w-file-input" class="form-control" accept="image/*" onchange="previewFile(event)" style="padding: 8px;">
                                     <p style="font-size: 12px; color: var(--text-muted); margin: 6px 0 0 0;">
-                                        <i class="fa-solid fa-camera"></i> An actual photograph of the grievance is mandatory for verification and department dispatch.
+                                        <i class="fa-solid fa-camera"></i> An actual photograph of the grievance helps field teams verify and resolve the issue quickly.
                                     </p>
                                     <div id="file-preview-box" style="margin-top: 12px; font-size: 13px; color: var(--text-muted);">
                                         No image attached yet.
@@ -1071,7 +1071,24 @@
         <div class="modal-card">
             <div class="modal-header">
                 <h3>Complaint Case File: <span id="m-comp-id" style="color: var(--primary);">GRV-2026-0001</span></h3>
-                <button class="close-btn" onclick="closeModal()"><i class="fa-solid fa-xmark"></i></button>
+                <div style="display: flex; gap: 8px; align-items: center;">
+                    <button id="btn-modal-delete-complaint" class="btn btn-secondary btn-sm" style="display: none; color: #dc2626; border-color: #fecaca; background: #fff5f5;" onclick="confirmDeleteCurrentComplaint()">
+                        <i class="fa-solid fa-trash-can"></i> Delete Complaint
+                    </button>
+                    <button class="close-btn" onclick="closeModal()"><i class="fa-solid fa-xmark"></i></button>
+                </div>
+            </div>
+
+            <!-- Visible Duplicate Warning Banner (Admin & Manager) -->
+            <div id="m-duplicate-warning-banner" style="display: none; background: #fffbeb; border: 1px solid #fde68a; padding: 10px 14px; border-radius: var(--radius-sm); margin-bottom: 16px;">
+                <div style="display: flex; justify-content: space-between; align-items: center; gap: 8px;">
+                    <span style="color: #b45309; font-weight: 600; font-size: 13px;">
+                        <i class="fa-solid fa-triangle-exclamation"></i> Notice: Similar complaint(s) reported at this location.
+                    </span>
+                    <button type="button" class="btn btn-secondary btn-sm" style="font-size: 11px; padding: 2px 8px; border-color: #f59e0b; color: #b45309;" onclick="document.getElementById('duplicate-candidate-box').scrollIntoView({behavior:'smooth'})">
+                        View Related Complaints
+                    </button>
+                </div>
             </div>
 
             <!-- Tracking Step Timeline Graphic -->
@@ -1138,6 +1155,13 @@
                     <label class="form-label">Assigned Staff Officer</label>
                     <div id="m-assigned-staff" style="font-weight: 600;">-</div>
                 </div>
+                <!-- Operational Action Field (Requirement 3) -->
+                <div class="form-group full-width">
+                    <label class="form-label"><i class="fa-solid fa-clipboard-check"></i> Operational Action / Decision</label>
+                    <div id="m-operational-action" style="background: var(--bg-surface-secondary); padding: 10px 14px; border-radius: var(--radius-sm); border: 1px solid var(--border-color); font-weight: 600; color: var(--primary);">
+                        Field Inspection & Maintenance
+                    </div>
+                </div>
                 <div class="form-group full-width">
                     <label class="form-label">Resolution Description Notes</label>
                     <div id="m-resolution-notes" style="background: var(--bg-surface-secondary); padding: 12px; border-radius: var(--radius-sm); border: 1px solid var(--border-color); color: var(--status-resolved);">
@@ -1148,22 +1172,38 @@
 
             <!-- Staff Action Controls Box -->
             <div id="staff-controls-box" style="background: var(--bg-surface-secondary); border: 1px solid var(--border-color); padding: 16px; border-radius: var(--radius-md); display: none; flex-direction: column; gap: 16px;">
-                <h4 style="font-size: 14px; color: var(--primary);">MUNICIPAL STAFF ACTION CONTROLS</h4>
+                <h4 style="font-size: 14px; color: var(--primary);"><i class="fa-solid fa-user-gear"></i> MUNICIPAL DISPATCH & WORKER ASSIGNMENT</h4>
                 
                 <div class="form-grid">
-                    <div class="form-group">
-                        <label class="form-label">Assign Department & Staff Officer</label>
-                        <div style="display: flex; gap: 8px;">
-                            <select id="s-assign-dept-select" class="form-control" style="flex: 1;">
-                                <option value="Electrical">Electrical</option>
-                                <option value="Sanitation">Sanitation</option>
-                                <option value="Roads">Roads</option>
-                                <option value="Water Supply">Water Supply</option>
-                                <option value="Drainage">Drainage</option>
+                    <!-- Manager/Admin Only: Department & Worker Assignment -->
+                    <div class="form-group full-width" id="s-assign-worker-group">
+                        <label class="form-label">Assign Department & Field Worker Officer</label>
+                        <div style="display: flex; gap: 8px; flex-wrap: wrap;">
+                            <select id="s-assign-dept-select" class="form-control" style="flex: 1; min-width: 150px;" onchange="onComplaintModalDeptChange()">
+                                <option value="Water Supply">Water Supply Department</option>
+                                <option value="Roads">Roads Department</option>
+                                <option value="Waste Management">Waste Management</option>
+                                <option value="Streetlights">Streetlights Department</option>
+                                <option value="Drainage">Drainage Department</option>
                                 <option value="General Administration">General Admin</option>
                             </select>
-                            <input type="text" id="s-assign-staff-input" class="form-control" placeholder="Staff Name" style="flex: 1;">
-                            <button class="btn btn-secondary btn-sm" onclick="handleStaffAssign()">Assign</button>
+                            <select id="s-assign-staff-select" class="form-control" style="flex: 1; min-width: 180px;">
+                                <option value="">-- Select Field Worker --</option>
+                            </select>
+                            <button class="btn btn-primary btn-sm" onclick="handleStaffAssign()">
+                                <i class="fa-solid fa-user-check"></i> Assign Worker
+                            </button>
+                        </div>
+                    </div>
+
+                    <!-- Operational Action Control: Read-only display for Worker, Input for Manager/Admin -->
+                    <div class="form-group full-width" id="s-operational-action-group">
+                        <label class="form-label"><i class="fa-solid fa-clipboard-check"></i> Operational Action</label>
+                        <div id="s-worker-operational-action-display" style="display: none; padding: 10px 14px; background: var(--bg-surface); border: 1px solid var(--border-color); border-radius: var(--radius-sm); font-weight: 600; color: var(--primary);">
+                            <!-- Read-only for Worker -->
+                        </div>
+                        <div id="s-manager-operational-action-control" style="display: flex; gap: 8px;">
+                            <input type="text" id="s-operational-action-input" class="form-control" placeholder="e.g. Field Inspection & Maintenance / Replacement / Repair">
                         </div>
                     </div>
 
@@ -1244,17 +1284,22 @@
 
                 <div class="form-group">
                     <label class="form-label">Target Municipal Department *</label>
-                    <select id="assign-modal-dept-select" class="form-control" required onchange="updateAssignCapacityFeedback()">
+                    <select id="assign-modal-dept-select" class="form-control" required onchange="updateAssignCapacityFeedback(); onAssignModalDeptChange();">
                         <option value="Water Supply">Water Supply Department</option>
                         <option value="Roads">Roads Department</option>
                         <option value="Waste Management">Waste Management Department</option>
                         <option value="Streetlights">Streetlights Department</option>
+                        <option value="Drainage">Drainage Department</option>
+                        <option value="General Administration">General Administration</option>
                     </select>
                 </div>
 
                 <div class="form-group">
-                    <label class="form-label">Assign Field Worker Officer (Optional)</label>
-                    <input type="text" id="assign-modal-staff-input" class="form-control" placeholder="e.g. Suresh Kumar">
+                    <label class="form-label"><i class="fa-solid fa-user-gear" style="color: var(--primary);"></i> Assign Field Worker Officer</label>
+                    <select id="assign-modal-staff-select" class="form-control">
+                        <option value="">-- Auto-Assign / Department Pool --</option>
+                    </select>
+                    <small style="color: var(--text-muted); font-size: 11px;">Select a registered department worker or leave for department pool.</small>
                 </div>
 
                 <div class="form-group">
@@ -1419,6 +1464,60 @@
                 <button type="button" class="btn btn-secondary btn-sm" onclick="closeImageLightbox()" style="background: rgba(255,255,255,0.22); color: #fff; border: 1px solid rgba(255,255,255,0.4); padding: 6px 18px; font-size: 13px;">
                     <i class="fa-solid fa-xmark"></i> Close Image Viewer
                 </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- 11. GENERAL COMPLAINT DELETION MODAL (ADMIN & MANAGER) -->
+    <div class="modal-overlay" id="delete-complaint-modal">
+        <div class="modal-card" style="max-width: 480px;">
+            <div class="modal-header">
+                <h3 style="color: #dc2626;"><i class="fa-solid fa-trash-can"></i> Delete Complaint Confirmation</h3>
+                <button class="close-btn" onclick="closeDeleteComplaintModal()"><i class="fa-solid fa-xmark"></i></button>
+            </div>
+            <div style="padding: 16px;">
+                <p style="font-size: 14px; color: var(--text-main); margin-bottom: 12px;">
+                    Are you sure you want to permanently delete complaint <strong id="del-modal-complaint-id" style="color: #dc2626;">-</strong>?
+                </p>
+                <div style="background: #fee2e2; border: 1px solid #fecaca; padding: 10px 14px; border-radius: var(--radius-sm); font-size: 12px; color: #991b1b; margin-bottom: 14px;">
+                    <i class="fa-solid fa-triangle-exclamation"></i> This operation will release any assigned department capacity, clean up waiting queues, and record an immutable tombstone in the sequential audit log.
+                </div>
+                <div class="form-group" style="margin-bottom: 16px;">
+                    <label class="form-label">Deletion Reason (Required for Audit Trail) *</label>
+                    <input type="text" id="del-modal-reason" class="form-control" placeholder="e.g. Redundant spam record / Citizen requested removal" required>
+                </div>
+                <div style="display: flex; justify-content: flex-end; gap: 8px;">
+                    <button type="button" class="btn btn-secondary" onclick="closeDeleteComplaintModal()">Cancel</button>
+                    <button type="button" class="btn btn-primary" style="background: #dc2626;" id="btn-confirm-delete-complaint" onclick="executeComplaintDeletion()">
+                        <i class="fa-solid fa-trash-can"></i> Confirm Delete
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- 12. CITIZEN DUPLICATE WARNING MODAL (ON SUBMIT) -->
+    <div class="modal-overlay" id="citizen-dup-warning-modal">
+        <div class="modal-card" style="max-width: 540px;">
+            <div class="modal-header">
+                <h3 style="color: #b45309;"><i class="fa-solid fa-triangle-exclamation"></i> Possible Duplicate Issue Detected</h3>
+                <button class="close-btn" onclick="closeCitizenDupModal()"><i class="fa-solid fa-xmark"></i></button>
+            </div>
+            <div style="padding: 16px;">
+                <div style="background: #fffbeb; border: 1px solid #fef3c7; padding: 12px 16px; border-radius: var(--radius-sm); margin-bottom: 14px;">
+                    <strong style="color: #92400e; font-size: 14px;">“A similar complaint has already been reported at this location.”</strong>
+                    <p style="font-size: 12px; color: #78350f; margin: 6px 0 0 0;">An existing open report matches your selected category and municipal location. Please review the matching complaint details below:</p>
+                </div>
+                <div id="citizen-dup-candidate-info" style="display: flex; flex-direction: column; gap: 8px; max-height: 220px; overflow-y: auto; margin-bottom: 16px;">
+                    <!-- Populated dynamically -->
+                </div>
+                <p style="font-size: 12px; color: var(--text-muted); margin-bottom: 16px;">If your grievance is a separate, distinct issue requiring municipal attention, you may still proceed to submit.</p>
+                <div style="display: flex; justify-content: flex-end; gap: 10px;">
+                    <button type="button" class="btn btn-secondary" onclick="closeCitizenDupModal()">Review / Edit Report</button>
+                    <button type="button" class="btn btn-primary" id="btn-proceed-separate-submit" style="background: #d97706;" onclick="proceedSeparateSubmission()">
+                        <i class="fa-solid fa-arrow-right"></i> Submit Legitimate Separate Complaint
+                    </button>
+                </div>
             </div>
         </div>
     </div>

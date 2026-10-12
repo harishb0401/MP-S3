@@ -427,6 +427,7 @@ async function handleCitizenRegister(e) {
 }
 
 async function handleLogout() {
+    clearWorkerCache();
     await ApiClient.logout();
     currentUser = null;
     showToast("Logged out successfully.");
@@ -460,32 +461,11 @@ function nextWizardStep(step) {
     if (step > currentWizardStep) {
         // Validate Step 2 inputs before advancing
         if (currentWizardStep === 2) {
-            const cat = document.getElementById("w-category").value;
-            const loc = document.getElementById("w-location").value.trim();
-            const desc = document.getElementById("w-description").value.trim();
+            const cat = document.getElementById("w-category") ? document.getElementById("w-category").value : "";
+            const loc = document.getElementById("w-location") ? document.getElementById("w-location").value.trim() : "";
+            const desc = document.getElementById("w-description") ? document.getElementById("w-description").value.trim() : "";
             if (!cat || !loc || !desc) {
-                showToast("Please fill in Category, Location, and Description!", "danger");
-                return;
-            }
-        }
-
-        // Validate Step 3: Photo Evidence is COMPULSORY
-        if (currentWizardStep === 3) {
-            const fileInput = document.getElementById("w-file-input");
-            if (!attachedImageDataUrl && (!attachedFileName || !fileInput || !fileInput.files || fileInput.files.length === 0)) {
-                showToast("Photo evidence is compulsory! Please upload an image of the problem to proceed.", "danger");
-                if (fileInput) {
-                    fileInput.focus();
-                    fileInput.style.borderColor = "#dc2626";
-                }
-                const previewBox = document.getElementById("file-preview-box");
-                if (previewBox) {
-                    previewBox.innerHTML = `
-                        <div style="padding:10px; background:#fee2e2; border:1px solid #f87171; border-radius:6px; color:#991b1b; font-weight:600;">
-                            <i class="fa-solid fa-circle-exclamation"></i> Uploading a photo is compulsory. Please select an image file.
-                        </div>
-                    `;
-                }
+                showToast("Please fill in Category, Municipal Area, and Description!", "danger");
                 return;
             }
         }
@@ -507,8 +487,17 @@ function renderWizardStep(step) {
     if (activePane) activePane.classList.add("active");
 
     if (step === 4) {
-        document.getElementById("rev-category").innerText = document.getElementById("w-category").value;
-        document.getElementById("rev-location").innerText = document.getElementById("w-location").value;
+        const catEl = document.getElementById("w-category");
+        const locEl = document.getElementById("w-location");
+        const descEl = document.getElementById("w-description");
+        const affEl = document.getElementById("w-affected");
+
+        if (document.getElementById("rev-category")) {
+            document.getElementById("rev-category").innerText = catEl ? catEl.value : "-";
+        }
+        if (document.getElementById("rev-location")) {
+            document.getElementById("rev-location").innerText = locEl ? locEl.value : "-";
+        }
         const lat = document.getElementById("w-latitude") ? document.getElementById("w-latitude").value : "";
         const lng = document.getElementById("w-longitude") ? document.getElementById("w-longitude").value : "";
         const acc = document.getElementById("w-accuracy") ? document.getElementById("w-accuracy").value : "";
@@ -525,9 +514,11 @@ function renderWizardStep(step) {
             }
         }
         if (document.getElementById("rev-affected")) {
-            document.getElementById("rev-affected").innerText = `${document.getElementById("w-affected").value} citizens`;
+            document.getElementById("rev-affected").innerText = `${affEl ? affEl.value : 1} citizens`;
         }
-        document.getElementById("rev-description").innerText = document.getElementById("w-description").value;
+        if (document.getElementById("rev-description")) {
+            document.getElementById("rev-description").innerText = descEl ? descEl.value : "-";
+        }
 
         const revAttachment = document.getElementById("rev-attachment");
         if (revAttachment) {
@@ -536,13 +527,13 @@ function renderWizardStep(step) {
                     <div style="display:flex; align-items:center; gap:12px; margin-top:4px;">
                         <img src="${attachedImageDataUrl}" alt="Photo Evidence Preview" style="width:52px; height:52px; object-fit:cover; border-radius:6px; border:1px solid var(--border-color); box-shadow:0 2px 4px rgba(0,0,0,0.1);">
                         <div>
-                            <span style="color:#059669; font-weight:600;"><i class="fa-solid fa-circle-check"></i> ${attachedFileName}</span>
-                            <div style="font-size:12px; color:var(--text-muted);">Compulsory photo evidence attached</div>
+                            <span style="color:#059669; font-weight:600;"><i class="fa-solid fa-circle-check"></i> ${attachedFileName || 'Image Attached'}</span>
+                            <div style="font-size:12px; color:var(--text-muted);">Verified photo evidence attached</div>
                         </div>
                     </div>
                 `;
             } else {
-                revAttachment.innerHTML = `<span style="color:#dc2626; font-weight:600;"><i class="fa-solid fa-triangle-exclamation"></i> Missing (Compulsory)</span>`;
+                revAttachment.innerHTML = `<span style="color:var(--text-muted); font-style:italic;">None Attached (Optional)</span>`;
             }
         }
     }
@@ -554,7 +545,7 @@ function previewFile(e) {
     const input = document.getElementById("w-file-input");
     if (file) {
         if (!file.type.startsWith("image/")) {
-            showToast("Only image files (JPG, PNG, WEBP, GIF) are allowed. Photo evidence is compulsory!", "danger");
+            showToast("Only image files (JPG, PNG, WEBP, GIF) are allowed.", "danger");
             e.target.value = "";
             attachedFileName = null;
             attachedImageDataUrl = null;
@@ -569,27 +560,63 @@ function previewFile(e) {
         if (input) input.style.borderColor = "#10b981";
         const reader = new FileReader();
         reader.onload = function(evt) {
-            attachedImageDataUrl = evt.target.result;
-            if (previewBox) {
-                previewBox.innerHTML = `
-                    <div style="display:flex; align-items:center; gap:14px; margin-top:10px; padding:10px 14px; background:var(--bg-surface-secondary); border-radius:8px; border:1px solid #10b981;">
-                        <img src="${attachedImageDataUrl}" alt="Photo Evidence Preview" style="width:72px; height:72px; object-fit:cover; border-radius:6px; border:1px solid var(--border-color); box-shadow:0 2px 6px rgba(0,0,0,0.1);">
-                        <div>
-                            <div style="color:#059669; font-weight:600;"><i class="fa-solid fa-circle-check"></i> Image Uploaded: ${file.name}</div>
-                            <div style="font-size:12px; color:var(--text-muted); margin-top:3px;">Size: ${(file.size / 1024).toFixed(1)} KB &bull; Verified site photo</div>
+            const rawDataUrl = evt.target.result;
+            const img = new Image();
+            img.onload = function() {
+                const maxDim = 1200;
+                let w = img.width;
+                let h = img.height;
+                if (w > maxDim || h > maxDim) {
+                    if (w > h) {
+                        h = Math.round((h * maxDim) / w);
+                        w = maxDim;
+                    } else {
+                        w = Math.round((w * maxDim) / h);
+                        h = maxDim;
+                    }
+                }
+                const canvas = document.createElement("canvas");
+                canvas.width = w;
+                canvas.height = h;
+                const ctx = canvas.getContext("2d");
+                ctx.drawImage(img, 0, 0, w, h);
+                attachedImageDataUrl = canvas.toDataURL("image/jpeg", 0.82);
+                if (previewBox) {
+                    previewBox.innerHTML = `
+                        <div style="display:flex; align-items:center; gap:14px; margin-top:10px; padding:10px 14px; background:var(--bg-surface-secondary); border-radius:8px; border:1px solid #10b981;">
+                            <img src="${attachedImageDataUrl}" alt="Photo Evidence Preview" style="width:72px; height:72px; object-fit:cover; border-radius:6px; border:1px solid var(--border-color); box-shadow:0 2px 6px rgba(0,0,0,0.1);">
+                            <div>
+                                <div style="color:#059669; font-weight:600;"><i class="fa-solid fa-circle-check"></i> Image Uploaded: ${file.name}</div>
+                                <div style="font-size:12px; color:var(--text-muted); margin-top:3px;">Size: ${(attachedImageDataUrl.length / 1024).toFixed(1)} KB &bull; Verified site photo</div>
+                            </div>
                         </div>
-                    </div>
-                `;
-            }
+                    `;
+                }
+            };
+            img.onerror = function() {
+                attachedImageDataUrl = rawDataUrl;
+                if (previewBox) {
+                    previewBox.innerHTML = `
+                        <div style="display:flex; align-items:center; gap:14px; margin-top:10px; padding:10px 14px; background:var(--bg-surface-secondary); border-radius:8px; border:1px solid #10b981;">
+                            <img src="${attachedImageDataUrl}" alt="Photo Evidence Preview" style="width:72px; height:72px; object-fit:cover; border-radius:6px; border:1px solid var(--border-color); box-shadow:0 2px 6px rgba(0,0,0,0.1);">
+                            <div>
+                                <div style="color:#059669; font-weight:600;"><i class="fa-solid fa-circle-check"></i> Image Uploaded: ${file.name}</div>
+                                <div style="font-size:12px; color:var(--text-muted); margin-top:3px;">Verified site photo</div>
+                            </div>
+                        </div>
+                    `;
+                }
+            };
+            img.src = rawDataUrl;
         };
         reader.readAsDataURL(file);
     } else {
         attachedFileName = null;
         attachedImageDataUrl = null;
         if (previewBox) {
-            previewBox.innerHTML = `<div style="padding:10px; background:#fee2e2; border:1px solid #f87171; border-radius:6px; color:#991b1b; font-weight:600;"><i class="fa-solid fa-triangle-exclamation"></i> Photo evidence is compulsory.</div>`;
+            previewBox.innerHTML = '<span style="color:var(--text-muted); font-style:italic;">No image attached yet.</span>';
         }
-        if (input) input.style.borderColor = "#dc2626";
+        if (input) input.style.borderColor = "";
     }
 }
 
@@ -703,23 +730,34 @@ function updatePriorityHint() {
 async function handleWizardSubmit(e) {
     e.preventDefault();
 
-    // Enforce compulsory image upload
+    // Check if a file was selected but FileReader is still processing
     const fileInput = document.getElementById("w-file-input");
-    if (!attachedImageDataUrl && (!attachedFileName || !fileInput || !fileInput.files || fileInput.files.length === 0)) {
-        showToast("Photo evidence is compulsory! Please upload an image of the problem to submit.", "danger");
-        nextWizardStep(3);
-        if (fileInput) {
-            fileInput.focus();
-            fileInput.style.borderColor = "#dc2626";
+    if (!attachedImageDataUrl && fileInput && fileInput.files && fileInput.files.length > 0) {
+        try {
+            const file = fileInput.files[0];
+            attachedFileName = file.name;
+            attachedImageDataUrl = await new Promise((resolve, reject) => {
+                const r = new FileReader();
+                r.onload = () => resolve(r.result);
+                r.onerror = reject;
+                r.readAsDataURL(file);
+            });
+        } catch (err) {
+            console.warn("Could not read attached file:", err);
         }
-        return;
     }
 
     const title = document.getElementById("w-title") ? document.getElementById("w-title").value.trim() : "";
-    const category = document.getElementById("w-category").value;
-    const location = document.getElementById("w-location").value.trim();
+    const category = document.getElementById("w-category") ? document.getElementById("w-category").value : "";
+    const location = document.getElementById("w-location") ? document.getElementById("w-location").value.trim() : "";
     const affected = document.getElementById("w-affected") ? parseInt(document.getElementById("w-affected").value) : 1;
-    let description = document.getElementById("w-description").value.trim();
+    let description = document.getElementById("w-description") ? document.getElementById("w-description").value.trim() : "";
+
+    if (!category || !location || !description) {
+        showToast("Category, Municipal Area, and Description are required!", "danger");
+        nextWizardStep(2);
+        return;
+    }
 
     if (attachedFileName) {
         description += ` [Photo Evidence: ${attachedFileName}]`;
@@ -735,12 +773,78 @@ async function handleWizardSubmit(e) {
 
     const imageToSend = attachedImageDataUrl || "";
 
+    // Automated duplicate detection warning for Citizen submission (Requirement 2)
+    if (!window._bypassCitizenDuplicateWarning) {
+        try {
+            const dupCheck = await ApiClient.checkDuplicates(category, location);
+            if (dupCheck && dupCheck.hasDuplicates && dupCheck.duplicates && dupCheck.duplicates.length > 0) {
+                openCitizenDupModal(dupCheck.duplicates, {
+                    category, location, description, affected, title, lat, lng, acc, imageToSend
+                });
+                return;
+            }
+        } catch (ignored) {}
+    }
+    window._bypassCitizenDuplicateWarning = false;
+
     try {
         const created = await ApiClient.submitComplaint(category, location, description, affected, title, lat, lng, acc, imageToSend);
-        showToast(`Complaint <strong>${created.complaintId}</strong> registered successfully with photo evidence! Submitted for manager risk assessment.`);
+        showToast(`Complaint <strong>${created.complaintId}</strong> registered successfully${imageToSend ? ' with photo evidence' : ''}! Submitted for manager risk assessment.`);
         switchView("citizen-dashboard");
     } catch (err) {
         showToast("Failed to submit complaint: " + err.message, "danger");
+    }
+}
+
+let pendingCitizenSubmission = null;
+
+function openCitizenDupModal(duplicates, formData) {
+    pendingCitizenSubmission = formData;
+    const container = document.getElementById("citizen-dup-candidate-info");
+    if (container) {
+        container.innerHTML = duplicates.map(d => `
+            <div style="background: var(--bg-surface); border: 1px solid var(--border-color); padding: 10px 14px; border-radius: var(--radius-sm); font-size: 13px;">
+                <div style="display:flex; justify-content:space-between; align-items:center;">
+                    <strong style="color:var(--primary); font-size:14px;">${escapeHtml(d.complaintId)}</strong>
+                    <span class="badge" style="background:#fef3c7; color:#92400e;">${escapeHtml(d.status || 'Registered')}</span>
+                </div>
+                <div style="margin-top: 4px; color: var(--text-main);">
+                    <strong>Category:</strong> ${escapeHtml(d.category)} &bull; <strong>Location:</strong> ${escapeHtml(d.location)}
+                </div>
+                <div style="font-size: 11px; color: var(--text-muted); margin-top: 4px;">
+                    Reported on: ${escapeHtml(d.createdAt || 'Recent')} ${d.citizenName ? `by ${escapeHtml(d.citizenName)}` : ''}
+                </div>
+            </div>
+        `).join("");
+    }
+    const modal = document.getElementById("citizen-dup-warning-modal");
+    if (modal) modal.classList.add("active");
+}
+
+function closeCitizenDupModal() {
+    const modal = document.getElementById("citizen-dup-warning-modal");
+    if (modal) modal.classList.remove("active");
+    pendingCitizenSubmission = null;
+}
+
+async function proceedSeparateSubmission() {
+    if (!pendingCitizenSubmission) {
+        closeCitizenDupModal();
+        return;
+    }
+    const data = pendingCitizenSubmission;
+    closeCitizenDupModal();
+    window._bypassCitizenDuplicateWarning = true;
+    try {
+        const created = await ApiClient.submitComplaint(
+            data.category, data.location, data.description, data.affected, data.title, data.lat, data.lng, data.acc, data.imageToSend
+        );
+        showToast(`Complaint <strong>${created.complaintId}</strong> registered successfully as a separate issue! Submitted for manager risk assessment.`);
+        switchView("citizen-dashboard");
+    } catch (err) {
+        showToast("Failed to submit complaint: " + err.message, "danger");
+    } finally {
+        window._bypassCitizenDuplicateWarning = false;
     }
 }
 
@@ -883,7 +987,8 @@ async function loadWorkerDashboard() {
                             ${photoThumb}
                             <div>
                                 <span>${escapeHtml(c.category)}</span><br>
-                                <small style="color:var(--text-muted);">${locHtml}</small>
+                                <small style="color:var(--text-muted);">${locHtml}</small><br>
+                                <span style="font-size:11px; color:var(--primary); font-weight:600;"><i class="fa-solid fa-clipboard-check"></i> Action: ${escapeHtml(c.operationalAction || 'Field Inspection & Maintenance')}</span>
                             </div>
                         </div>
                     </td>
@@ -1048,6 +1153,9 @@ async function loadManagerDashboard() {
                                 <button class="btn btn-secondary btn-sm" onclick="openComplaintModal('${c.complaintId}')" title="View Case File & Photo Evidence">
                                     <i class="fa-solid fa-eye"></i>
                                 </button>
+                                <button class="btn btn-secondary btn-sm" onclick="confirmDeleteComplaint('${c.complaintId}')" title="Delete Complaint" style="color:#dc2626; border-color:#fecaca; background:#fff5f5;">
+                                    <i class="fa-solid fa-trash-can"></i>
+                                </button>
                             </div>
                         </td>
                     </tr>
@@ -1193,6 +1301,93 @@ async function loadManagerDashboard() {
     }
 }
 
+// Worker Management & Dropdown Population Logic
+let cachedWorkers = [];
+
+function clearWorkerCache() {
+    cachedWorkers = [];
+}
+
+async function getOrFetchWorkers() {
+    if (cachedWorkers && cachedWorkers.length > 0) return cachedWorkers;
+    try {
+        cachedWorkers = await ApiClient.getWorkers();
+        return cachedWorkers;
+    } catch (err) {
+        console.warn("Could not fetch workers:", err);
+        return [];
+    }
+}
+
+function matchWorkerDepartment(workerDept, targetDept) {
+    if (!workerDept || !targetDept) return false;
+    const w = workerDept.toLowerCase().trim();
+    const t = targetDept.toLowerCase().trim();
+    if (w === t) return true;
+    if (w.includes("water") && t.includes("water")) return true;
+    if (w.includes("road") && t.includes("road")) return true;
+    if ((w.includes("waste") || w.includes("sanitat")) && (t.includes("waste") || t.includes("sanitat"))) return true;
+    if ((w.includes("light") || w.includes("electric")) && (t.includes("light") || t.includes("electric"))) return true;
+    if (w.includes("drain") && t.includes("drain")) return true;
+    if (w.includes("gen") && t.includes("gen")) return true;
+    return w.includes(t) || t.includes(w);
+}
+
+async function populateWorkerDropdown(deptSelectId, workerSelectId, selectedWorkerName = "") {
+    const deptSelect = document.getElementById(deptSelectId);
+    const workerSelect = document.getElementById(workerSelectId);
+    if (!deptSelect || !workerSelect) return;
+
+    const chosenDept = deptSelect.value;
+    const workers = await getOrFetchWorkers();
+    
+    // Filter active workers in this department
+    const deptWorkers = workers.filter(w => (w.active !== false) && matchWorkerDepartment(w.department, chosenDept));
+
+    workerSelect.innerHTML = `<option value="">-- Auto-Assign / Department Pool --</option>`;
+    deptWorkers.forEach(w => {
+        const opt = document.createElement("option");
+        opt.value = w.name;
+        opt.textContent = `👷 ${w.name} (${w.id || 'Worker'})`;
+        workerSelect.appendChild(opt);
+    });
+
+    if (deptWorkers.length === 0) {
+        const noOpt = document.createElement("option");
+        noOpt.disabled = true;
+        noOpt.textContent = `(No specific field workers registered in ${chosenDept})`;
+        workerSelect.appendChild(noOpt);
+    }
+
+    if (selectedWorkerName && selectedWorkerName.trim() && !selectedWorkerName.startsWith("Queued")) {
+        const cleanSelected = selectedWorkerName.trim();
+        let matched = false;
+        for (let i = 0; i < workerSelect.options.length; i++) {
+            if (workerSelect.options[i].value === cleanSelected || workerSelect.options[i].value.includes(cleanSelected) || cleanSelected.includes(workerSelect.options[i].value)) {
+                workerSelect.selectedIndex = i;
+                matched = true;
+                break;
+            }
+        }
+        if (!matched && cleanSelected !== "Unassigned" && cleanSelected !== "Assigned Officer") {
+            const customOpt = document.createElement("option");
+            customOpt.value = cleanSelected;
+            customOpt.textContent = `👷 ${cleanSelected} (Current Assigned)`;
+            customOpt.selected = true;
+            workerSelect.appendChild(customOpt);
+        }
+    }
+}
+
+async function onAssignModalDeptChange() {
+    await updateAssignCapacityFeedback();
+    await populateWorkerDropdown("assign-modal-dept-select", "assign-modal-staff-select");
+}
+
+async function onComplaintModalDeptChange() {
+    await populateWorkerDropdown("s-assign-dept-select", "s-assign-staff-select");
+}
+
 // Assignment Modal Logic
 let currentAssigningComplaint = null;
 
@@ -1252,10 +1447,11 @@ async function openAssignModal(complaintId) {
     else if (cat.includes("light") || cat.includes("street")) suggestedDept = "Streetlights";
 
     document.getElementById("assign-modal-suggested").innerText = suggestedDept;
-    document.getElementById("assign-modal-dept-select").value = complaint.department && complaint.department !== "Unassigned" ? complaint.department : suggestedDept;
-    document.getElementById("assign-modal-staff-input").value = complaint.assignedStaff && !complaint.assignedStaff.startsWith("Queued") ? complaint.assignedStaff : "";
+    const targetDept = complaint.department && complaint.department !== "Unassigned" ? complaint.department : suggestedDept;
+    document.getElementById("assign-modal-dept-select").value = targetDept;
     document.getElementById("assign-modal-reason-input").value = complaint.assessmentReason || "";
 
+    await populateWorkerDropdown("assign-modal-dept-select", "assign-modal-staff-select", complaint.assignedStaff);
     await updateAssignCapacityFeedback();
 
     const modal = document.getElementById("assign-modal");
@@ -1296,7 +1492,8 @@ async function handleConfirmAssign(e) {
     const severity = document.getElementById("assign-modal-severity-select") ? document.getElementById("assign-modal-severity-select").value : "";
     const reason = document.getElementById("assign-modal-reason-input").value.trim();
     const dept = document.getElementById("assign-modal-dept-select").value;
-    const staff = document.getElementById("assign-modal-staff-input").value.trim();
+    const staffSelect = document.getElementById("assign-modal-staff-select");
+    const staff = staffSelect ? staffSelect.value.trim() : "";
 
     if (!severity) {
         showToast("Please deliberately select a severity level (Critical, High, Medium, Low).", "danger");
@@ -1309,7 +1506,7 @@ async function handleConfirmAssign(e) {
 
     try {
         await ApiClient.assessComplaint(id, severity, reason, dept, staff);
-        showToast(`Complaint <strong>${id}</strong> assessed as <strong>${severity}</strong> and routed to ${dept}!`);
+        showToast(`Complaint <strong>${id}</strong> assessed as <strong>${severity}</strong> and routed to ${dept}${staff ? ` (Assigned to ${staff})` : ''}!`);
         closeAssignModal();
         refreshCurrentView();
     } catch (err) {
@@ -1368,6 +1565,67 @@ async function handleConfirmDeleteDuplicate(e) {
         refreshCurrentView();
     } catch (err) {
         showToast("Deletion failed: " + err.message, "danger");
+    }
+}
+
+// ------------------- COMPLAINT DELETION (ADMIN & MANAGER) ------------------- //
+let pendingDeleteComplaintId = null;
+
+function confirmDeleteComplaint(complaintId) {
+    if (!complaintId) return;
+    pendingDeleteComplaintId = complaintId;
+    const disp = document.getElementById("del-modal-complaint-id");
+    if (disp) disp.innerText = complaintId;
+    const reasonInput = document.getElementById("del-modal-reason");
+    if (reasonInput) reasonInput.value = "";
+    const modal = document.getElementById("delete-complaint-modal");
+    if (modal) modal.classList.add("active");
+}
+
+function closeDeleteComplaintModal() {
+    const modal = document.getElementById("delete-complaint-modal");
+    if (modal) modal.classList.remove("active");
+    pendingDeleteComplaintId = null;
+}
+
+function confirmDeleteCurrentComplaint() {
+    if (activeComplaintId) {
+        confirmDeleteComplaint(activeComplaintId);
+    }
+}
+
+async function executeComplaintDeletion() {
+    if (!pendingDeleteComplaintId) return;
+    const reasonInput = document.getElementById("del-modal-reason");
+    const reason = reasonInput ? reasonInput.value.trim() : "";
+    if (!reason) {
+        showToast("Deletion reason is required for accountability and audit logging.", "danger");
+        if (reasonInput) reasonInput.focus();
+        return;
+    }
+
+    const btn = document.getElementById("btn-confirm-delete-complaint");
+    if (btn) btn.disabled = true;
+
+    const idToDelete = pendingDeleteComplaintId;
+    try {
+        await ApiClient.deleteComplaint(idToDelete, reason);
+        showToast(`Complaint <strong>${idToDelete}</strong> deleted successfully.`);
+        closeDeleteComplaintModal();
+        if (activeComplaintId === idToDelete) {
+            closeModal();
+        }
+        refreshCurrentView();
+        if (currentUser && currentUser.role === "ADMIN") {
+            loadAdminDashboard();
+        }
+        if (currentUser && currentUser.role === "MANAGER") {
+            loadManagerDashboard();
+        }
+    } catch (err) {
+        showToast("Failed to delete complaint: " + err.message, "danger");
+    } finally {
+        if (btn) btn.disabled = false;
     }
 }
 
@@ -1711,9 +1969,17 @@ function renderStaffComplaintsTable() {
             <td>
                 <div class="table-action-group">
                     ${c.imageUrl ? `<button class="btn btn-secondary btn-sm" onclick="openImageLightbox('${c.imageUrl}', 'Complaint ${c.complaintId} - Site Photo Evidence')" title="Click to view image clearly" style="font-size:11px; padding:2px 8px;"><i class="fa-solid fa-camera"></i> Image</button>` : ''}
+                    <button class="btn btn-primary btn-sm" onclick="openAssignModal('${c.complaintId}')" title="Assign to Department Field Worker" style="font-size:11px; padding:2px 8px;">
+                        <i class="fa-solid fa-user-plus"></i> Assign
+                    </button>
                     <button class="btn btn-secondary btn-sm" onclick="openComplaintModal('${c.complaintId}')" title="Manage Case & View Photo Evidence">
                         <i class="fa-solid fa-sliders"></i> Manage
                     </button>
+                    ${(currentUser && (currentUser.role === 'ADMIN' || currentUser.role === 'MANAGER')) ? `
+                        <button class="btn btn-secondary btn-sm" onclick="confirmDeleteComplaint('${c.complaintId}')" title="Delete Complaint" style="color: #dc2626; border-color: #fecaca; background: #fff5f5;">
+                            <i class="fa-solid fa-trash-can"></i> Delete
+                        </button>
+                    ` : ''}
                 </div>
             </td>
         </tr>
@@ -1771,7 +2037,7 @@ async function loadPriorityQueueView() {
                         <span><i class="fa-solid fa-building"></i> ${escapeHtml(c.department)}</span>
                     </div>
                 </div>
-                ${currentUser.role === "STAFF" ? `
+                ${(currentUser && (currentUser.role === "ADMIN" || currentUser.role === "MANAGER" || currentUser.role === "STAFF" || currentUser.role === "WORKER")) ? `
                     <button class="btn btn-secondary btn-sm" onclick="openComplaintModal('${c.complaintId}')">
                         <i class="fa-solid fa-sliders"></i> Process
                     </button>
@@ -1921,6 +2187,24 @@ async function openComplaintModal(complaintId) {
         document.getElementById("m-department").innerText = c.department || "Unassigned";
         document.getElementById("m-assigned-staff").innerText = c.assignedStaff || "Unassigned";
         
+        const opActionEl = document.getElementById("m-operational-action");
+        if (opActionEl) {
+            opActionEl.innerText = c.operationalAction || "Field Inspection & Maintenance";
+        }
+
+        // Show/hide Delete Complaint button based on Role (Admin & Manager only)
+        const deleteBtn = document.getElementById("btn-modal-delete-complaint");
+        if (deleteBtn) {
+            deleteBtn.style.display = (currentUser && (currentUser.role === "ADMIN" || currentUser.role === "MANAGER")) ? "inline-flex" : "none";
+        }
+
+        // Show/hide Duplicate Warning Banner
+        const dupBanner = document.getElementById("m-duplicate-warning-banner");
+        if (dupBanner) {
+            const hasDups = c.hasDuplicateCandidates || (c.duplicateCandidates && c.duplicateCandidates.length > 0) || c.isDuplicate;
+            dupBanner.style.display = hasDups ? "block" : "none";
+        }
+
         const notesBox = document.getElementById("m-resolution-notes");
         if (c.resolutionNotes && c.resolutionNotes.trim()) {
             notesBox.innerText = c.resolutionNotes;
@@ -1974,11 +2258,37 @@ async function openComplaintModal(complaintId) {
 
         // Staff Controls Box
         const staffBox = document.getElementById("staff-controls-box");
-        if (currentUser.role === "STAFF") {
+        const isOfficial = currentUser && (currentUser.role === "ADMIN" || currentUser.role === "MANAGER" || currentUser.role === "STAFF" || currentUser.role === "WORKER");
+        if (isOfficial) {
             staffBox.style.display = "flex";
-            document.getElementById("s-assign-dept-select").value = c.department || "Electrical";
-            document.getElementById("s-assign-staff-input").value = c.assignedStaff === "Unassigned" ? "" : (c.assignedStaff || "");
+            const targetDept = c.department && c.department !== "Unassigned" ? c.department : "Water Supply";
+            const deptSelect = document.getElementById("s-assign-dept-select");
+            if (deptSelect) deptSelect.value = targetDept;
+            await populateWorkerDropdown("s-assign-dept-select", "s-assign-staff-select", c.assignedStaff);
             document.getElementById("s-resolution-input").value = c.resolutionNotes || "";
+
+            // Role-based control of Operational Action and Assignment
+            const isWorker = currentUser && (currentUser.role === "WORKER" || currentUser.role === "STAFF");
+            const assignWorkerGroup = document.getElementById("s-assign-worker-group");
+            const workerOpActionDisplay = document.getElementById("s-worker-operational-action-display");
+            const managerOpActionControl = document.getElementById("s-manager-operational-action-control");
+            const opActionInput = document.getElementById("s-operational-action-input");
+
+            if (isWorker) {
+                // Workers CANNOT modify Operational Action or reassign department/worker
+                if (assignWorkerGroup) assignWorkerGroup.style.display = "none";
+                if (workerOpActionDisplay) {
+                    workerOpActionDisplay.style.display = "block";
+                    workerOpActionDisplay.innerText = c.operationalAction || "Field Inspection & Maintenance";
+                }
+                if (managerOpActionControl) managerOpActionControl.style.display = "none";
+            } else {
+                // Manager and Admin CAN view and update Operational Action and assignment
+                if (assignWorkerGroup) assignWorkerGroup.style.display = "block";
+                if (workerOpActionDisplay) workerOpActionDisplay.style.display = "none";
+                if (managerOpActionControl) managerOpActionControl.style.display = "flex";
+                if (opActionInput) opActionInput.value = c.operationalAction || "Field Inspection & Maintenance";
+            }
 
             // Dynamic population of valid next actions based on State Machine
             const statusSelect = document.getElementById("s-update-status-select");
@@ -2177,11 +2487,14 @@ function closeModal() {
 async function handleStaffAssign() {
     if (!activeComplaintId) return;
     const dept = document.getElementById("s-assign-dept-select").value;
-    const staffName = document.getElementById("s-assign-staff-input").value.trim();
+    const staffSelect = document.getElementById("s-assign-staff-select");
+    const staffName = staffSelect ? staffSelect.value.trim() : "";
+    const opActionInput = document.getElementById("s-operational-action-input");
+    const operationalAction = opActionInput ? opActionInput.value.trim() : "";
 
     try {
-        await ApiClient.assignDepartment(activeComplaintId, dept, staffName);
-        showToast(`Assigned <strong>${activeComplaintId}</strong> to ${dept} Dept.`);
+        await ApiClient.assignDepartment(activeComplaintId, dept, staffName, "", "", operationalAction);
+        showToast(`Assigned <strong>${activeComplaintId}</strong> to ${dept} Dept${staffName ? ` (${staffName})` : ''}.`);
         openComplaintModal(activeComplaintId);
         refreshCurrentView();
     } catch (e) {
@@ -2192,9 +2505,17 @@ async function handleStaffAssign() {
 async function handleStaffUpdateStatus() {
     if (!activeComplaintId) return;
     const newStatus = document.getElementById("s-update-status-select").value;
+    const isManagerOrAdmin = currentUser && (currentUser.role === "ADMIN" || currentUser.role === "MANAGER");
+    let operationalAction = "";
+    if (isManagerOrAdmin) {
+        const opActionInput = document.getElementById("s-operational-action-input");
+        if (opActionInput && opActionInput.value.trim()) {
+            operationalAction = opActionInput.value.trim();
+        }
+    }
 
     try {
-        await ApiClient.updateStatus(activeComplaintId, newStatus);
+        await ApiClient.updateStatus(activeComplaintId, newStatus, "", operationalAction);
         showToast(`Status updated for <strong>${activeComplaintId}</strong> to ${newStatus}`);
         openComplaintModal(activeComplaintId);
         refreshCurrentView();

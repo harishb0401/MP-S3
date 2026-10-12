@@ -15,8 +15,12 @@ import java.io.File;
 import java.io.InputStream;
 import java.io.OutputStream;
 import java.net.InetSocketAddress;
+import java.net.URLDecoder;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
+import java.time.LocalDateTime;
+import java.time.format.DateTimeFormatter;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 
@@ -131,8 +135,8 @@ public class ServerManager {
                     return;
                 }
 
-                // Admin Worker Management
-                if (path.equals("/api/admin/workers") && "GET".equalsIgnoreCase(method)) {
+                // Admin / Manager Worker Management & Directory
+                if ((path.equals("/api/admin/workers") || path.equals("/api/workers")) && "GET".equalsIgnoreCase(method)) {
                     handleGetWorkers(exchange);
                     return;
                 }
@@ -189,6 +193,11 @@ public class ServerManager {
 
                 if (path.equals("/api/complaints/duplicates") && "GET".equalsIgnoreCase(method)) {
                     handleGetDuplicates(exchange);
+                    return;
+                }
+
+                if (path.equals("/api/complaints/check-duplicate") && ("GET".equalsIgnoreCase(method) || "POST".equalsIgnoreCase(method))) {
+                    handleCheckDuplicates(exchange, body);
                     return;
                 }
 
@@ -277,6 +286,12 @@ public class ServerManager {
                     if (subPath.endsWith("/resolve") && "POST".equalsIgnoreCase(method)) {
                         String id = subPath.replace("/resolve", "");
                         handleResolveComplaint(exchange, id, body);
+                        return;
+                    }
+
+                    // Delete single complaint: DELETE /api/complaints/:id
+                    if ("DELETE".equalsIgnoreCase(method)) {
+                        handleDeleteComplaint(exchange, subPath, body);
                         return;
                     }
 
@@ -815,6 +830,86 @@ public class ServerManager {
         }
     }
 
+    private void handleDeleteComplaint(HttpExchange exchange, String id, String body) throws Exception {
+        User user = getAuthenticatedUser(exchange);
+        if (user == null) {
+            sendJsonResponse(exchange, 401, "{\"error\":\"Unauthorized: Please log in.\"}");
+            return;
+        }
+        if (!user.isAdmin() && !user.isManager()) {
+            sendJsonResponse(exchange, 403, "{\"error\":\"Access denied: Only Administrators and Managers can delete complaints.\"}");
+            return;
+        }
+
+        String reason = extractVal(body, "reason");
+        if (reason.isEmpty()) reason = extractVal(body, "confirmationReason");
+        if (reason.isEmpty()) reason = extractVal(body, "remarks");
+
+        try {
+            boolean success = manager.deleteComplaint(id, user, reason);
+            if (!success) {
+                sendJsonResponse(exchange, 404, "{\"error\":\"Complaint not found or already deleted.\"}");
+                return;
+            }
+            sendJsonResponse(exchange, 200, "{\"success\":true,\"message\":\"Complaint deleted successfully.\"}");
+        } catch (SecurityException e) {
+            sendJsonResponse(exchange, 403, "{\"error\":\"" + esc(e.getMessage()) + "\"}");
+        } catch (IllegalArgumentException e) {
+            sendJsonResponse(exchange, 404, "{\"error\":\"" + esc(e.getMessage()) + "\"}");
+        } catch (Exception e) {
+            sendJsonResponse(exchange, 500, "{\"error\":\"Failed to delete complaint: " + esc(e.getMessage()) + "\"}");
+        }
+    }
+
+    private void handleCheckDuplicates(HttpExchange exchange, String body) throws Exception {
+        String category = "";
+        String location = "";
+        String currentId = "";
+        if ("GET".equalsIgnoreCase(exchange.getRequestMethod())) {
+            String query = exchange.getRequestURI().getQuery();
+            if (query != null) {
+                for (String param : query.split("&")) {
+                    String[] pair = param.split("=");
+                    if (pair.length == 2) {
+                        String key = URLDecoder.decode(pair[0], StandardCharsets.UTF_8);
+                        String val = URLDecoder.decode(pair[1], StandardCharsets.UTF_8);
+                        if ("category".equalsIgnoreCase(key)) category = val;
+                        else if ("location".equalsIgnoreCase(key)) location = val;
+                        else if ("currentId".equalsIgnoreCase(key) || "currentComplaintId".equalsIgnoreCase(key) || "id".equalsIgnoreCase(key)) currentId = val;
+                    }
+                }
+            }
+        } else {
+            category = extractVal(body, "category");
+            location = extractVal(body, "location");
+            currentId = extractVal(body, "currentId");
+            if (currentId.isEmpty()) currentId = extractVal(body, "currentComplaintId");
+            if (currentId.isEmpty()) currentId = extractVal(body, "id");
+        }
+
+        List<Complaint> potential = manager.findPotentialDuplicates(category, location);
+        List<Complaint> filtered = new ArrayList<>();
+        for (Complaint c : potential) {
+            if (!currentId.isEmpty() && (c.getComplaintId().equalsIgnoreCase(currentId) || c.getId().equalsIgnoreCase(currentId))) {
+                continue;
+            }
+            filtered.add(c);
+        }
+
+        StringBuilder sb = new StringBuilder("{\"hasDuplicates\":");
+        sb.append(!filtered.isEmpty()).append(",\"count\":").append(filtered.size()).append(",\"duplicates\":[");
+        for (int i = 0; i < filtered.size(); i++) {
+            Complaint c = filtered.get(i);
+            sb.append(String.format(
+                "{\"complaintId\":\"%s\",\"id\":\"%s\",\"category\":\"%s\",\"location\":\"%s\",\"status\":\"%s\",\"citizenName\":\"%s\",\"createdAt\":\"%s\"}",
+                esc(c.getComplaintId()), esc(c.getId()), esc(c.getCategory()), esc(c.getLocation()), esc(c.getStatus()), esc(c.getCitizenName()), esc(c.getCreatedAt())
+            ));
+            if (i < filtered.size() - 1) sb.append(",");
+        }
+        sb.append("]}");
+        sendJsonResponse(exchange, 200, sb.toString());
+    }
+
     // ------------------- AUDIT HISTORY HANDLER -------------------
     private void handleGetHistory(HttpExchange exchange, String id) throws Exception {
         List<ComplaintHistory> history = manager.getComplaintTimeline(id);
@@ -879,16 +974,48 @@ public class ServerManager {
         boolean explicitCancellation = "true".equalsIgnoreCase(extractVal(body, "explicitCancellation"));
         boolean explicitReassignment = "true".equalsIgnoreCase(extractVal(body, "explicitReassignment"));
 
-        if (user.isWorker() && (explicitCancellation || explicitReassignment)) {
-            sendJsonResponse(exchange, 403, "{\"error\":\"Forbidden: Workers cannot cancel assignments or reassign complaints.\"}");
-            return;
+        if (user.isWorker()) {
+            String opAction = extractVal(body, "operationalAction");
+            if (!opAction.isEmpty()) {
+                sendJsonResponse(exchange, 403, "{\"error\":\"Forbidden: Workers cannot modify the Operational Action field. Only Managers and Administrators have operational control.\"}");
+                return;
+            }
+            String dept = extractVal(body, "department");
+            String assignedStaff = extractVal(body, "assignedStaff");
+            String staffName = extractVal(body, "staffName");
+            String severity = extractVal(body, "severity");
+            if (!dept.isEmpty() || !assignedStaff.isEmpty() || !staffName.isEmpty() || !severity.isEmpty() || explicitCancellation || explicitReassignment) {
+                sendJsonResponse(exchange, 403, "{\"error\":\"Forbidden: Workers cannot modify manager-controlled fields (department, staff, severity, cancellation, or reassignment).\"}");
+                return;
+            }
         }
 
         String status = extractVal(body, "status");
         String remarks = extractVal(body, "remarks");
+        if (remarks.isEmpty()) remarks = extractVal(body, "resolutionNotes");
 
         if (status.isEmpty()) {
             sendJsonResponse(exchange, 400, "{\"error\":\"Status field is required.\"}");
+            return;
+        }
+
+        // If status is identical and user is Manager/Admin updating operational action or remarks
+        if (existing.getStatus().equalsIgnoreCase(status) && (user.isAdmin() || user.isManager())) {
+            String opAction = extractVal(body, "operationalAction");
+            boolean changed = false;
+            if (!opAction.isEmpty() && !opAction.equals(existing.getOperationalAction())) {
+                existing.setOperationalAction(opAction);
+                changed = true;
+            }
+            if (changed || !remarks.isEmpty()) {
+                String now = LocalDateTime.now().format(DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss"));
+                existing.setUpdatedAt(now);
+                database.updateComplaint(existing);
+                database.saveDatabase();
+                manager.recordHistory(id, existing.getStatus(), existing.getStatus(), user.getDisplayName(),
+                        "Operational Action updated to: " + existing.getOperationalAction() + (remarks.isEmpty() ? "" : ". Remarks: " + remarks));
+            }
+            sendJsonResponse(exchange, 200, formatComplaintJson(existing, user));
             return;
         }
 
@@ -900,6 +1027,13 @@ public class ServerManager {
             }
 
             Complaint updated = manager.getComplaintById(id);
+            if ((user.isAdmin() || user.isManager())) {
+                String opAction = extractVal(body, "operationalAction");
+                if (!opAction.isEmpty()) {
+                    updated.setOperationalAction(opAction);
+                    database.updateComplaint(updated);
+                }
+            }
             sendJsonResponse(exchange, 200, formatComplaintJson(updated, user));
         } catch (IllegalStateException | IllegalArgumentException e) {
             sendJsonResponse(exchange, 400, "{\"error\":\"" + esc(e.getMessage()) + "\"}");
@@ -921,6 +1055,7 @@ public class ServerManager {
         String department = extractVal(body, "department");
         if (department.isEmpty()) department = extractVal(body, "departmentName");
         String staffName = extractVal(body, "staffName");
+        String opAction = extractVal(body, "operationalAction");
 
         try {
             boolean success = manager.assessComplaint(id, severity, reason, department, staffName, user);
@@ -930,6 +1065,10 @@ public class ServerManager {
             }
 
             Complaint updated = manager.getComplaintById(id);
+            if (!opAction.isEmpty()) {
+                updated.setOperationalAction(opAction);
+                database.updateComplaint(updated);
+            }
             sendJsonResponse(exchange, 200, formatComplaintJson(updated, user));
         } catch (IllegalArgumentException | IllegalStateException | SecurityException e) {
             sendJsonResponse(exchange, 400, "{\"error\":\"" + esc(e.getMessage()) + "\"}");
@@ -949,6 +1088,7 @@ public class ServerManager {
         String reason = extractVal(body, "reason");
         if (reason.isEmpty()) reason = extractVal(body, "assessmentReason");
         if (reason.isEmpty()) reason = extractVal(body, "remarks");
+        String opAction = extractVal(body, "operationalAction");
 
         // If severity is supplied, route through risk assessment & assignment
         if (!severity.isEmpty()) {
@@ -961,6 +1101,10 @@ public class ServerManager {
                 }
 
                 Complaint updated = manager.getComplaintById(id);
+                if (!opAction.isEmpty()) {
+                    updated.setOperationalAction(opAction);
+                    database.updateComplaint(updated);
+                }
                 sendJsonResponse(exchange, 200, formatComplaintJson(updated, user));
                 return;
             } catch (IllegalArgumentException | IllegalStateException | SecurityException e) {
@@ -977,6 +1121,10 @@ public class ServerManager {
             }
 
             Complaint updated = manager.getComplaintById(id);
+            if (!opAction.isEmpty()) {
+                updated.setOperationalAction(opAction);
+                database.updateComplaint(updated);
+            }
             sendJsonResponse(exchange, 200, formatComplaintJson(updated, user));
         } catch (IllegalStateException | IllegalArgumentException e) {
             sendJsonResponse(exchange, 400, "{\"error\":\"" + esc(e.getMessage()) + "\"}");
@@ -1041,15 +1189,15 @@ public class ServerManager {
         }
     }
 
-    // ------------------- ADMIN WORKER MANAGEMENT HANDLERS -------------------
+    // ------------------- ADMIN / MANAGER WORKER MANAGEMENT HANDLERS -------------------
     private void handleGetWorkers(HttpExchange exchange) throws Exception {
         User user = getAuthenticatedUser(exchange);
         if (user == null) {
             sendJsonResponse(exchange, 401, "{\"error\":\"Unauthorized: Please log in.\"}");
             return;
         }
-        if (!user.canManageWorkers()) {
-            sendJsonResponse(exchange, 403, "{\"error\":\"Forbidden: Administrator privileges required to manage workers.\"}");
+        if (!user.isAdmin() && !user.isManager()) {
+            sendJsonResponse(exchange, 403, "{\"error\":\"Forbidden: Administrator or Manager privileges required to view workers.\"}");
             return;
         }
 
@@ -1057,9 +1205,10 @@ public class ServerManager {
         StringBuilder sb = new StringBuilder("[");
         for (int i = 0; i < workers.size(); i++) {
             model.DepartmentStaff w = workers.get(i);
+            String cleanName = (w.getStaffName() != null && !w.getStaffName().isEmpty()) ? w.getStaffName() : w.getUsername();
             sb.append(String.format(
-                    "{\"id\":\"%s\",\"name\":\"%s\",\"email\":\"%s\",\"mobile\":\"%s\",\"department\":\"%s\",\"role\":\"%s\",\"active\":%b,\"createdAt\":\"%s\"}",
-                    esc(w.getId()), esc(w.getDisplayName()), esc(w.getEmail()), esc(w.getMobile()),
+                    "{\"id\":\"%s\",\"name\":\"%s\",\"displayName\":\"%s\",\"email\":\"%s\",\"mobile\":\"%s\",\"department\":\"%s\",\"role\":\"%s\",\"active\":%b,\"createdAt\":\"%s\"}",
+                    esc(w.getId()), esc(cleanName), esc(w.getDisplayName()), esc(w.getEmail()), esc(w.getMobile()),
                     esc(w.getDepartment()), esc(w.getRole()), w.isActive(), esc(w.getCreatedAt())
             ));
             if (i < workers.size() - 1) sb.append(",");
@@ -1295,22 +1444,46 @@ public class ServerManager {
     }
 
     private String extractVal(String json, String key) {
-        String pattern = "\"" + key + "\":\"";
-        int start = json.indexOf(pattern);
-        if (start == -1) {
-            pattern = "\"" + key + "\":";
-            start = json.indexOf(pattern);
-            if (start == -1) return "";
-            start += pattern.length();
-            int end = json.indexOf(",", start);
-            if (end == -1) end = json.indexOf("}", start);
-            if (end == -1) return "";
-            return json.substring(start, end).replaceAll("[\"\\}]", "").trim();
+        if (json == null || key == null || json.isEmpty()) return "";
+        java.util.regex.Pattern p = java.util.regex.Pattern.compile("\"" + java.util.regex.Pattern.quote(key) + "\"\\s*:\\s*");
+        java.util.regex.Matcher m = p.matcher(json);
+        if (!m.find()) return "";
+        int valStart = m.end();
+        if (valStart >= json.length()) return "";
+
+        if (json.charAt(valStart) == '"') {
+            StringBuilder sb = new StringBuilder();
+            boolean escaped = false;
+            for (int i = valStart + 1; i < json.length(); i++) {
+                char ch = json.charAt(i);
+                if (escaped) {
+                    if (ch == '"') sb.append('"');
+                    else if (ch == '\\') sb.append('\\');
+                    else if (ch == 'n') sb.append('\n');
+                    else if (ch == 'r') sb.append('\r');
+                    else if (ch == 't') sb.append('\t');
+                    else sb.append(ch);
+                    escaped = false;
+                } else if (ch == '\\') {
+                    escaped = true;
+                } else if (ch == '"') {
+                    return sb.toString();
+                } else {
+                    sb.append(ch);
+                }
+            }
+            return sb.toString();
+        } else {
+            int end = json.indexOf(",", valStart);
+            int braceEnd = json.indexOf("}", valStart);
+            if (end == -1 || (braceEnd != -1 && braceEnd < end)) {
+                end = braceEnd;
+            }
+            if (end == -1) end = json.length();
+            String val = json.substring(valStart, end).replaceAll("[\"\\}]", "").trim();
+            if ("null".equalsIgnoreCase(val)) return "";
+            return val;
         }
-        start += pattern.length();
-        int end = json.indexOf("\"", start);
-        if (end == -1) return "";
-        return json.substring(start, end).replace("\\\"", "\"").replace("\\n", "\n");
     }
 
     private String formatUserJson(User u) {
@@ -1359,8 +1532,12 @@ public class ServerManager {
         String mapsUrl = (authorizedForGps && c.getGoogleMapsUrl() != null) ? c.getGoogleMapsUrl() : "";
         boolean hasGps = authorizedForGps && c.hasGpsCoordinates();
 
+        List<DuplicateCandidate> dupCands = manager.findDuplicateCandidates(c.getComplaintId());
+        boolean hasDuplicateCandidates = !dupCands.isEmpty();
+        int duplicateCandidateCount = dupCands.size();
+
         return String.format(
-                "{\"id\":\"%s\",\"complaintId\":\"%s\",\"citizenId\":\"%s\",\"citizenName\":\"%s\",\"citizenMobile\":\"%s\",\"category\":\"%s\",\"description\":\"%s\",\"location\":\"%s\",\"latitude\":%s,\"longitude\":%s,\"locationAccuracyMeters\":%s,\"googleMapsUrl\":\"%s\",\"hasGpsCoordinates\":%b,\"departmentId\":\"%s\",\"department\":\"%s\",\"citizenReportedImpact\":%d,\"adminVerifiedImpact\":%s,\"verificationReason\":\"%s\",\"isVerifiedLocked\":%b,\"severity\":\"%s\",\"priority\":\"%s\",\"isAssessed\":%b,\"assessedBy\":\"%s\",\"assessedAt\":\"%s\",\"assessmentReason\":\"%s\",\"status\":\"%s\",\"assignedStaff\":\"%s\",\"resolutionNotes\":\"%s\",\"imageUrl\":\"%s\",\"isDuplicate\":%b,\"duplicateOfId\":\"%s\",\"rejectedCandidateIds\":%s,\"isWaiting\":%b,\"arrivalSequence\":%d,\"createdAt\":\"%s\",\"updatedAt\":\"%s\",\"resolvedAt\":\"%s\"}",
+                "{\"id\":\"%s\",\"complaintId\":\"%s\",\"citizenId\":\"%s\",\"citizenName\":\"%s\",\"citizenMobile\":\"%s\",\"category\":\"%s\",\"description\":\"%s\",\"location\":\"%s\",\"latitude\":%s,\"longitude\":%s,\"locationAccuracyMeters\":%s,\"googleMapsUrl\":\"%s\",\"hasGpsCoordinates\":%b,\"departmentId\":\"%s\",\"department\":\"%s\",\"citizenReportedImpact\":%d,\"adminVerifiedImpact\":%s,\"verificationReason\":\"%s\",\"isVerifiedLocked\":%b,\"severity\":\"%s\",\"priority\":\"%s\",\"isAssessed\":%b,\"assessedBy\":\"%s\",\"assessedAt\":\"%s\",\"assessmentReason\":\"%s\",\"status\":\"%s\",\"assignedStaff\":\"%s\",\"operationalAction\":\"%s\",\"hasDuplicateCandidates\":%b,\"duplicateCandidateCount\":%d,\"resolutionNotes\":\"%s\",\"imageUrl\":\"%s\",\"isDuplicate\":%b,\"duplicateOfId\":\"%s\",\"rejectedCandidateIds\":%s,\"isWaiting\":%b,\"arrivalSequence\":%d,\"createdAt\":\"%s\",\"updatedAt\":\"%s\",\"resolvedAt\":\"%s\"}",
                 esc(c.getId()), esc(c.getComplaintId()), esc(c.getCitizenId()), esc(c.getCitizenName()),
                 esc(c.getCitizenMobile()), esc(c.getCategory()), esc(c.getDescription()), esc(c.getLocation()),
                 latVal, lngVal, accVal, esc(mapsUrl), hasGps,
@@ -1374,6 +1551,7 @@ public class ServerManager {
                 esc(c.getAssessedAt()),
                 esc(c.getAssessmentReason()),
                 esc(c.getStatus()), esc(c.getAssignedStaff()),
+                esc(c.getOperationalAction()), hasDuplicateCandidates, duplicateCandidateCount,
                 esc(c.getResolutionNotes()),
                 esc(c.getImageUrl()),
                 c.isDuplicate(), esc(c.getDuplicateOfId()),
