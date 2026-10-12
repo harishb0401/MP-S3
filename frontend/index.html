@@ -1397,14 +1397,28 @@
     </div>
 
     <!-- 10. IMAGE LIGHTBOX ENLARGEMENT MODAL (SHARED BY CITIZEN, WORKER, MANAGER, ADMIN) -->
-    <div class="modal-overlay" id="image-lightbox-modal" onclick="closeImageLightbox()" style="z-index: 99999; background: rgba(0,0,0,0.85); backdrop-filter: blur(4px);">
-        <div style="position: relative; max-width: 90vw; max-height: 90vh; display: flex; flex-direction: column; align-items: center; justify-content: center;" onclick="event.stopPropagation()">
-            <button type="button" class="close-btn" onclick="closeImageLightbox()" style="position: absolute; top: -45px; right: 0; color: #fff; font-size: 26px; background: transparent; border: none; cursor: pointer;">
-                <i class="fa-solid fa-xmark"></i>
-            </button>
-            <img id="lightbox-img" src="" alt="Enlarged Evidence Photo" style="max-width: 85vw; max-height: 80vh; object-fit: contain; border-radius: 8px; box-shadow: 0 10px 30px rgba(0,0,0,0.6); border: 2px solid rgba(255,255,255,0.2);">
-            <div id="lightbox-caption" style="color: #f1f5f9; margin-top: 12px; font-size: 13px; text-align: center; font-weight: 500;">
-                <i class="fa-solid fa-camera"></i> Citizen Submitted Photo Evidence
+    <div class="modal-overlay" id="image-lightbox-modal" onclick="closeImageLightbox()" style="z-index: 99999; background: rgba(15, 23, 42, 0.92); backdrop-filter: blur(8px);">
+        <div style="position: relative; max-width: 95vw; max-height: 95vh; display: flex; flex-direction: column; align-items: center; justify-content: center;" onclick="event.stopPropagation()">
+            <div style="width: 100%; display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; color: #fff; padding: 0 8px;">
+                <div id="lightbox-caption" style="font-size: 15px; font-weight: 600; display: flex; align-items: center; gap: 8px;">
+                    <i class="fa-solid fa-camera" style="color: #60a5fa;"></i> Citizen Submitted Photo Evidence
+                </div>
+                <div style="display: flex; gap: 10px; align-items: center;">
+                    <a id="lightbox-download-link" href="#" target="_blank" rel="noopener" class="btn btn-secondary btn-sm" style="background: rgba(255,255,255,0.18); color: #fff; border: 1px solid rgba(255,255,255,0.3); font-size: 12px; padding: 4px 12px;" title="Open in new window or view full raw image">
+                        <i class="fa-solid fa-arrow-up-right-from-square"></i> Open Full Image
+                    </a>
+                    <button type="button" onclick="closeImageLightbox()" style="color: #fff; font-size: 18px; background: rgba(255,255,255,0.18); border: 1px solid rgba(255,255,255,0.3); border-radius: 6px; padding: 4px 10px; cursor: pointer;">
+                        <i class="fa-solid fa-xmark"></i>
+                    </button>
+                </div>
+            </div>
+            <div style="position: relative; background: #000; border-radius: 8px; padding: 6px; box-shadow: 0 20px 45px rgba(0,0,0,0.8); border: 1px solid rgba(255,255,255,0.25);">
+                <img id="lightbox-img" src="" alt="Enlarged Evidence Photo" style="max-width: 88vw; max-height: 76vh; object-fit: contain; border-radius: 6px; display: block;">
+            </div>
+            <div style="margin-top: 12px;">
+                <button type="button" class="btn btn-secondary btn-sm" onclick="closeImageLightbox()" style="background: rgba(255,255,255,0.22); color: #fff; border: 1px solid rgba(255,255,255,0.4); padding: 6px 18px; font-size: 13px;">
+                    <i class="fa-solid fa-xmark"></i> Close Image Viewer
+                </button>
             </div>
         </div>
     </div>

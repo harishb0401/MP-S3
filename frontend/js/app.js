@@ -472,7 +472,7 @@ function nextWizardStep(step) {
         // Validate Step 3: Photo Evidence is COMPULSORY
         if (currentWizardStep === 3) {
             const fileInput = document.getElementById("w-file-input");
-            if (!attachedFileName || !fileInput || !fileInput.files || fileInput.files.length === 0) {
+            if (!attachedImageDataUrl && (!attachedFileName || !fileInput || !fileInput.files || fileInput.files.length === 0)) {
                 showToast("Photo evidence is compulsory! Please upload an image of the problem to proceed.", "danger");
                 if (fileInput) {
                     fileInput.focus();
@@ -705,7 +705,7 @@ async function handleWizardSubmit(e) {
 
     // Enforce compulsory image upload
     const fileInput = document.getElementById("w-file-input");
-    if (!attachedFileName || !fileInput || !fileInput.files || fileInput.files.length === 0) {
+    if (!attachedImageDataUrl && (!attachedFileName || !fileInput || !fileInput.files || fileInput.files.length === 0)) {
         showToast("Photo evidence is compulsory! Please upload an image of the problem to submit.", "danger");
         nextWizardStep(3);
         if (fileInput) {
@@ -785,7 +785,7 @@ async function loadCitizenDashboard() {
         }
 
         tbody.innerHTML = complaints.map(c => {
-            const photoThumb = c.imageUrl ? `<img src="${c.imageUrl}" alt="Photo Evidence" style="width:34px; height:34px; object-fit:cover; border-radius:4px; border:1px solid var(--border-color); cursor:pointer; margin-right:8px; vertical-align:middle;" onclick="openImageLightbox('${c.imageUrl}', 'Complaint ${c.complaintId} - Site Photo Evidence')" title="Click to enlarge photo">` : '';
+            const photoThumb = c.imageUrl ? `<img src="${c.imageUrl}" alt="Photo Evidence" style="width:38px; height:38px; object-fit:cover; border-radius:4px; border:1px solid var(--border-color); cursor:pointer; margin-right:8px; vertical-align:middle;" onclick="openImageLightbox('${c.imageUrl}', 'Complaint ${c.complaintId} - Site Photo Evidence')" title="Click to view full photo clearly">` : '';
             return `
             <tr>
                 <td><strong>${c.complaintId}</strong></td>
@@ -796,9 +796,12 @@ async function loadCitizenDashboard() {
                 <td>${getStatusBadge(c.status, c.isWaiting)}</td>
                 <td>${c.createdAt || 'Today'}</td>
                 <td>
-                    <button class="btn btn-secondary btn-sm" onclick="openComplaintModal('${c.complaintId}')" title="View Case Details & Photo Evidence">
-                        <i class="fa-solid fa-eye"></i> Track Case
-                    </button>
+                    <div class="table-action-group">
+                        ${c.imageUrl ? `<button class="btn btn-secondary btn-sm" onclick="openImageLightbox('${c.imageUrl}', 'Complaint ${c.complaintId} - Site Photo Evidence')" title="Click to view image clearly" style="font-size:11px; padding:2px 8px;"><i class="fa-solid fa-camera"></i> Image</button>` : ''}
+                        <button class="btn btn-secondary btn-sm" onclick="openComplaintModal('${c.complaintId}')" title="View Case Details & Photo Evidence">
+                            <i class="fa-solid fa-eye"></i> Track Case
+                        </button>
+                    </div>
                 </td>
             </tr>
         `;
@@ -891,6 +894,7 @@ async function loadWorkerDashboard() {
                     <td>
                         <div class="table-action-group">
                             ${actionBtn}
+                            ${c.imageUrl ? `<button class="btn btn-secondary btn-sm" onclick="openImageLightbox('${c.imageUrl}', 'Complaint ${c.complaintId} - Site Photo Evidence')" title="Click to view image clearly" style="font-size:11px; padding:2px 8px;"><i class="fa-solid fa-camera"></i> Image</button>` : ''}
                             <button class="btn btn-secondary btn-sm" onclick="openComplaintModal('${c.complaintId}')" title="View Case Details & Photo Evidence"><i class="fa-solid fa-eye"></i></button>
                         </div>
                     </td>
@@ -1040,6 +1044,7 @@ async function loadManagerDashboard() {
                                 <button class="btn btn-primary btn-sm" onclick="openAssignModal('${c.complaintId}')">
                                     <i class="fa-solid fa-stamp"></i> Assess & Assign
                                 </button>
+                                ${c.imageUrl ? `<button class="btn btn-secondary btn-sm" onclick="openImageLightbox('${c.imageUrl}', 'Complaint ${c.complaintId} - Site Photo Evidence')" title="Click to view image clearly" style="font-size:11px; padding:2px 8px;"><i class="fa-solid fa-camera"></i> Image</button>` : ''}
                                 <button class="btn btn-secondary btn-sm" onclick="openComplaintModal('${c.complaintId}')" title="View Case File & Photo Evidence">
                                     <i class="fa-solid fa-eye"></i>
                                 </button>
@@ -1207,12 +1212,13 @@ async function openAssignModal(complaintId) {
     let photoSnippet = "";
     if (complaint.imageUrl) {
         photoSnippet = `
-            <div style="display:flex; align-items:center; gap:12px; margin-top:8px; padding:8px 12px; background:var(--bg-surface); border-radius:6px; border:1px solid var(--border-color);">
-                <img src="${complaint.imageUrl}" alt="Photo Evidence" style="width:64px; height:50px; object-fit:cover; border-radius:4px; cursor:pointer; border:1px solid var(--border-color);" onclick="openImageLightbox('${complaint.imageUrl}', 'Complaint ${complaint.complaintId} - Site Photo Evidence')">
+            <div style="display:flex; align-items:center; gap:14px; margin-top:10px; padding:10px 14px; background:var(--bg-surface-secondary); border-radius:8px; border:1px solid #3b82f6;">
+                <img src="${complaint.imageUrl}" alt="Photo Evidence" style="width:72px; height:56px; object-fit:cover; border-radius:6px; cursor:pointer; border:1px solid var(--border-color); box-shadow:0 2px 6px rgba(0,0,0,0.1);" onclick="openImageLightbox('${complaint.imageUrl}', 'Complaint ${complaint.complaintId} - Site Photo Evidence')">
                 <div style="flex:1;">
-                    <div style="font-weight:600; font-size:12px; color:var(--text-main);"><i class="fa-solid fa-camera" style="color:var(--primary);"></i> Citizen Site Photo Evidence</div>
-                    <button type="button" class="btn btn-sm btn-secondary" style="padding:2px 8px; font-size:11px; margin-top:3px;" onclick="openImageLightbox('${complaint.imageUrl}', 'Complaint ${complaint.complaintId} - Site Photo Evidence')">
-                        <i class="fa-solid fa-expand"></i> Inspect Photo
+                    <div style="font-weight:600; font-size:13px; color:var(--text-main);"><i class="fa-solid fa-camera" style="color:#2563eb;"></i> Citizen Site Photo Evidence</div>
+                    <div style="font-size:11px; color:var(--text-muted); margin-bottom:5px;">Compulsory uploaded evidence photo</div>
+                    <button type="button" class="btn btn-sm btn-primary" style="background:#2563eb; color:#fff; font-size:12px; font-weight:600; padding:4px 12px;" onclick="openImageLightbox('${complaint.imageUrl}', 'Complaint ${complaint.complaintId} - Site Photo Evidence')">
+                        <i class="fa-solid fa-magnifying-glass-plus"></i> Click to View Image Clearly
                     </button>
                 </div>
             </div>
@@ -1703,9 +1709,12 @@ function renderStaffComplaintsTable() {
             <td>${getStatusBadge(c.status, c.isWaiting)}</td>
             <td>${c.createdAt || 'Today'}</td>
             <td>
-                <button class="btn btn-secondary btn-sm" onclick="openComplaintModal('${c.complaintId}')" title="Manage Case & View Photo Evidence">
-                    <i class="fa-solid fa-sliders"></i> Manage
-                </button>
+                <div class="table-action-group">
+                    ${c.imageUrl ? `<button class="btn btn-secondary btn-sm" onclick="openImageLightbox('${c.imageUrl}', 'Complaint ${c.complaintId} - Site Photo Evidence')" title="Click to view image clearly" style="font-size:11px; padding:2px 8px;"><i class="fa-solid fa-camera"></i> Image</button>` : ''}
+                    <button class="btn btn-secondary btn-sm" onclick="openComplaintModal('${c.complaintId}')" title="Manage Case & View Photo Evidence">
+                        <i class="fa-solid fa-sliders"></i> Manage
+                    </button>
+                </div>
             </td>
         </tr>
     `;
@@ -1926,22 +1935,37 @@ async function openComplaintModal(complaintId) {
         if (photoBox) {
             if (c.imageUrl && c.imageUrl.trim()) {
                 photoBox.innerHTML = `
-                    <div style="display:flex; align-items:center; gap:16px; width:100%; flex-wrap:wrap;">
+                    <div style="display:flex; align-items:center; gap:20px; width:100%; flex-wrap:wrap; padding:6px;">
                         <div style="position:relative; cursor:pointer;" onclick="openImageLightbox('${c.imageUrl}', 'Complaint ${c.complaintId} - Site Photo Evidence')">
-                            <img src="${c.imageUrl}" alt="Citizen Site Photo Evidence" style="width:140px; height:105px; object-fit:cover; border-radius:6px; border:2px solid var(--border-color); box-shadow:0 3px 10px rgba(0,0,0,0.12); cursor:pointer;">
-                            <div style="position:absolute; bottom:5px; right:5px; background:rgba(0,0,0,0.7); color:#fff; border-radius:4px; padding:2px 6px; font-size:10px;"><i class="fa-solid fa-magnifying-glass-plus"></i> Enlarge</div>
+                            <img src="${c.imageUrl}" alt="Citizen Site Photo Evidence" style="width:160px; height:120px; object-fit:cover; border-radius:8px; border:2px solid var(--border-color); box-shadow:0 4px 14px rgba(0,0,0,0.14); cursor:pointer; transition:transform 0.2s;" onmouseover="this.style.transform='scale(1.03)'" onmouseout="this.style.transform='scale(1)'">
+                            <div style="position:absolute; bottom:6px; right:6px; background:rgba(0,0,0,0.75); color:#fff; border-radius:4px; padding:3px 8px; font-size:11px; font-weight:600;"><i class="fa-solid fa-magnifying-glass-plus"></i> Click to Zoom</div>
                         </div>
-                        <div style="flex:1; min-width:200px;">
-                            <div style="font-weight:600; color:var(--text-main); font-size:13px;"><i class="fa-solid fa-circle-check" style="color:#059669;"></i> Compulsory Site Evidence Verified</div>
-                            <div style="font-size:12px; color:var(--text-muted); margin:4px 0 10px 0;">Official photograph uploaded by citizen during complaint filing. Available to Manager, Worker, and Admin.</div>
-                            <button type="button" class="btn btn-secondary btn-sm" onclick="openImageLightbox('${c.imageUrl}', 'Complaint ${c.complaintId} - Site Photo Evidence')">
-                                <i class="fa-solid fa-expand"></i> Click to View Full Resolution Photo
-                            </button>
+                        <div style="flex:1; min-width:220px;">
+                            <div style="display:flex; align-items:center; gap:8px;">
+                                <span class="badge" style="background:#ecfdf5; color:#065f46; font-size:12px; font-weight:600;"><i class="fa-solid fa-circle-check"></i> Verified Field Photo</span>
+                                <span style="font-size:12px; color:var(--text-muted);">Visible to Manager &bull; Worker &bull; Admin</span>
+                            </div>
+                            <div style="font-size:13px; color:var(--text-main); margin:6px 0 12px 0; font-weight:500;">
+                                Official site condition image submitted with complaint <strong style="color:var(--primary);">${c.complaintId}</strong>.
+                            </div>
+                            <div style="display:flex; gap:10px; flex-wrap:wrap;">
+                                <button type="button" class="btn btn-primary btn-sm" style="background:#2563eb; color:#fff; font-weight:600; padding:6px 14px; font-size:12px;" onclick="openImageLightbox('${c.imageUrl}', 'Complaint ${c.complaintId} - Site Photo Evidence')">
+                                    <i class="fa-solid fa-magnifying-glass-plus"></i> Click to View Image Clearly
+                                </button>
+                                <a href="${c.imageUrl}" target="_blank" rel="noopener" class="btn btn-secondary btn-sm" style="font-size:12px; padding:6px 12px;" title="Open raw image in new tab">
+                                    <i class="fa-solid fa-arrow-up-right-from-square"></i> Open Raw
+                                </a>
+                            </div>
                         </div>
                     </div>
                 `;
             } else {
-                photoBox.innerHTML = `<span style="color:var(--text-muted); font-size:13px;"><i class="fa-solid fa-image"></i> No photo evidence attached.</span>`;
+                photoBox.innerHTML = `
+                    <div style="padding:16px; text-align:center; color:var(--text-muted); width:100%;">
+                        <i class="fa-solid fa-image-slash" style="font-size:26px; margin-bottom:6px; display:block; opacity:0.6;"></i>
+                        <span style="font-size:13px;">No photographic evidence was attached to this record.</span>
+                    </div>
+                `;
             }
         }
 
@@ -2282,12 +2306,18 @@ function escapeHtml(str) {
 
 // ------------------- IMAGE LIGHTBOX (ENLARGEMENT FOR ALL ROLES) ------------------- //
 function openImageLightbox(src, caption) {
+    if (!src || !src.trim()) {
+        showToast("No photographic evidence was attached to this complaint.", "warning");
+        return;
+    }
     const modal = document.getElementById("image-lightbox-modal");
     const img = document.getElementById("lightbox-img");
     const cap = document.getElementById("lightbox-caption");
+    const dl = document.getElementById("lightbox-download-link");
     if (!modal || !img) return;
     img.src = src;
-    if (cap) cap.innerHTML = `<i class="fa-solid fa-camera"></i> ${escapeHtml(caption || "Citizen Photo Evidence")}`;
+    if (cap) cap.innerHTML = `<i class="fa-solid fa-camera" style="color:#60a5fa;"></i> ${escapeHtml(caption || "Citizen Photo Evidence")}`;
+    if (dl) dl.href = src;
     modal.classList.add("active");
 }
 
@@ -2295,3 +2325,10 @@ function closeImageLightbox() {
     const modal = document.getElementById("image-lightbox-modal");
     if (modal) modal.classList.remove("active");
 }
+
+// Global Escape Key to close lightbox
+document.addEventListener("keydown", function(e) {
+    if (e.key === "Escape" || e.keyCode === 27) {
+        closeImageLightbox();
+    }
+});
