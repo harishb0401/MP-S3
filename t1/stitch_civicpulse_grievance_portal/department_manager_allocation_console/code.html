@@ -1,0 +1,401 @@
+<!DOCTYPE html>
+
+<html lang="en"><head><meta charset="utf-8"/><meta content="width=device-width, initial-scale=1.0" name="viewport"/><meta content="web_dashboard" name="shell-type"/><link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@20..48,100..700,0..1,-50..200" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Public+Sans:wght@100..900&display=swap" rel="stylesheet"/><style>@layer base{html,body{margin:0;padding:0;}body{overscroll-behavior:none;}main>:first-child{margin-top:0!important;}main>:last-child{margin-bottom:0!important;}}::-webkit-scrollbar{display:none;}</style><script src="https://cdn.tailwindcss.com"></script><script id="tailwind-config">tailwind.config={darkMode:"class",theme:{extend:{"colors":{"error-container":"#ffdad6","on-tertiary-fixed":"#0d1c2f","on-primary-fixed":"#011d35","on-secondary-fixed-variant":"#2e476f","surface-container-low":"#eff4ff","on-error":"#ffffff","on-surface-variant":"#43474d","surface-container-lowest":"#ffffff","inverse-primary":"#b0c9e8","outline-variant":"#c3c6ce","surface-container-highest":"#d3e4fe","on-tertiary-fixed-variant":"#3a485c","on-primary-container":"#7991af","primary-fixed":"#d1e4ff","surface":"#f8f9ff","on-tertiary":"#ffffff","on-tertiary-container":"#818fa6","inverse-on-surface":"#eaf1ff","error":"#ba1a1a","on-secondary-fixed":"#001b3d","on-background":"#0b1c30","primary":"#001428","on-secondary":"#ffffff","tertiary-container":"#1a283b","secondary-container":"#b6d0ff","tertiary-fixed-dim":"#b9c7e0","primary-fixed-dim":"#b0c9e8","surface-bright":"#f8f9ff","surface-tint":"#49607c","primary-container":"#0f2942","outline":"#74777e","on-primary-fixed-variant":"#314863","on-secondary-container":"#3f5881","tertiary-fixed":"#d5e3fd","surface-container-high":"#dce9ff","surface-dim":"#cbdbf5","secondary-fixed":"#d6e3ff","on-primary":"#ffffff","surface-container":"#e5eeff","on-surface":"#0b1c30","background":"#f8f9ff","tertiary":"#041325","surface-variant":"#d3e4fe","secondary":"#465f88","inverse-surface":"#213145","on-error-container":"#93000a","secondary-fixed-dim":"#aec7f7"},"borderRadius":{"DEFAULT":"0.25rem","lg":"0.5rem","xl":"0.75rem","full":"9999px"},"spacing":{"gutter":"1.5rem","space-xl":"2rem","space-lg":"1.5rem","space-sm":"0.5rem","margin":"2rem","space-xs":"0.25rem","space-md":"1rem","margin-mobile":"1rem","gutter-mobile":"1rem"},"fontFamily":{"title-md":["Public Sans"],"headline-sm":["Public Sans"],"headline-lg":["Public Sans"],"headline-md":["Public Sans"],"body-md":["Public Sans"],"display-hero":["Public Sans"],"data-mono":["Public Sans"],"body-lg":["Public Sans"],"headline-lg-mobile":["Public Sans"],"body-sm":["Public Sans"],"label-sm":["Public Sans"],"display-hero-mobile":["Public Sans"],"label-md":["Public Sans"],"title-sm":["Public Sans"]},"fontSize":{"title-md":["16px",{"lineHeight":"24px","letterSpacing":"0em","fontWeight":"600"}],"headline-sm":["20px",{"lineHeight":"28px","letterSpacing":"-0.005em","fontWeight":"600"}],"headline-lg":["32px",{"lineHeight":"40px","letterSpacing":"-0.015em","fontWeight":"700"}],"headline-md":["24px",{"lineHeight":"32px","letterSpacing":"-0.01em","fontWeight":"600"}],"body-md":["15px",{"lineHeight":"24px","letterSpacing":"0em","fontWeight":"400"}],"display-hero":["40px",{"lineHeight":"48px","letterSpacing":"-0.02em","fontWeight":"700"}],"data-mono":["13px",{"lineHeight":"18px","letterSpacing":"0.02em","fontWeight":"500"}],"body-lg":["18px",{"lineHeight":"28px","letterSpacing":"0em","fontWeight":"400"}],"headline-lg-mobile":["24px",{"lineHeight":"32px","letterSpacing":"-0.01em","fontWeight":"600"}],"body-sm":["13px",{"lineHeight":"18px","letterSpacing":"0.005em","fontWeight":"400"}],"label-sm":["11px",{"lineHeight":"14px","letterSpacing":"0.06em","fontWeight":"700"}],"display-hero-mobile":["30px",{"lineHeight":"38px","letterSpacing":"-0.015em","fontWeight":"700"}],"label-md":["12px",{"lineHeight":"16px","letterSpacing":"0.04em","fontWeight":"600"}],"title-sm":["14px",{"lineHeight":"20px","letterSpacing":"0.005em","fontWeight":"600"}]}}}}</script></head><body class="bg-surface font-body-md text-body-md text-on-surface"><header class="fixed top-0 left-0 right-0 h-16 z-50 bg-surface/90 backdrop-blur-xl shadow-[0_1px_8px_rgba(15,41,66,0.06)]"><div class="h-16 w-full px-gutter flex items-center justify-between gap-space-md"><div class="flex items-center gap-space-md min-w-0"><img alt="GovResolve Emblem" class="h-8 w-auto object-contain flex-shrink-0" src="https://lh3.googleusercontent.com/aida/AEtjO1X7gxv7me9utScKZeyIQfoZn0oTUQSH6bTjjqFO01kumESWthqLv1NnfW3_LW70GiatGMThI0GLADwqEbMnQPXk90actb263m9Srh2QDNAu9eVaPV6LvDMiWmYPhWD8nUTHayazfBugEaIkXgt61iAYKLFgGoDVnIOfd8B52uAOZbPQCIe8BurCFP9Crl64vpkWuJ6z0ATkqqyBVpNNsS1XfqMtlkbPtaWqjenKBhg"/><div class="flex flex-col min-w-0"><span class="font-title-sm text-title-sm text-primary tracking-tight truncate">National Civic Grievance & Priority Resolution Portal</span><span class="font-label-sm text-label-sm text-on-surface-variant uppercase tracking-wider hidden sm:block">Government of Public Administration • NC-GPRS</span></div></div><div class="flex items-center gap-space-md flex-shrink-0"><div class="hidden xl:flex items-center bg-surface-container px-space-sm py-space-xs rounded-lg gap-space-xs"><span class="font-label-sm text-label-sm text-on-surface-variant uppercase px-space-xs">Active Role:</span><button class="px-space-sm py-space-xs rounded font-label-md text-label-md bg-primary-container text-on-primary" type="button">Admin</button><button class="px-space-sm py-space-xs rounded font-label-md text-label-md text-on-surface-variant hover:bg-surface-container-high hover:text-on-surface transition-colors" type="button">Citizen</button><button class="px-space-sm py-space-xs rounded font-label-md text-label-md text-on-surface-variant hover:bg-surface-container-high hover:text-on-surface transition-colors" type="button">Manager</button><button class="px-space-sm py-space-xs rounded font-label-md text-label-md text-on-surface-variant hover:bg-surface-container-high hover:text-on-surface transition-colors" type="button">Field Worker</button></div><div class="relative flex items-center justify-center"><button class="w-10 h-10 rounded-full flex items-center justify-center text-on-surface-variant hover:bg-surface-container-low hover:text-on-surface transition-colors" type="button"><span class="material-symbols-outlined text-[22px]">notifications</span></button><span class="absolute top-1 right-1 w-4 h-4 bg-error text-on-error rounded-full font-label-sm text-label-sm flex items-center justify-center leading-none">3</span></div><div class="h-6 w-px bg-surface-container-high hidden sm:block"></div><div class="flex items-center gap-space-sm pl-space-xs"><div class="flex flex-col items-end hidden md:flex"><span class="font-title-sm text-title-sm text-primary leading-tight">Officer Shweta Verma</span><span class="font-label-sm text-label-sm text-on-surface-variant">Admin Portal Head</span></div><img alt="Profile" class="w-8 h-8 rounded-full object-cover shadow-[0_1px_3px_rgba(15,41,66,0.12)]" src="https://lh3.googleusercontent.com/aida-public/AB6AXuCH_jaKGr24xaNhRZM2Sc6DPlA_yg_Pro1eHApPQ6ITjvHG76o6ZbKpne0YN-1iYNfbXCMCjaDx-SwQnsR0WXiPLKKHq6Qb3GbbF4BqsoNHvRmQC5IWHsnW1W_YLAwDX62nyJPhAuSmCd_GIdKHLiC-yGLq3wyMDpOyms6bxVgOE47q5MIayrCBHyvFu8gZUQDa5SjQiAQ4rteY_B7PG_D1tE18DA5Leagj8M0Kxjg"/></div></div></div></header><aside class="fixed left-0 top-16 bottom-0 w-72 bg-surface-container-lowest z-40 overflow-y-auto shadow-[0_1px_8px_rgba(15,41,66,0.04)] flex flex-col justify-between py-space-md"><nav class="px-space-md flex flex-col gap-space-lg" data-active-classes="bg-primary-container text-on-primary font-title-sm"><div class="flex flex-col gap-space-xs"><span class="font-label-sm text-label-sm text-on-surface-variant uppercase tracking-wider px-space-sm mb-space-xs">Admin Authority</span><a class="flex items-center gap-space-sm px-space-sm py-space-sm rounded-lg text-on-surface-variant hover:bg-surface-container hover:text-on-surface transition-colors" data-path="overview-dashboard" href="#"><span class="material-symbols-outlined text-[20px]">dashboard</span><span class="font-title-sm text-title-sm">Overview Dashboard</span></a><a class="flex items-center gap-space-sm px-space-sm py-space-sm rounded-lg text-on-surface-variant hover:bg-surface-container hover:text-on-surface transition-colors" data-path="registered-citizens" href="#"><span class="material-symbols-outlined text-[20px]">groups</span><span class="font-title-sm text-title-sm">Registered Citizens</span></a><a class="flex items-center gap-space-sm px-space-sm py-space-sm rounded-lg text-on-surface-variant hover:bg-surface-container hover:text-on-surface transition-colors" data-path="worker-management" href="#"><span class="material-symbols-outlined text-[20px]">badge</span><span class="font-title-sm text-title-sm">Worker Management</span></a><a class="flex items-center gap-space-sm px-space-sm py-space-sm rounded-lg text-on-surface-variant hover:bg-surface-container hover:text-on-surface transition-colors" data-path="grievance-analytics" href="#"><span class="material-symbols-outlined text-[20px]">analytics</span><span class="font-title-sm text-title-sm">Grievance Analytics</span></a></div><div class="flex flex-col gap-space-xs"><span class="font-label-sm text-label-sm text-on-surface-variant uppercase tracking-wider px-space-sm mb-space-xs">Department Operations</span><a aria-current="page" class="flex items-center gap-space-sm px-space-sm py-space-sm rounded-lg transition-colors bg-primary-container text-on-primary font-title-sm" data-path="department-allocation" href="#"><span class="material-symbols-outlined text-[20px]">account_tree</span><span class="font-title-sm text-title-sm">Department Allocation</span></a><a class="flex items-center gap-space-sm px-space-sm py-space-sm rounded-lg text-on-surface-variant hover:bg-surface-container hover:text-on-surface transition-colors" data-path="priority-queues" href="#"><span class="material-symbols-outlined text-[20px]">emergency_home</span><span class="font-title-sm text-title-sm">Priority Queues</span></a></div><div class="flex flex-col gap-space-xs"><span class="font-label-sm text-label-sm text-on-surface-variant uppercase tracking-wider px-space-sm mb-space-xs">Field Dispatch</span><a class="flex items-center gap-space-sm px-space-sm py-space-sm rounded-lg text-on-surface-variant hover:bg-surface-container hover:text-on-surface transition-colors" data-path="assigned-tasks" href="#"><span class="material-symbols-outlined text-[20px]">task_alt</span><span class="font-title-sm text-title-sm">Assigned Tasks</span></a><a class="flex items-center gap-space-sm px-space-sm py-space-sm rounded-lg text-on-surface-variant hover:bg-surface-container hover:text-on-surface transition-colors" data-path="work-orders" href="#"><span class="material-symbols-outlined text-[20px]">assignment</span><span class="font-title-sm text-title-sm">Work Orders</span></a></div><div class="flex flex-col gap-space-xs"><span class="font-label-sm text-label-sm text-on-surface-variant uppercase tracking-wider px-space-sm mb-space-xs">Citizen Services</span><a class="flex items-center gap-space-sm px-space-sm py-space-sm rounded-lg text-on-surface-variant hover:bg-surface-container hover:text-on-surface transition-colors" data-path="file-complaint" href="#"><span class="material-symbols-outlined text-[20px]">rate_review</span><span class="font-title-sm text-title-sm">File Complaint</span></a><a class="flex items-center gap-space-sm px-space-sm py-space-sm rounded-lg text-on-surface-variant hover:bg-surface-container hover:text-on-surface transition-colors" data-path="my-grievances" href="#"><span class="material-symbols-outlined text-[20px]">folder_shared</span><span class="font-title-sm text-title-sm">My Grievances</span></a><a class="flex items-center gap-space-sm px-space-sm py-space-sm rounded-lg text-on-surface-variant hover:bg-surface-container hover:text-on-surface transition-colors" data-path="track-status" href="#"><span class="material-symbols-outlined text-[20px]">radar</span><span class="font-title-sm text-title-sm">Track Status</span></a></div></nav><div class="px-space-md pt-space-md border-t border-surface-container-high flex flex-col gap-space-xs"><a class="flex items-center gap-space-sm px-space-sm py-space-sm rounded-lg text-on-surface-variant hover:bg-surface-container hover:text-on-surface transition-colors" data-path="helpdesk" href="#"><span class="material-symbols-outlined text-[20px]">support_agent</span><span class="font-title-sm text-title-sm">Civic Helpdesk</span></a><a class="flex items-center gap-space-sm px-space-sm py-space-sm rounded-lg text-on-surface-variant hover:bg-surface-container hover:text-on-surface transition-colors" data-path="official-guidelines" href="#"><span class="material-symbols-outlined text-[20px]">gavel</span><span class="font-title-sm text-title-sm">Official Guidelines</span></a></div></aside><div class="pl-72"><div class="bg-surface-container-lowest shadow-[0_1px_3px_rgba(15,41,66,0.03)] px-gutter py-space-sm mt-16 flex flex-wrap items-center justify-between gap-space-sm"><div class="flex items-center gap-space-sm text-on-surface-variant font-label-md text-label-md"><span class="material-symbols-outlined text-[16px]">corporate_fare</span><span>NC-GPRS Portal</span><span class="material-symbols-outlined text-[14px]">chevron_right</span><span class="text-primary font-title-sm text-title-sm">Central Operations</span></div><div class="flex items-center gap-space-md"><div class="flex items-center gap-space-xs bg-surface-container px-space-sm py-space-xs rounded-full"><span class="w-2 h-2 rounded-full bg-secondary"></span><span class="font-label-sm text-label-sm text-on-surface-variant">Public Service Level: Normal • 99.4% Uptime</span></div><div class="flex items-center gap-space-xs bg-error-container text-on-error-container px-space-sm py-space-xs rounded-full font-label-sm text-label-sm font-semibold"><span class="material-symbols-outlined text-[14px]">warning</span><span>Priority Hotline: 1800-CIVIC-SOS</span></div></div></div><main class="w-full px-gutter py-space-lg bg-surface"><div class="flex flex-col w-full">
+<!-- Operational Zone Header -->
+<div class="flex flex-col xl:flex-row xl:items-end justify-between gap-space-lg mb-space-xl">
+<div class="flex flex-col gap-space-xs">
+<div class="flex items-center gap-space-sm mb-space-xs">
+<span class="px-space-sm py-space-xs rounded font-label-sm text-label-sm uppercase bg-primary-container text-on-primary tracking-wider">Zone Desk 04</span>
+<span class="text-on-surface-variant font-label-md text-label-md">Civic Grid: Ward 03 - 09 Hub</span>
+</div>
+<h1 class="font-headline-lg text-headline-lg text-primary tracking-tight">Department Allocation & Work-Order Dispatch</h1>
+<p class="font-body-md text-body-md text-on-surface-variant">Department of Public Works, Roads & Sanitation — Central Zone Operational Unit</p>
+</div>
+<!-- Quick Status Metatags / Live Indicators -->
+<div class="flex flex-wrap items-center gap-space-sm">
+<div class="flex items-center gap-space-sm bg-surface-container-high px-space-md py-space-sm rounded-xl shadow-sm">
+<div class="w-3 h-3 rounded-full bg-secondary animate-pulse"></div>
+<div class="flex flex-col">
+<span class="font-label-sm text-label-sm uppercase text-on-surface-variant tracking-wider">Unassigned Queue</span>
+<span class="font-title-sm text-title-sm text-on-surface font-semibold">42 Awaiting Allocation</span>
+</div>
+</div>
+<div class="flex items-center gap-space-sm bg-error-container text-on-error-container px-space-md py-space-sm rounded-xl shadow-sm">
+<span class="material-symbols-outlined text-[20px] text-error">priority_high</span>
+<div class="flex flex-col">
+<span class="font-label-sm text-label-sm uppercase tracking-wider">Emergency Threshold</span>
+<span class="font-title-sm text-title-sm font-semibold">18 High Priority</span>
+</div>
+</div>
+<div class="flex items-center gap-space-sm bg-surface-container-lowest px-space-md py-space-sm rounded-xl shadow-sm">
+<span class="material-symbols-outlined text-[20px] text-primary-container">groups</span>
+<div class="flex flex-col">
+<span class="font-label-sm text-label-sm uppercase text-on-surface-variant tracking-wider">Field Load Index</span>
+<span class="font-title-sm text-title-sm text-primary font-semibold">95% Worker Bandwidth</span>
+</div>
+</div>
+</div>
+</div>
+<!-- Section 1: Department-wise Complaint Distribution & Workload -->
+<div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-space-md mb-space-xl">
+<!-- Card: Road Repairs -->
+<div class="bg-surface-container-lowest p-space-md rounded-xl shadow-sm flex flex-col justify-between transition-all hover:shadow-md">
+<div class="flex items-center justify-between mb-space-md">
+<div class="w-10 h-10 rounded-lg bg-surface-container-low flex items-center justify-center text-primary-container">
+<span class="material-symbols-outlined text-[22px]">add_road</span>
+</div>
+<span class="px-space-sm py-space-xs rounded-full font-label-sm text-label-sm bg-error-container text-on-error-container font-semibold">Critical</span>
+</div>
+<div>
+<h2 class="font-title-md text-title-md text-primary mb-space-xs">Road Repairs</h2>
+<div class="flex items-baseline justify-between">
+<span class="font-headline-md text-headline-md text-primary">18 <span class="font-label-md text-label-md text-on-surface-variant font-normal">Pending</span></span>
+<span class="font-data-mono text-data-mono text-secondary">12 Crew Active</span>
+</div>
+</div>
+<div class="w-full bg-surface-container-low rounded-full h-1.5 mt-space-md overflow-hidden">
+<div class="bg-primary-container h-1.5 rounded-full" style="width: 82%"></div>
+</div>
+</div>
+<!-- Card: Sewage & Drainage -->
+<div class="bg-surface-container-lowest p-space-md rounded-xl shadow-sm flex flex-col justify-between transition-all hover:shadow-md">
+<div class="flex items-center justify-between mb-space-md">
+<div class="w-10 h-10 rounded-lg bg-surface-container-low flex items-center justify-center text-primary-container">
+<span class="material-symbols-outlined text-[22px]">water_damage</span>
+</div>
+<span class="px-space-sm py-space-xs rounded-full font-label-sm text-label-sm bg-error-container text-on-error-container font-semibold">Critical</span>
+</div>
+<div>
+<h2 class="font-title-md text-title-md text-primary mb-space-xs">Sewage & Drainage</h2>
+<div class="flex items-baseline justify-between">
+<span class="font-headline-md text-headline-md text-primary">14 <span class="font-label-md text-label-md text-on-surface-variant font-normal">Pending</span></span>
+<span class="font-data-mono text-data-mono text-secondary">8 Crew Active</span>
+</div>
+</div>
+<div class="w-full bg-surface-container-low rounded-full h-1.5 mt-space-md overflow-hidden">
+<div class="bg-error h-1.5 rounded-full" style="width: 95%"></div>
+</div>
+</div>
+<!-- Card: Street Lighting & Electrical -->
+<div class="bg-surface-container-lowest p-space-md rounded-xl shadow-sm flex flex-col justify-between transition-all hover:shadow-md">
+<div class="flex items-center justify-between mb-space-md">
+<div class="w-10 h-10 rounded-lg bg-surface-container-low flex items-center justify-center text-primary-container">
+<span class="material-symbols-outlined text-[22px]">highlight</span>
+</div>
+<span class="px-space-sm py-space-xs rounded-full font-label-sm text-label-sm bg-surface-container text-on-surface-variant">Moderate</span>
+</div>
+<div>
+<h2 class="font-title-md text-title-md text-primary mb-space-xs">Street Lighting & Elec.</h2>
+<div class="flex items-baseline justify-between">
+<span class="font-headline-md text-headline-md text-primary">7 <span class="font-label-md text-label-md text-on-surface-variant font-normal">Pending</span></span>
+<span class="font-data-mono text-data-mono text-secondary">6 Crew Active</span>
+</div>
+</div>
+<div class="w-full bg-surface-container-low rounded-full h-1.5 mt-space-md overflow-hidden">
+<div class="bg-primary-container h-1.5 rounded-full" style="width: 58%"></div>
+</div>
+</div>
+<!-- Card: Solid Waste & Sanitation -->
+<div class="bg-surface-container-lowest p-space-md rounded-xl shadow-sm flex flex-col justify-between transition-all hover:shadow-md">
+<div class="flex items-center justify-between mb-space-md">
+<div class="w-10 h-10 rounded-lg bg-surface-container-low flex items-center justify-center text-primary-container">
+<span class="material-symbols-outlined text-[22px]">delete_sweep</span>
+</div>
+<span class="px-space-sm py-space-xs rounded-full font-label-sm text-label-sm bg-surface-container text-on-surface-variant">Controlled</span>
+</div>
+<div>
+<h2 class="font-title-md text-title-md text-primary mb-space-xs">Solid Waste & Sanitation</h2>
+<div class="flex items-baseline justify-between">
+<span class="font-headline-md text-headline-md text-primary">3 <span class="font-label-md text-label-md text-on-surface-variant font-normal">Pending</span></span>
+<span class="font-data-mono text-data-mono text-secondary">15 Crew Active</span>
+</div>
+</div>
+<div class="w-full bg-surface-container-low rounded-full h-1.5 mt-space-md overflow-hidden">
+<div class="bg-secondary h-1.5 rounded-full" style="width: 40%"></div>
+</div>
+</div>
+</div>
+<!-- Filter & Control Bar -->
+<div class="flex flex-wrap items-center justify-between gap-space-md mb-space-lg bg-surface-container-lowest p-space-md rounded-xl shadow-sm">
+<div class="flex flex-wrap items-center gap-space-xs">
+<button class="px-space-md py-space-xs rounded-full font-label-md text-label-md bg-primary-container text-on-primary font-semibold flex items-center gap-space-xs shadow-sm" type="button">
+<span>All Urgent</span>
+<span class="bg-on-primary/20 px-1.5 py-0.5 rounded-full text-on-primary font-label-sm text-label-sm">18</span>
+</button>
+<button class="px-space-md py-space-xs rounded-full font-label-md text-label-md bg-surface-container-low text-on-surface-variant hover:text-on-surface hover:bg-surface-container transition-colors" type="button">
+        Water & Sewage (14)
+      </button>
+<button class="px-space-md py-space-xs rounded-full font-label-md text-label-md bg-surface-container-low text-on-surface-variant hover:text-on-surface hover:bg-surface-container transition-colors" type="button">
+        Road Potholes (8)
+      </button>
+<button class="px-space-md py-space-xs rounded-full font-label-md text-label-md bg-error-container text-on-error-container font-semibold hover:opacity-90 transition-opacity" type="button">
+        SLA Breaching Soon (5)
+      </button>
+</div>
+<div class="flex items-center gap-space-sm ml-auto">
+<div class="relative flex items-center">
+<span class="material-symbols-outlined text-[18px] text-outline absolute left-3 pointer-events-none">search</span>
+<input class="pl-9 pr-space-md py-1.5 text-body-sm font-body-sm bg-surface-container-low rounded-lg text-on-surface focus:outline-none focus:bg-surface-container-lowest transition-colors w-64 shadow-inner" placeholder="Search token ID, locality, or keyword..." type="text"/>
+</div>
+<button class="p-2 rounded-lg bg-surface-container-low text-on-surface-variant hover:bg-surface-container transition-colors" title="Filter Settings" type="button">
+<span class="material-symbols-outlined text-[20px]">tune</span>
+</button>
+</div>
+</div>
+<!-- Section 2: Interactive Priority Queue & Allocation Console -->
+<div class="grid grid-cols-1 lg:grid-cols-12 gap-space-lg items-start">
+<!-- LEFT COLUMN (7 COLS): Grievance Cards Queue -->
+<div class="lg:col-span-7 flex flex-col gap-space-md">
+<div class="flex items-center justify-between px-space-xs">
+<div class="flex items-center gap-space-sm">
+<input class="w-4 h-4 rounded text-primary-container bg-surface-container-lowest focus:ring-0 cursor-pointer" id="select-all" type="checkbox"/>
+<label class="font-title-sm text-title-sm text-primary cursor-pointer select-none" for="select-all">Select Batch for Multi-Crew Allocation</label>
+</div>
+<span class="font-label-sm text-label-sm text-on-surface-variant uppercase tracking-wider">Sorted by Algorithmic Severity</span>
+</div>
+<!-- Grievance Card 1: Selected & High Alert -->
+<div class="bg-surface-container-lowest rounded-xl p-space-md shadow-md relative overflow-hidden transition-all ring-2 ring-primary-container">
+<!-- High Priority Left Marker -->
+<div class="absolute left-0 top-0 bottom-0 w-1.5 bg-error"></div>
+<div class="flex items-start justify-between gap-space-md mb-space-sm pl-space-xs">
+<div class="flex items-center gap-space-sm">
+<input checked="" class="w-4 h-4 rounded text-primary-container bg-surface-container-low focus:ring-0 cursor-pointer" type="checkbox"/>
+<span class="font-data-mono text-data-mono font-bold text-primary tracking-wide">#GRV-2024-9412</span>
+<span class="px-space-sm py-0.5 rounded-full font-label-sm text-label-sm bg-error-container text-on-error-container font-semibold flex items-center gap-1">
+<span class="w-1.5 h-1.5 rounded-full bg-error"></span> Urgent Level 1
+            </span>
+</div>
+<div class="flex items-center gap-space-xs bg-surface-container-high px-space-sm py-0.5 rounded text-on-surface font-label-sm text-label-sm">
+<span class="material-symbols-outlined text-[14px] text-error">timer</span>
+<span>SLA: 01h 45m left</span>
+</div>
+</div>
+<div class="flex flex-col sm:flex-row gap-space-md pl-space-xs">
+<div class="relative w-full sm:w-28 h-24 rounded-lg overflow-hidden flex-shrink-0 bg-surface-container shadow-inner">
+<img class="w-full h-full object-cover" data-alt="Close up high quality photo of a broken municipal drainage line causing dirty water and sewage flooding onto a concrete street near a hospital entry barrier. Cinematic natural morning light, realistic civic emergency photography." src="https://lh3.googleusercontent.com/aida-public/AB6AXuBQiGGYVgGQYg3cjRzdFsS_xYzY6YuDaGUXrMJn5rfBscs6nLSXH-1Rd4qv1-HX-RjSlKiN1iNz60HvI72npKi5M9pfD0DXMaiU5aoaTZZiI2k40ZXnDvdleyca2cOe1BaYjwcVwkGU9cjTEOoKiVikJhSq-WlP8M_0SFer0tF_I9Q8qaO5nqF7nieP9jcm7Bl4reDBePSPmSNUvJ6fZgTvPXKqTYI_gOV4gt3VAFQ"/>
+<div class="absolute bottom-1 right-1 bg-primary/80 backdrop-blur text-on-primary font-label-sm text-label-sm px-1 rounded flex items-center gap-0.5">
+<span class="material-symbols-outlined text-[10px]">photo_camera</span> 3
+            </div>
+</div>
+<div class="flex flex-col justify-between flex-1 min-w-0">
+<div>
+<h3 class="font-title-md text-title-md text-primary font-semibold mb-1 truncate">Severe Sewage Overflow blocking Hospital Gate - Ward 5</h3>
+<p class="font-body-sm text-body-sm text-on-surface-variant line-clamp-2">Main underground collector pipe ruptured at Civil Hospital Gate No. 2. Heavy sludge backflow preventing ambulance access and patient drop-off.</p>
+</div>
+<div class="flex flex-wrap items-center justify-between gap-space-xs pt-space-xs mt-space-xs">
+<div class="flex items-center gap-space-xs text-on-surface-variant font-label-md text-label-md">
+<span class="material-symbols-outlined text-[15px] text-secondary">location_on</span>
+<span class="truncate">Hospital Rd, Ward 5 (Sub-grid 5B)</span>
+</div>
+<span class="font-label-sm text-label-sm font-semibold bg-surface-container px-space-sm py-0.5 rounded text-primary">Priority 9.2 / 10</span>
+</div>
+</div>
+</div>
+</div>
+<!-- Grievance Card 2: Road Hazard -->
+<div class="bg-surface-container-lowest rounded-xl p-space-md shadow-sm relative overflow-hidden transition-all hover:shadow-md">
+<div class="absolute left-0 top-0 bottom-0 w-1.5 bg-error"></div>
+<div class="flex items-start justify-between gap-space-md mb-space-sm pl-space-xs">
+<div class="flex items-center gap-space-sm">
+<input class="w-4 h-4 rounded text-primary-container bg-surface-container-low focus:ring-0 cursor-pointer" type="checkbox"/>
+<span class="font-data-mono text-data-mono font-bold text-primary tracking-wide">#GRV-2024-9388</span>
+<span class="px-space-sm py-0.5 rounded-full font-label-sm text-label-sm bg-error-container text-on-error-container font-semibold flex items-center gap-1">
+<span class="w-1.5 h-1.5 rounded-full bg-error"></span> High Risk
+            </span>
+</div>
+<div class="flex items-center gap-space-xs bg-surface-container px-space-sm py-0.5 rounded text-on-surface font-label-sm text-label-sm">
+<span class="material-symbols-outlined text-[14px]">timer</span>
+<span>SLA: 03h 10m left</span>
+</div>
+</div>
+<div class="flex flex-col sm:flex-row gap-space-md pl-space-xs">
+<div class="relative w-full sm:w-28 h-24 rounded-lg overflow-hidden flex-shrink-0 bg-surface-container shadow-inner">
+<img class="w-full h-full object-cover" data-alt="Wide municipal road with deep jagged asphalt pothole hazard marked with traffic cone under daylight. Urban public infrastructure photo showing busy street background." src="https://lh3.googleusercontent.com/aida-public/AB6AXuC2XSwTMX07bJGkZtcS6XNp-m42vUbJx9lLbE4WwEIrIwmpN8NFUWQ5oHIiHHiROMG_3bzRyClPVoTXv-eQgQSY2oHP05XXmrU6lA75te_Mra-3A3zamkxNUWn4g2zYACPkSDFXX4DlSQh1-DINbeUHlD_YKbmOzBbmumua4IxoKqqixdYXjntyoMhahD1f42b0-h8QarozMMOhC27hdsRbpbqmxlCK_4hIk3xa0_I"/>
+<div class="absolute bottom-1 right-1 bg-primary/80 backdrop-blur text-on-primary font-label-sm text-label-sm px-1 rounded flex items-center gap-0.5">
+<span class="material-symbols-outlined text-[10px]">photo_camera</span> 2
+            </div>
+</div>
+<div class="flex flex-col justify-between flex-1 min-w-0">
+<div>
+<h3 class="font-title-md text-title-md text-primary font-semibold mb-1 truncate">Crater-sized Pothole causing two-wheeler skids - Flyover Base</h3>
+<p class="font-body-sm text-body-sm text-on-surface-variant line-clamp-2">4 feet wide depression exposed after water pipeline burst. Multiple two-wheelers reported fallen during morning commute peak hours.</p>
+</div>
+<div class="flex flex-wrap items-center justify-between gap-space-xs pt-space-xs mt-space-xs">
+<div class="flex items-center gap-space-xs text-on-surface-variant font-label-md text-label-md">
+<span class="material-symbols-outlined text-[15px] text-secondary">location_on</span>
+<span class="truncate">South Flyover Exit, Ward 7</span>
+</div>
+<span class="font-label-sm text-label-sm font-semibold bg-surface-container px-space-sm py-0.5 rounded text-primary">Priority 8.7 / 10</span>
+</div>
+</div>
+</div>
+</div>
+<!-- Grievance Card 3: Electrical Safety -->
+<div class="bg-surface-container-lowest rounded-xl p-space-md shadow-sm relative overflow-hidden transition-all hover:shadow-md">
+<div class="absolute left-0 top-0 bottom-0 w-1.5 bg-secondary"></div>
+<div class="flex items-start justify-between gap-space-md mb-space-sm pl-space-xs">
+<div class="flex items-center gap-space-sm">
+<input class="w-4 h-4 rounded text-primary-container bg-surface-container-low focus:ring-0 cursor-pointer" type="checkbox"/>
+<span class="font-data-mono text-data-mono font-bold text-primary tracking-wide">#GRV-2024-9345</span>
+<span class="px-space-sm py-0.5 rounded-full font-label-sm text-label-sm bg-surface-container text-on-surface-variant font-semibold">Priority 2</span>
+</div>
+<div class="flex items-center gap-space-xs bg-surface-container px-space-sm py-0.5 rounded text-on-surface font-label-sm text-label-sm">
+<span class="material-symbols-outlined text-[14px]">timer</span>
+<span>SLA: 05h 20m left</span>
+</div>
+</div>
+<div class="flex flex-col sm:flex-row gap-space-md pl-space-xs">
+<div class="relative w-full sm:w-28 h-24 rounded-lg overflow-hidden flex-shrink-0 bg-surface-container shadow-inner">
+<img class="w-full h-full object-cover" data-alt="Municipal electrical street junction box with exposed insulated wires on concrete pole in public sidewalk. Daylight documentary civic photo with clean focus on safety hazard." src="https://lh3.googleusercontent.com/aida-public/AB6AXuCtfO1EuJLN5vmzkLYJjjiKs1MTD6t-7pnn7ZlOtBPxqqbvlg3HuuSaFpV1UX1-_6Evyig246P9oSpyXUFuHRZwvcv37VjPBXeicYR7qAxTgYNKASOSMIMkO7ERaY2JfVMEaZiyOYt5eSZSAvgnBuC7sNsr6TFChMPsOg6D809zMMbN26VkqD6N68sUFvKFbPsXbacd4nKqKGp1FnT7duB9JACf6otiYiQPkfN31FA"/>
+<div class="absolute bottom-1 right-1 bg-primary/80 backdrop-blur text-on-primary font-label-sm text-label-sm px-1 rounded flex items-center gap-0.5">
+<span class="material-symbols-outlined text-[10px]">photo_camera</span> 1
+            </div>
+</div>
+<div class="flex flex-col justify-between flex-1 min-w-0">
+<div>
+<h3 class="font-title-md text-title-md text-primary font-semibold mb-1 truncate">Exposed High-Tension Cables on School Zone Footpath</h3>
+<p class="font-body-sm text-body-sm text-on-surface-variant line-clamp-2">Underground cable trench left uncovered after transformer check. Water accumulation risks electrocution hazard near primary school.</p>
+</div>
+<div class="flex flex-wrap items-center justify-between gap-space-xs pt-space-xs mt-space-xs">
+<div class="flex items-center gap-space-xs text-on-surface-variant font-label-md text-label-md">
+<span class="material-symbols-outlined text-[15px] text-secondary">location_on</span>
+<span class="truncate">St. Joseph Marg, Ward 4</span>
+</div>
+<span class="font-label-sm text-label-sm font-semibold bg-surface-container px-space-sm py-0.5 rounded text-primary">Priority 7.9 / 10</span>
+</div>
+</div>
+</div>
+</div>
+</div>
+<!-- RIGHT COLUMN (5 COLS): Dispatch & Allocation Panel -->
+<div class="lg:col-span-5 bg-surface-container-lowest rounded-xl p-space-lg shadow-lg flex flex-col gap-space-md sticky top-20">
+<!-- Active Ticket Banner -->
+<div class="flex items-center justify-between pb-space-md border-b border-surface-container">
+<div>
+<div class="flex items-center gap-space-xs">
+<span class="font-label-sm text-label-sm uppercase text-on-surface-variant font-semibold tracking-wider">Active Focus Ticket</span>
+<span class="material-symbols-outlined text-[16px] text-primary">verified</span>
+</div>
+<span class="font-headline-sm text-headline-sm text-primary tracking-tight">#GRV-2024-9412</span>
+</div>
+<span class="px-space-sm py-1 rounded bg-error-container text-on-error-container font-label-sm text-label-sm font-bold uppercase tracking-wider">Urgent Tier 1</span>
+</div>
+<!-- Quick Context Snippet -->
+<div class="p-space-sm bg-surface-container-low rounded-lg flex flex-col gap-space-xs">
+<span class="font-label-sm text-label-sm text-on-surface-variant uppercase tracking-wider">Target Incident</span>
+<span class="font-title-sm text-title-sm text-on-surface font-medium leading-snug">Severe Sewage Overflow blocking Hospital Gate - Ward 5</span>
+<span class="font-data-mono text-data-mono text-secondary">Citizen: Dr. Rajesh K. (Registered Civil Medical Officer)</span>
+</div>
+<!-- Action Form -->
+<form class="flex flex-col gap-space-md" onsubmit="event.preventDefault();">
+<!-- Assign Department -->
+<div class="flex flex-col gap-space-xs">
+<label class="font-title-sm text-title-sm text-on-surface flex items-center justify-between">
+<span>Allocated Department Unit</span>
+<span class="font-label-sm text-label-sm text-secondary font-normal">Auto-mapped by AI triage</span>
+</label>
+<div class="relative">
+<select class="w-full bg-surface-container-low text-on-surface font-body-md text-body-md py-2.5 px-space-md rounded-lg appearance-none focus:outline-none focus:bg-surface-container transition-colors pr-10 cursor-pointer">
+<option selected="">Sanitation & Drainage Emergency Unit (Zone 4)</option>
+<option>Roads Maintenance Rapid Response</option>
+<option>Public Health Sanitation & Vector Control</option>
+<option>Municipal Disaster Rapid Squad</option>
+</select>
+<span class="material-symbols-outlined absolute right-3 top-3 text-outline pointer-events-none">expand_more</span>
+</div>
+</div>
+<!-- Assign Field Worker / Team (Selectable Realtime List) -->
+<div class="flex flex-col gap-space-xs">
+<div class="flex items-center justify-between">
+<label class="font-title-sm text-title-sm text-on-surface">Available Crew in Ward 5</label>
+<span class="font-label-sm text-label-sm text-on-surface-variant">3 Field Workers Live</span>
+</div>
+<div class="flex flex-col gap-space-xs">
+<!-- Worker 1: Recommended -->
+<label class="flex items-center justify-between p-space-sm rounded-lg bg-surface-container-low hover:bg-surface-container cursor-pointer transition-colors border-2 border-primary-container">
+<div class="flex items-center gap-space-sm min-w-0">
+<input checked="" class="w-4 h-4 text-primary-container focus:ring-0 cursor-pointer" name="assigned_worker" type="radio"/>
+<div class="flex flex-col min-w-0">
+<div class="flex items-center gap-space-xs">
+<span class="font-title-sm text-title-sm text-primary font-semibold truncate">Suresh Yadav</span>
+<span class="bg-secondary-container text-on-secondary-container font-label-sm text-label-sm px-1 rounded font-bold">Recommended</span>
+</div>
+<span class="font-label-sm text-label-sm text-on-surface-variant">Drainage Spec. • 0 active tasks • 4.8★ rating</span>
+</div>
+</div>
+<div class="flex items-center gap-1 text-on-secondary-container font-label-sm text-label-sm flex-shrink-0">
+<span class="w-2 h-2 rounded-full bg-secondary"></span>
+<span>Ready Now</span>
+</div>
+</label>
+<!-- Worker 2 -->
+<label class="flex items-center justify-between p-space-sm rounded-lg bg-surface-container-low hover:bg-surface-container cursor-pointer transition-colors">
+<div class="flex items-center gap-space-sm min-w-0">
+<input class="w-4 h-4 text-primary-container focus:ring-0 cursor-pointer" name="assigned_worker" type="radio"/>
+<div class="flex flex-col min-w-0">
+<span class="font-title-sm text-title-sm text-primary font-medium truncate">Anil Patil</span>
+<span class="font-label-sm text-label-sm text-on-surface-variant">Pump Ops • 1 active task • 4.6★ rating</span>
+</div>
+</div>
+<span class="font-label-sm text-label-sm text-on-surface-variant flex-shrink-0">Free in ~30m</span>
+</label>
+<!-- Worker 3 -->
+<label class="flex items-center justify-between p-space-sm rounded-lg bg-surface-container-low hover:bg-surface-container cursor-pointer transition-colors">
+<div class="flex items-center gap-space-sm min-w-0">
+<input class="w-4 h-4 text-primary-container focus:ring-0 cursor-pointer" name="assigned_worker" type="radio"/>
+<div class="flex flex-col min-w-0">
+<span class="font-title-sm text-title-sm text-primary font-medium truncate">Manoj Varma</span>
+<span class="font-label-sm text-label-sm text-on-surface-variant">General Sewer • 1 active task • 4.4★ rating</span>
+</div>
+</div>
+<div class="flex items-center gap-1 text-on-surface-variant font-label-sm text-label-sm flex-shrink-0">
+<span class="w-2 h-2 rounded-full bg-outline"></span>
+<span>Standby</span>
+</div>
+</label>
+</div>
+</div>
+<!-- Set Priority & Resolution SLA -->
+<div class="flex flex-col gap-space-xs">
+<label class="font-title-sm text-title-sm text-on-surface">Target Resolution Mandate</label>
+<div class="grid grid-cols-2 gap-space-sm">
+<button class="py-2.5 px-space-sm rounded-lg font-label-md text-label-md bg-error-container text-on-error-container font-semibold flex flex-col items-center justify-center shadow-sm" type="button">
+<span class="flex items-center gap-1"><span class="material-symbols-outlined text-[14px]">bolt</span> Urgent</span>
+<span class="font-label-sm text-label-sm opacity-80">Within 2 Hours</span>
+</button>
+<button class="py-2.5 px-space-sm rounded-lg font-label-md text-label-md bg-surface-container-low text-on-surface-variant hover:bg-surface-container hover:text-on-surface font-medium flex flex-col items-center justify-center transition-colors" type="button">
+<span>High Priority</span>
+<span class="font-label-sm text-label-sm opacity-80">Within 4 Hours</span>
+</button>
+</div>
+</div>
+<!-- Special Instructions for Worker -->
+<div class="flex flex-col gap-space-xs">
+<label class="font-title-sm text-title-sm text-on-surface flex items-center justify-between" for="worker_instructions">
+<span>Special Instructions for Worker</span>
+<span class="font-label-sm text-label-sm text-on-surface-variant">Transmitted via Push + SMS</span>
+</label>
+<textarea class="w-full bg-surface-container-low text-on-surface font-body-sm text-body-sm p-space-sm rounded-lg focus:outline-none focus:bg-surface-container transition-colors resize-none leading-relaxed" id="worker_instructions" placeholder="Add specific technical notes, equipment needed, or safety alerts..." rows="3">Carry suction pump unit #4 and industrial chemical disinfectants. Coordinate on arrival directly with Hospital Security Officer Mr. Roy at Entrance Gate.</textarea>
+</div>
+<!-- Action Trigger Buttons -->
+<div class="flex flex-col gap-space-xs pt-space-xs">
+<button class="w-full bg-primary-container text-on-primary font-title-sm text-title-sm py-3 px-space-md rounded-lg shadow-sm hover:opacity-95 active:scale-[0.99] transition-all flex items-center justify-center gap-space-sm" type="button">
+<span class="material-symbols-outlined text-[20px]">send</span>
+<span>Confirm Dispatch & Notify Worker (SMS + App)</span>
+</button>
+<div class="flex items-center gap-space-sm">
+<button class="flex-1 bg-surface-container-low text-on-surface-variant hover:text-on-surface hover:bg-surface-container font-label-md text-label-md py-2.5 px-space-sm rounded-lg transition-colors flex items-center justify-center gap-1" type="button">
+<span class="material-symbols-outlined text-[16px]">swap_horiz</span>
+<span>Re-route to Other Dept</span>
+</button>
+<button class="px-space-md py-2.5 bg-surface-container-low text-on-surface-variant hover:text-error hover:bg-error-container font-label-md text-label-md rounded-lg transition-colors flex items-center justify-center" title="Escalate to Municipal Commissioner" type="button">
+<span class="material-symbols-outlined text-[16px]">crisis_alert</span>
+</button>
+</div>
+</div>
+</form>
+</div>
+</div>
+</div></main></div></body></html>

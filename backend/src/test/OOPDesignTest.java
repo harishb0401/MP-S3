@@ -249,7 +249,8 @@ public class OOPDesignTest {
         // TEST 7: END-TO-END SERVICE INTEGRATION WITH POLYMORPHIC MODELS
         // -----------------------------------------------------------------------------------
         System.out.print("[TEST 7/7] End-to-End GrievanceManager Integration with Subclasses... ");
-        Database db = new Database();
+        Database.setPersistenceDisabled(true);
+        Database db = new Database();
         GrievanceManager manager = new GrievanceManager(db);
         User citizenUser = new Citizen("C_OOP_1", "Geetha", "geetha.oop@test.com", "9876543250", "hash", "2026-10-11 10:00:00");
         User adminUser = new Admin("A_OOP_1", "admin.oop@makkal.gov.in", "admin.oop@makkal.gov.in", "9876543200", "hash", "Admin Officer", "2026-10-11 00:00:00");

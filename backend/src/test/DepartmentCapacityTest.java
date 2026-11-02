@@ -47,6 +47,7 @@ public class DepartmentCapacityTest {
         int passed = 0;
         int total = 10;
 
+        Database.setPersistenceDisabled(true);
         Database db = new Database();
         GrievanceManager manager = new GrievanceManager(db);
 

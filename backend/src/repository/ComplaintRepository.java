@@ -86,7 +86,7 @@ public class ComplaintRepository {
                      "FROM complaints c " +
                      "LEFT JOIN users u ON c.citizen_id = u.id " +
                      "LEFT JOIN departments d ON c.assigned_department_id = d.id " +
-                     "ORDER BY c.arrival_sequence ASC";
+                     "ORDER BY c.created_at DESC, c.arrival_sequence DESC, c.id DESC";
         try (Connection conn = DatabaseConnection.getConnection();
              PreparedStatement ps = conn.prepareStatement(sql);
              ResultSet rs = ps.executeQuery()) {
@@ -105,7 +105,7 @@ public class ComplaintRepository {
                      "LEFT JOIN users u ON c.citizen_id = u.id " +
                      "LEFT JOIN departments d ON c.assigned_department_id = d.id " +
                      "WHERE c.citizen_id = ? " +
-                     "ORDER BY c.arrival_sequence ASC";
+                     "ORDER BY c.created_at DESC, c.arrival_sequence DESC, c.id DESC";
         try (Connection conn = DatabaseConnection.getConnection();
              PreparedStatement ps = conn.prepareStatement(sql)) {
             ps.setString(1, citizenId.trim());
@@ -126,7 +126,7 @@ public class ComplaintRepository {
                      "LEFT JOIN users u ON c.citizen_id = u.id " +
                      "LEFT JOIN departments d ON c.assigned_department_id = d.id " +
                      "WHERE c.assigned_department_id = ? OR d.name = ? OR c.category = ? " +
-                     "ORDER BY c.arrival_sequence ASC";
+                     "ORDER BY c.created_at DESC, c.arrival_sequence DESC, c.id DESC";
         try (Connection conn = DatabaseConnection.getConnection();
              PreparedStatement ps = conn.prepareStatement(sql)) {
             ps.setString(1, deptIdOrName.trim());
@@ -149,7 +149,7 @@ public class ComplaintRepository {
                      "LEFT JOIN users u ON c.citizen_id = u.id " +
                      "LEFT JOIN departments d ON c.assigned_department_id = d.id " +
                      "WHERE c.assigned_worker_id = ? OR c.resolution_notes LIKE ? " +
-                     "ORDER BY c.arrival_sequence ASC";
+                     "ORDER BY c.created_at DESC, c.arrival_sequence DESC, c.id DESC";
         try (Connection conn = DatabaseConnection.getConnection();
              PreparedStatement ps = conn.prepareStatement(sql)) {
             ps.setString(1, workerId.trim());

@@ -49,6 +49,7 @@ public class DuplicateManagementTest {
         int passed = 0;
         int total = 12;
 
+        Database.setPersistenceDisabled(true);
         Database db = new Database();
         GrievanceManager manager = new GrievanceManager(db);
 

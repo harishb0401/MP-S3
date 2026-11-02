@@ -65,7 +65,10 @@ public class LocationNormalizer {
         loc = loc.replaceAll("[,.;:!#?_/\\\\|\\-\\[\\](){}\"']", " ");
 
         // Normalize common municipal street/address abbreviations with word boundaries
-        loc = loc.replaceAll("\\bstreet\\b", "st");
+                // Normalize ordinal street numbers (1st -> 1, 2nd -> 2, 3rd -> 3, 4th -> 4, etc.)
+        loc = loc.replaceAll("\\b(\\d+)(?:st|nd|rd|th)\\b", "$1");
+
+loc = loc.replaceAll("\\bstreet\\b", "st");
         loc = loc.replaceAll("\\bst\\b", "st");
         loc = loc.replaceAll("\\broad\\b", "rd");
         loc = loc.replaceAll("\\brd\\b", "rd");
@@ -177,5 +180,194 @@ public class LocationNormalizer {
         }
         return null;
     }
-}
 
+    public static final double EARTH_RADIUS_METERS = 6371000.0;
+
+    /**
+     * Calculates the Haversine distance in meters between two GPS coordinates.
+     * Returns -1.0 if any coordinate is null or invalid.
+     */
+    public static double calculateGpsDistanceMeters(Double lat1, Double lon1, Double lat2, Double lon2) {
+        if (lat1 == null || lon1 == null || lat2 == null || lon2 == null) {
+            return -1.0;
+        }
+        if (Double.isNaN(lat1) || Double.isNaN(lon1) || Double.isNaN(lat2) || Double.isNaN(lon2)) {
+            return -1.0;
+        }
+        if (lat1 < -90.0 || lat1 > 90.0 || lat2 < -90.0 || lat2 > 90.0) {
+            return -1.0;
+        }
+        if (lon1 < -180.0 || lon1 > 180.0 || lon2 < -180.0 || lon2 > 180.0) {
+            return -1.0;
+        }
+
+        double phi1 = Math.toRadians(lat1);
+        double phi2 = Math.toRadians(lat2);
+        double deltaPhi = Math.toRadians(lat2 - lat1);
+        double deltaLambda = Math.toRadians(lon2 - lon1);
+
+        double a = Math.sin(deltaPhi / 2.0) * Math.sin(deltaPhi / 2.0) +
+                   Math.cos(phi1) * Math.cos(phi2) *
+                   Math.sin(deltaLambda / 2.0) * Math.sin(deltaLambda / 2.0);
+        double c = 2.0 * Math.atan2(Math.sqrt(a), Math.sqrt(1.0 - a));
+
+        return EARTH_RADIUS_METERS * c;
+    }
+
+    /**
+     * Checks if two coordinate pairs are within a given proximity threshold in meters.
+     */
+    public static boolean isGpsProximityMatch(Double lat1, Double lon1, Double lat2, Double lon2, double thresholdMeters) {
+        double dist = calculateGpsDistanceMeters(lat1, lon1, lat2, lon2);
+        return dist >= 0.0 && dist <= thresholdMeters;
+    }
+
+    /**
+     * Determines whether two location strings match after normalization and token-level comparison.
+     * Enforces numeric token exactness (e.g. street 5 vs street 50) and high lexical similarity.
+     */
+    public static boolean isNormalizedLocationMatch(String locA, String locB) {
+        if (locA == null || locB == null) return false;
+        String normA = normalizeLocation(locA);
+        String normB = normalizeLocation(locB);
+        if (normA == null || normB == null) return false;
+
+        if (normA.equals(normB)) return true;
+
+        // Token set comparison (handles reordering like "Anna Nagar Street 5" vs "Street 5 Anna Nagar")
+        java.util.Set<String> tokensA = new java.util.HashSet<>(java.util.Arrays.asList(normA.split("\\s+")));
+        java.util.Set<String> tokensB = new java.util.HashSet<>(java.util.Arrays.asList(normB.split("\\s+")));
+
+        if (tokensA.equals(tokensB)) return true;
+
+        // Numeric tokens (street numbers, block numbers) must match exactly
+        java.util.Set<String> numsA = new java.util.HashSet<>();
+        java.util.Set<String> numsB = new java.util.HashSet<>();
+        for (String t : tokensA) {
+            String num = t.replaceAll("[^0-9]", "");
+            if (!num.isEmpty()) numsA.add(num);
+        }
+        for (String t : tokensB) {
+            String num = t.replaceAll("[^0-9]", "");
+            if (!num.isEmpty()) numsB.add(num);
+        }
+        if (!numsA.equals(numsB)) return false;
+
+        java.util.Set<String> intersection = new java.util.HashSet<>(tokensA);
+        intersection.retainAll(tokensB);
+
+        int unionSize = tokensA.size() + tokensB.size() - intersection.size();
+        if (unionSize > 0) {
+            double jaccard = (double) intersection.size() / unionSize;
+            if (jaccard >= 0.70) return true;
+        }
+
+        return false;
+    }
+
+    private static final java.util.Set<String> STOP_WORDS = new java.util.HashSet<>(java.util.Arrays.asList(
+            "the", "a", "an", "is", "are", "was", "were", "in", "on", "at", "to", "for", "of", "with",
+            "by", "from", "and", "or", "not", "this", "that", "these", "those", "there", "here", "it",
+            "its", "my", "our", "your", "their", "we", "i", "you", "he", "she", "they", "me", "us",
+            "him", "her", "them", "please", "kindly", "help", "issue", "problem", "complaint", "near",
+            "opposite", "beside", "behind", "front", "facing", "corner", "area", "causing", "causes",
+            "having", "very", "too", "much", "many", "some", "any", "all", "been", "being"
+    ));
+
+    /**
+     * Stems words to canonical roots for robust semantic matching.
+     */
+    public static String stemWord(String word) {
+        if (word == null) return "";
+        String w = word.trim().toLowerCase().replaceAll("[^a-z0-9]", "");
+        if (w.length() <= 3) return w;
+
+        // Domain synonym mappings
+        if (w.equals("potholes") || w.equals("crater") || w.equals("craters") || w.equals("pit") || w.equals("pits")) {
+            return "pothole";
+        }
+        if (w.equals("burst") || w.equals("bursting") || w.equals("leak") || w.equals("leaking") || w.equals("leakage") || w.equals("seep") || w.equals("seepage")) {
+            return "leak";
+        }
+        if (w.equals("garbage") || w.equals("trash") || w.equals("waste") || w.equals("debris") || w.equals("litter")) {
+            return "waste";
+        }
+        if (w.equals("overflow") || w.equals("overflowing") || w.equals("dumping") || w.equals("dumped") || w.equals("piled")) {
+            return "overflow";
+        }
+        if (w.equals("broken") || w.equals("damaged") || w.equals("damaging") || w.equals("damage") || w.equals("destruction")) {
+            return "damage";
+        }
+        if (w.equals("streetlight") || w.equals("streetlights") || w.equals("lamp") || w.equals("lamps") || w.equals("light") || w.equals("lights") || w.equals("bulb") || w.equals("bulbs") || w.equals("tubelight") || w.equals("fixture")) {
+            return "light";
+        }
+
+        // Standard suffix stripping
+        if (w.endsWith("ing") && w.length() > 5) {
+            return w.substring(0, w.length() - 3);
+        }
+        if (w.endsWith("ed") && w.length() > 4) {
+            return w.substring(0, w.length() - 2);
+        }
+        if (w.endsWith("es") && w.length() > 4) {
+            return w.substring(0, w.length() - 2);
+        }
+        if (w.endsWith("s") && w.length() > 3 && !w.endsWith("ss")) {
+            return w.substring(0, w.length() - 1);
+        }
+
+        return w;
+    }
+
+    /**
+     * Extracts meaningful content stems from description text and optional category context.
+     */
+    /**
+     * Extracts meaningful content stems from description text.
+     */
+    public static java.util.Set<String> extractContentTokens(String text) {
+        java.util.Set<String> tokens = new java.util.HashSet<>();
+        if (text == null || text.trim().isEmpty()) return tokens;
+
+        String clean = text.toLowerCase().replaceAll("[^a-z0-9\\s]", " ");
+        for (String word : clean.split("\\s+")) {
+            String w = word.trim();
+            if (w.length() >= 3 && !STOP_WORDS.contains(w)) {
+                String stem = stemWord(w);
+                if (stem.length() >= 3 && !STOP_WORDS.contains(stem)) {
+                    tokens.add(stem);
+                }
+            }
+        }
+        return tokens;
+    }
+
+    public static java.util.Set<String> extractContentTokens(String text, String category) {
+        return extractContentTokens(text);
+    }
+
+    /**
+     * Computes similarity between two complaint descriptions (0.0 to 1.0) using Sorensen-Dice coefficient
+     * over content stems and domain vocabulary.
+     */
+    public static double calculateDescriptionSimilarity(String descA, String descB) {
+        java.util.Set<String> tokensA = extractContentTokens(descA);
+        java.util.Set<String> tokensB = extractContentTokens(descB);
+
+        if (tokensA.isEmpty() || tokensB.isEmpty()) {
+            return 0.0;
+        }
+
+        java.util.Set<String> intersection = new java.util.HashSet<>(tokensA);
+        intersection.retainAll(tokensB);
+
+        int total = tokensA.size() + tokensB.size();
+        if (total == 0) return 0.0;
+
+        return (2.0 * intersection.size()) / (double) total;
+    }
+
+    public static double calculateDescriptionSimilarity(String descA, String descB, String category) {
+        return calculateDescriptionSimilarity(descA, descB);
+    }
+}

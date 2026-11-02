@@ -50,6 +50,12 @@ import java.util.PriorityQueue;
  */
 public class DatabaseMigrationTest {
 
+    public static void main(String[] args) {
+        if (!runAllTests()) {
+            System.exit(1);
+        }
+    }
+
     public static boolean runAllTests() {
         System.out.println("\n===============================================================================");
         System.out.println("   MYSQL DATABASE MIGRATION AUTOMATED TEST SUITE (17 VERIFICATION CRITERIA)");

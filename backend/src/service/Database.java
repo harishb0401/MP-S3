@@ -72,6 +72,7 @@ public class Database {
     }
 
     private Map<String, User> userMap;                           // email/id -> User (HashMap)
+    private Map<String, String> identityMap;                     // identityHash -> citizenId
     private List<Complaint> complaintList;                       // ArrayList of complaints
     private Map<String, Complaint> complaintMap;                 // complaintId -> Complaint (HashMap)
     private PriorityQueue<Complaint> priorityQueue;             // PriorityQueue for global priority ordering
@@ -104,6 +105,7 @@ public class Database {
     public Database(String customDbFilePath) {
         this.customDbFile = customDbFilePath;
         this.userMap = new ConcurrentHashMap<>();
+        this.identityMap = new ConcurrentHashMap<>();
         this.complaintList = new ArrayList<>();
         this.complaintMap = new ConcurrentHashMap<>();
         this.priorityQueue = new PriorityQueue<>(Complaint.PRIORITY_COMPARATOR);
@@ -238,6 +240,90 @@ public class Database {
         }
     }
 
+    // ------------------- UNIQUE IDENTITY VERIFICATION EXCEPTIONS & UTILS -------------------
+    public static class DuplicateIdentityException extends IllegalArgumentException {
+        public DuplicateIdentityException(String message) {
+            super(message);
+        }
+    }
+
+    public static class InvalidIdentityException extends IllegalArgumentException {
+        public InvalidIdentityException(String message) {
+            super(message);
+        }
+    }
+
+    public static String hashIdentity(String rawOrCleanIdentity) {
+        if (rawOrCleanIdentity == null || rawOrCleanIdentity.trim().isEmpty()) return "";
+        String clean = rawOrCleanIdentity.replaceAll("[\\s-]+", "").trim();
+        String salted = "MAKKAL_MUNICIPALITY_IDENTITY_SALT_2026:" + clean;
+        try {
+            MessageDigest md = MessageDigest.getInstance("SHA-256");
+            byte[] hash = md.digest(salted.getBytes(StandardCharsets.UTF_8));
+            StringBuilder hexString = new StringBuilder();
+            for (byte b : hash) {
+                String hex = Integer.toHexString(0xff & b);
+                if (hex.length() == 1) hexString.append('0');
+                hexString.append(hex);
+            }
+            return hexString.toString();
+        } catch (Exception e) {
+            return salted;
+        }
+    }
+
+    public static String maskIdentity(String rawOrCleanIdentity) {
+        if (rawOrCleanIdentity == null) return "";
+        String clean = rawOrCleanIdentity.replaceAll("[\\s-]+", "").trim();
+        if (clean.length() == 12) {
+            return "XXXX-XXXX-" + clean.substring(8);
+        } else if (clean.length() >= 4) {
+            return "XXXX-XXXX-" + clean.substring(clean.length() - 4);
+        }
+        return "XXXX-XXXX-0000";
+    }
+
+    public static void validateIdentityNumber(String rawIdentity) {
+        if (rawIdentity == null || rawIdentity.trim().isEmpty()) {
+            throw new InvalidIdentityException("Identity verification number is required.");
+        }
+        String clean = rawIdentity.replaceAll("[\\s-]+", "").trim();
+        if (!clean.matches("^\\d{12}$")) {
+            throw new InvalidIdentityException("Identity number must be exactly 12 digits.");
+        }
+        if (clean.startsWith("0") || clean.startsWith("1")) {
+            throw new InvalidIdentityException("Identity number cannot start with 0 or 1 per government identity standards.");
+        }
+        boolean allSame = true;
+        for (int i = 1; i < clean.length(); i++) {
+            if (clean.charAt(i) != clean.charAt(0)) {
+                allSame = false;
+                break;
+            }
+        }
+        if (allSame) {
+            throw new InvalidIdentityException("Identity number cannot contain identical repeating digits.");
+        }
+    }
+
+    public synchronized boolean isIdentityRegistered(String rawOrHashedIdentity) {
+        if (rawOrHashedIdentity == null || rawOrHashedIdentity.trim().isEmpty()) return false;
+        String clean = rawOrHashedIdentity.replaceAll("[\\s-]+", "").trim();
+        String hash = (clean.length() == 64 && clean.matches("^[a-fA-F0-9]{64}$"))
+                ? clean.toLowerCase()
+                : hashIdentity(clean);
+        return identityMap.containsKey(hash);
+    }
+
+    public synchronized String getCitizenIdByIdentity(String rawOrHashedIdentity) {
+        if (rawOrHashedIdentity == null || rawOrHashedIdentity.trim().isEmpty()) return null;
+        String clean = rawOrHashedIdentity.replaceAll("[\\s-]+", "").trim();
+        String hash = (clean.length() == 64 && clean.matches("^[a-fA-F0-9]{64}$"))
+                ? clean.toLowerCase()
+                : hashIdentity(clean);
+        return identityMap.get(hash);
+    }
+
     // Hash password using SHA-256
     public static String hashPassword(String rawPassword) {
         if (rawPassword == null) return "";
@@ -340,6 +426,9 @@ public class Database {
                     "C001", "Ramesh", "ramesh@test.com", "9876543210",
                     hashPassword("123456"), "2026-09-14 10:00:00"
             );
+            citizen.setMaskedIdentity("XXXX-XXXX-3210");
+            citizen.setIdentityHash(hashIdentity("987654323210"));
+            identityMap.put(citizen.getIdentityHash(), citizen.getId());
             userMap.put(citizen.getEmail().toLowerCase(), citizen);
             userMap.put(citizen.getId(), citizen);
             userMap.put(citizen.getUsername().toLowerCase(), citizen);
@@ -372,7 +461,12 @@ public class Database {
         if (persistenceDisabled && customDbFile == null) {
             return;
         }
-        try (FileWriter writer = new FileWriter(getEffectiveDbFile(), false)) {
+        File targetFile = new File(getEffectiveDbFile());
+        File parentDir = targetFile.getParentFile();
+        if (parentDir != null && !parentDir.exists()) {
+            parentDir.mkdirs();
+        }
+        try {
             StringBuilder json = new StringBuilder();
             json.append("{\n");
 
@@ -382,9 +476,12 @@ public class Database {
             for (int i = 0; i < uniqueUsers.size(); i++) {
                 User u = uniqueUsers.get(i);
                 json.append(String.format(
-                        "    {\"id\":\"%s\",\"name\":\"%s\",\"email\":\"%s\",\"mobile\":\"%s\",\"passwordHash\":\"%s\",\"role\":\"%s\",\"department\":\"%s\",\"active\":%b,\"createdAt\":\"%s\"}",
-                        escapeJson(u.getId()), escapeJson(u.getDisplayName()), escapeJson(u.getEmail()),
-                        escapeJson(u.getMobile()), escapeJson(u.getPasswordHash()), escapeJson(u.getRole()),
+                        "    {\"id\":\"%s\",\"username\":\"%s\",\"name\":\"%s\",\"email\":\"%s\",\"mobile\":\"%s\",\"passwordHash\":\"%s\",\"identityHash\":\"%s\",\"maskedIdentity\":\"%s\",\"role\":\"%s\",\"department\":\"%s\",\"active\":%b,\"createdAt\":\"%s\"}",
+                        escapeJson(u.getId()), escapeJson(u.getUsername()), escapeJson(u.getDisplayName()), escapeJson(u.getEmail()),
+                        escapeJson(u.getMobile()), escapeJson(u.getPasswordHash()),
+                        escapeJson(u.getIdentityHash() != null ? u.getIdentityHash() : ""),
+                        escapeJson(u.getMaskedIdentity() != null ? u.getMaskedIdentity() : ""),
+                        escapeJson(u.getRole()),
                         escapeJson(u.getDepartment()), u.isActive(), escapeJson(u.getCreatedAt())
                 ));
                 if (i < uniqueUsers.size() - 1) json.append(",");
@@ -446,12 +543,33 @@ public class Database {
             for (int i = 0; i < notificationList.size(); i++) {
                 Notification n = notificationList.get(i);
                 json.append(String.format(
-                        "    {\"notificationId\":\"%s\",\"citizenId\":\"%s\",\"complaintId\":\"%s\",\"originalImpact\":%d,\"verifiedImpact\":%d,\"verificationReason\":\"%s\",\"title\":\"%s\",\"message\":\"%s\",\"createdAt\":\"%s\",\"isRead\":%b}",
-                        escapeJson(n.getNotificationId()), escapeJson(n.getCitizenId()), escapeJson(n.getComplaintId()),
-                        n.getOriginalImpact(), n.getVerifiedImpact(), escapeJson(n.getVerificationReason()),
-                        escapeJson(n.getTitle()), escapeJson(n.getMessage()), escapeJson(n.getCreatedAt()), n.isRead()
+                        "    {\"notificationId\":\"%s\",\"citizenId\":\"%s\",\"recipientId\":\"%s\",\"recipientRole\":\"%s\",\"complaintId\":\"%s\",\"originalImpact\":%d,\"verifiedImpact\":%d,\"verificationReason\":\"%s\",\"title\":\"%s\",\"message\":\"%s\",\"type\":\"%s\",\"createdAt\":\"%s\",\"isRead\":%b}",
+                        escapeJson(n.getNotificationId()),
+                        escapeJson(n.getCitizenId() != null ? n.getCitizenId() : ""),
+                        escapeJson(n.getRecipientId() != null ? n.getRecipientId() : ""),
+                        escapeJson(n.getRecipientRole() != null ? n.getRecipientRole() : ""),
+                        escapeJson(n.getComplaintId() != null ? n.getComplaintId() : ""),
+                        n.getOriginalImpact(), n.getVerifiedImpact(),
+                        escapeJson(n.getVerificationReason() != null ? n.getVerificationReason() : ""),
+                        escapeJson(n.getTitle() != null ? n.getTitle() : ""),
+                        escapeJson(n.getMessage() != null ? n.getMessage() : ""),
+                        escapeJson(n.getType() != null ? n.getType() : "info"),
+                        escapeJson(n.getCreatedAt() != null ? n.getCreatedAt() : ""),
+                        n.isRead()
                 ));
                 if (i < notificationList.size() - 1) json.append(",");
+                json.append("\n");
+            }
+            json.append("  ],\n");
+
+            // 5. Duplicate Tracking (Anti-spam persistent state)
+            Map<String, Integer> dupTracking = duplicateRepository.getTrackingData();
+            json.append("  \"duplicateTracking\": [\n");
+            int dtIdx = 0;
+            for (Map.Entry<String, Integer> entry : dupTracking.entrySet()) {
+                json.append(String.format("    {\"pairKey\":\"%s\",\"citizenCount\":%d}",
+                        escapeJson(entry.getKey()), entry.getValue()));
+                if (++dtIdx < dupTracking.size()) json.append(",");
                 json.append("\n");
             }
             json.append("  ],\n");
@@ -462,8 +580,8 @@ public class Database {
             json.append("  \"notificationCounter\": ").append(notificationCounter).append("\n");
             json.append("}\n");
 
-            writer.write(json.toString());
-        } catch (IOException e) {
+            java.nio.file.Files.write(targetFile.toPath(), json.toString().getBytes(java.nio.charset.StandardCharsets.UTF_8));
+        } catch (Exception e) {
             System.err.println("[DATABASE ERROR] Failed to save database: " + e.getMessage());
         }
     }
@@ -499,8 +617,15 @@ public class Database {
             }
 
             if (notiStart != -1) {
-                int end = (counterStart != -1) ? counterStart : content.length();
+                int dupTrackingStart = content.indexOf("\"duplicateTracking\":");
+                int end = (dupTrackingStart != -1) ? dupTrackingStart : ((counterStart != -1) ? counterStart : content.length());
                 parseNotifications(content.substring(notiStart, end));
+            }
+
+            int dupTrackingStart = content.indexOf("\"duplicateTracking\":");
+            if (dupTrackingStart != -1) {
+                int end = (counterStart != -1) ? counterStart : content.length();
+                parseDuplicateTracking(content.substring(dupTrackingStart, end));
             }
 
             if (counterStart != -1) {
@@ -543,6 +668,7 @@ public class Database {
             String objStr = json.substring(idx, endIdx + 1);
 
             String id = extractJsonVal(objStr, "id");
+            String username = extractJsonVal(objStr, "username");
             String name = extractJsonVal(objStr, "name");
             String email = extractJsonVal(objStr, "email");
             String mobile = extractJsonVal(objStr, "mobile");
@@ -550,27 +676,54 @@ public class Database {
             String role = extractJsonVal(objStr, "role");
             String department = extractJsonVal(objStr, "department");
             String createdAt = extractJsonVal(objStr, "createdAt");
+            String identityHash = extractJsonVal(objStr, "identityHash");
+            String maskedIdentity = extractJsonVal(objStr, "maskedIdentity");
 
             String activeVal = extractJsonVal(objStr, "active");
             boolean active = activeVal.isEmpty() || !"false".equalsIgnoreCase(activeVal);
 
+            if (username.isEmpty()) {
+                if (email != null && email.contains("@")) {
+                    username = email.substring(0, email.indexOf('@'));
+                } else {
+                    username = (email != null && !email.isEmpty()) ? email : id;
+                }
+            }
+
             User u;
             if ("ADMIN".equalsIgnoreCase(role)) {
-                u = new Admin(id, email, email, mobile, passwordHash, name, createdAt);
+                u = new Admin(id, username, email, mobile, passwordHash, name, createdAt);
             } else if ("MANAGER".equalsIgnoreCase(role)) {
-                u = new Manager(id, email, email, mobile, passwordHash, name, createdAt);
+                u = new Manager(id, username, email, mobile, passwordHash, name, createdAt);
             } else if ("STAFF".equalsIgnoreCase(role) || "WORKER".equalsIgnoreCase(role)) {
                 Department dept = getDepartmentByAnyIdentifier(department);
-                u = new DepartmentStaff(id, email, email, mobile, passwordHash, role.toUpperCase(), name,
+                DepartmentStaff ds = new DepartmentStaff(id, username, email, mobile, passwordHash, "STAFF", name,
                         dept != null ? dept.getDepartmentId() : "DEPT-GEN", dept, createdAt);
+                ds.setUsername(username);
+                u = ds;
             } else {
-                u = new Citizen(id, name, email, mobile, passwordHash, createdAt);
+                Citizen c = new Citizen(id, username, name, email, mobile, passwordHash, createdAt);
+                if (identityHash.isEmpty() || maskedIdentity.isEmpty()) {
+                    // Legacy migration: backfill approved mock identity reference
+                    String last4 = (mobile != null && mobile.length() >= 4)
+                            ? mobile.substring(mobile.length() - 4).replaceAll("\\D", "")
+                            : (id.length() >= 4 ? id.substring(id.length() - 4).replaceAll("\\D", "") : "1001");
+                    if (last4.length() < 4) last4 = "1001";
+                    maskedIdentity = "XXXX-XXXX-" + last4;
+                    identityHash = hashIdentity("LEGACY_MIGRATED_" + id + "_" + last4);
+                }
+                c.setIdentityHash(identityHash);
+                c.setMaskedIdentity(maskedIdentity);
+                identityMap.put(identityHash, id);
+                u = c;
             }
             u.setActive(active);
 
             if (u.getEmail() != null) userMap.put(u.getEmail().toLowerCase(), u);
             if (u.getId() != null) userMap.put(u.getId(), u);
-            if (u.getUsername() != null) userMap.put(u.getUsername().toLowerCase(), u);
+            if (u.getUsername() != null && !u.getUsername().trim().isEmpty()) {
+                userMap.put(u.getUsername().toLowerCase().trim(), u);
+            }
 
             idx = endIdx + 1;
         }
@@ -594,6 +747,12 @@ public class Database {
             c.setLocation(extractJsonVal(objStr, "location"));
             c.setDepartmentId(extractJsonVal(objStr, "departmentId"));
             c.setDepartment(extractJsonVal(objStr, "department"));
+            if (c.getDepartment() != null && !c.getDepartment().trim().isEmpty()) {
+                Department d = getDepartmentByAnyIdentifier(c.getDepartment());
+                if (d != null && (c.getDepartmentId() == null || c.getDepartmentId().isEmpty() || !c.getDepartmentId().equalsIgnoreCase(d.getDepartmentId()))) {
+                    c.setDepartmentId(d.getDepartmentId());
+                }
+            }
 
             // Impact & Verification fields
             String citImpact = extractJsonIntVal(objStr, "citizenReportedImpact");
@@ -704,17 +863,35 @@ public class Database {
             String orig = extractJsonIntVal(objStr, "originalImpact");
             String veri = extractJsonIntVal(objStr, "verifiedImpact");
 
+            String notiId = extractJsonVal(objStr, "notificationId");
+            String cId = extractJsonVal(objStr, "citizenId");
+            String rId = extractJsonVal(objStr, "recipientId");
+            String rRole = extractJsonVal(objStr, "recipientRole");
+            String compId = extractJsonVal(objStr, "complaintId");
+            String vReason = extractJsonVal(objStr, "verificationReason");
+            String title = extractJsonVal(objStr, "title");
+            String msg = extractJsonVal(objStr, "message");
+            String type = extractJsonVal(objStr, "type");
+            String cAt = extractJsonVal(objStr, "createdAt");
+            boolean isRead = "true".equalsIgnoreCase(extractJsonVal(objStr, "isRead"));
+
+            if (rId.isEmpty() && !cId.isEmpty()) rId = cId;
+            if (cId.isEmpty() && !rId.isEmpty()) cId = rId;
+
             Notification n = new Notification(
-                    extractJsonVal(objStr, "notificationId"),
-                    extractJsonVal(objStr, "citizenId"),
-                    extractJsonVal(objStr, "complaintId"),
-                    !orig.isEmpty() ? Integer.parseInt(orig) : 1,
-                    !veri.isEmpty() ? Integer.parseInt(veri) : 1,
-                    extractJsonVal(objStr, "verificationReason"),
-                    extractJsonVal(objStr, "title"),
-                    extractJsonVal(objStr, "message"),
-                    extractJsonVal(objStr, "createdAt"),
-                    "true".equalsIgnoreCase(extractJsonVal(objStr, "isRead"))
+                    notiId,
+                    cId,
+                    rId,
+                    rRole,
+                    compId,
+                    !orig.isEmpty() ? Integer.parseInt(orig) : 0,
+                    !veri.isEmpty() ? Integer.parseInt(veri) : 0,
+                    vReason,
+                    title,
+                    msg,
+                    type,
+                    cAt,
+                    isRead
             );
 
             notificationList.add(n);
@@ -884,24 +1061,14 @@ public class Database {
 
     // Auth Operations
     public synchronized User registerUser(String name, String email, String mobile, String rawPassword) {
-        return registerUser(name, email, mobile, rawPassword, "CITIZEN", null);
-    }
-
-    public User authenticateUser(String emailOrId, String rawPassword) {
-        if (emailOrId == null || rawPassword == null) return null;
-        User user = getUserByEmail(emailOrId);
-        if (user == null) {
-            user = getUserById(emailOrId);
-        }
-        if (user == null) return null;
-        if (!user.isActive()) return null;
-        if (user.getPasswordHash() != null && user.getPasswordHash().equals(hashPassword(rawPassword))) {
-            return user;
-        }
-        return null;
+        return registerUser(name, null, email, mobile, rawPassword, "CITIZEN", null, null);
     }
 
     public synchronized User registerUser(String name, String email, String mobile, String rawPassword, String role, String department) {
+        return registerUser(name, null, email, mobile, rawPassword, role, department, null);
+    }
+
+    public synchronized User registerUser(String name, String username, String email, String mobile, String rawPassword, String role, String department, String rawIdentity) {
         String lowerEmail = email.toLowerCase().trim();
         if (getUserByEmail(lowerEmail) != null) {
             return null; // Already exists
@@ -909,16 +1076,40 @@ public class Database {
 
         String userId = "USR" + UUID.randomUUID().toString().substring(0, 8).toUpperCase();
         User user;
+        String nowTime = java.time.LocalDateTime.now().format(java.time.format.DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss"));
+        String uName = (username != null && !username.trim().isEmpty())
+                ? username.trim()
+                : (lowerEmail.contains("@") ? lowerEmail.substring(0, lowerEmail.indexOf('@')) : lowerEmail);
+
         if ("ADMIN".equalsIgnoreCase(role)) {
-            user = new Admin(userId, lowerEmail, lowerEmail, mobile, hashPassword(rawPassword), name, "2026-09-14 12:00:00");
+            user = new Admin(userId, uName, lowerEmail, mobile, hashPassword(rawPassword), name, nowTime);
         } else if ("MANAGER".equalsIgnoreCase(role)) {
-            user = new Manager(userId, lowerEmail, lowerEmail, mobile, hashPassword(rawPassword), name, "2026-09-14 12:00:00");
+            user = new Manager(userId, uName, lowerEmail, mobile, hashPassword(rawPassword), name, nowTime);
         } else if ("STAFF".equalsIgnoreCase(role) || "WORKER".equalsIgnoreCase(role)) {
             Department dept = getDepartmentByAnyIdentifier(department);
-            user = new DepartmentStaff(userId, lowerEmail, lowerEmail, mobile, hashPassword(rawPassword), role.toUpperCase(), name,
-                    dept != null ? dept.getDepartmentId() : "DEPT-GEN", dept, "2026-09-14 12:00:00");
+            user = new DepartmentStaff(userId, uName, lowerEmail, mobile, hashPassword(rawPassword), role.toUpperCase(), name,
+                    dept != null ? dept.getDepartmentId() : "DEPT-GEN", dept, nowTime);
         } else {
-            user = new Citizen(userId, name, lowerEmail, mobile, hashPassword(rawPassword), "2026-09-14 12:00:00");
+            Citizen c = new Citizen(userId, uName, name, lowerEmail, mobile, hashPassword(rawPassword), nowTime);
+            String idHash;
+            String masked;
+            if (rawIdentity != null && !rawIdentity.trim().isEmpty()) {
+                validateIdentityNumber(rawIdentity);
+                idHash = hashIdentity(rawIdentity);
+                if (identityMap.containsKey(idHash) || isIdentityRegistered(idHash)) {
+                    throw new DuplicateIdentityException("This identity number is already associated with an existing citizen account.");
+                }
+                masked = maskIdentity(rawIdentity);
+            } else {
+                // Backward-compatible mock reference for legacy programmatic callers
+                String mockNum = "2" + String.format("%011d", Math.abs((userId + lowerEmail).hashCode() % 100000000000L));
+                idHash = hashIdentity(mockNum);
+                masked = maskIdentity(mockNum);
+            }
+            c.setIdentityHash(idHash);
+            c.setMaskedIdentity(masked);
+            identityMap.put(idHash, userId);
+            user = c;
         }
 
         userMap.put(lowerEmail, user);
@@ -939,6 +1130,23 @@ public class Database {
             saveDatabase();
         }
         return user;
+    }
+
+    public User authenticateUser(String emailOrId, String rawPassword) {
+        if (emailOrId == null || rawPassword == null) return null;
+        User user = getUserByEmail(emailOrId);
+        if (user == null) {
+            user = getUserByUsername(emailOrId);
+        }
+        if (user == null) {
+            user = getUserById(emailOrId);
+        }
+        if (user == null) return null;
+        if (!user.isActive()) return null;
+        if (user.getPasswordHash() != null && user.getPasswordHash().equals(hashPassword(rawPassword))) {
+            return user;
+        }
+        return null;
     }
 
     public User getUserByEmail(String email) {
@@ -967,6 +1175,73 @@ public class Database {
             } catch (SQLException ignored) {}
         }
         return u;
+    }
+
+    public User getUserByUsername(String username) {
+        if (username == null) return null;
+        String clean = username.toLowerCase().trim();
+        User u = userMap.get(clean);
+        if (u == null) {
+            for (User user : getUniqueUsers()) {
+                if (user.getUsername() != null && user.getUsername().equalsIgnoreCase(clean)) {
+                    userMap.put(clean, user);
+                    return user;
+                }
+            }
+        }
+        if (u == null && useMySql) {
+            try {
+                u = userRepository.findByUsernameOrEmail(clean);
+                if (u != null) {
+                    userMap.put(u.getId(), u);
+                    userMap.put(u.getEmail().toLowerCase().trim(), u);
+                    if (u.getUsername() != null && !u.getUsername().trim().isEmpty()) {
+                        userMap.put(u.getUsername().toLowerCase().trim(), u);
+                    }
+                }
+            } catch (SQLException ignored) {}
+        }
+        return u;
+    }
+
+    public synchronized boolean isEmailTaken(String email, String excludeUserId) {
+        if (email == null || email.trim().isEmpty()) return false;
+        String clean = email.trim().toLowerCase();
+        for (User u : getUniqueUsers()) {
+            if (excludeUserId != null && u.getId().equalsIgnoreCase(excludeUserId)) continue;
+            if (u.getEmail() != null && u.getEmail().trim().equalsIgnoreCase(clean)) {
+                return true;
+            }
+        }
+        if (useMySql) {
+            try {
+                User dbUser = userRepository.findByEmail(clean);
+                if (dbUser != null && (excludeUserId == null || !dbUser.getId().equalsIgnoreCase(excludeUserId))) {
+                    return true;
+                }
+            } catch (SQLException ignored) {}
+        }
+        return false;
+    }
+
+    public synchronized boolean isUsernameTaken(String username, String excludeUserId) {
+        if (username == null || username.trim().isEmpty()) return false;
+        String clean = username.trim().toLowerCase();
+        for (User u : getUniqueUsers()) {
+            if (excludeUserId != null && u.getId().equalsIgnoreCase(excludeUserId)) continue;
+            if (u.getUsername() != null && u.getUsername().trim().equalsIgnoreCase(clean)) {
+                return true;
+            }
+        }
+        if (useMySql) {
+            try {
+                User dbUser = userRepository.findByUsernameOrEmail(clean);
+                if (dbUser != null && (excludeUserId == null || !dbUser.getId().equalsIgnoreCase(excludeUserId))) {
+                    return true;
+                }
+            } catch (SQLException ignored) {}
+        }
+        return false;
     }
 
     public User getUserById(String id) {
@@ -1014,6 +1289,69 @@ public class Database {
         return null;
     }
 
+    // ------------------- REGISTERED CITIZEN MANAGEMENT -------------------
+    public synchronized List<Citizen> getAllCitizens() {
+        List<Citizen> citizens = new ArrayList<>();
+        Set<String> seen = new HashSet<>();
+        for (User u : userMap.values()) {
+            if (u instanceof Citizen && "CITIZEN".equalsIgnoreCase(u.getRole()) && seen.add(u.getId())) {
+                citizens.add((Citizen) u);
+            }
+        }
+        citizens.sort((a, b) -> {
+            String d1 = a.getCreatedAt() != null ? a.getCreatedAt() : "";
+            String d2 = b.getCreatedAt() != null ? b.getCreatedAt() : "";
+            return d2.compareTo(d1);
+        });
+        return citizens;
+    }
+
+    public synchronized Citizen getCitizenById(String citizenId) {
+        if (citizenId == null || citizenId.trim().isEmpty()) return null;
+        String cleanId = citizenId.trim();
+        User u = userMap.get(cleanId);
+        if (u instanceof Citizen) return (Citizen) u;
+        for (User user : userMap.values()) {
+            if (user instanceof Citizen && user.getId().equalsIgnoreCase(cleanId)) {
+                return (Citizen) user;
+            }
+        }
+        return null;
+    }
+
+    public synchronized Map<String, Integer> getCitizenComplaintStats(String citizenId) {
+        Map<String, Integer> stats = new HashMap<>();
+        int total = 0;
+        int pending = 0;
+        int inProgress = 0;
+        int resolved = 0;
+        int rejected = 0;
+        if (citizenId != null && !citizenId.trim().isEmpty()) {
+            String clean = citizenId.trim();
+            for (Complaint c : getAllComplaints()) {
+                if (clean.equalsIgnoreCase(c.getCitizenId())) {
+                    total++;
+                    String s = (c.getStatus() != null ? c.getStatus() : "").toUpperCase();
+                    if ("RESOLVED".equals(s)) {
+                        resolved++;
+                    } else if ("IN_PROGRESS".equals(s) || "TRIAGED".equals(s) || "ASSIGNED".equals(s)) {
+                        inProgress++;
+                    } else if ("REJECTED".equals(s)) {
+                        rejected++;
+                    } else {
+                        pending++;
+                    }
+                }
+            }
+        }
+        stats.put("total", total);
+        stats.put("pending", pending);
+        stats.put("inProgress", inProgress);
+        stats.put("resolved", resolved);
+        stats.put("rejected", rejected);
+        return stats;
+    }
+
     // ------------------- WORKER MANAGEMENT -------------------
     public synchronized List<DepartmentStaff> getAllWorkers() {
         List<DepartmentStaff> workers = new ArrayList<>();
@@ -1027,15 +1365,47 @@ public class Database {
     }
 
     public synchronized DepartmentStaff createWorker(String name, String email, String mobile, String rawPassword, String departmentName, User adminActor) {
+        return createWorker(name, null, email, mobile, rawPassword, departmentName, adminActor);
+    }
+
+    public synchronized DepartmentStaff createWorker(String name, String username, String email, String mobile, String rawPassword, String departmentName, User adminActor) {
         if (adminActor == null || !adminActor.isAdmin()) {
             throw new SecurityException("Unauthorized: Only administrators can create workers.");
         }
-        if (name == null || name.trim().isEmpty() || email == null || email.trim().isEmpty() || rawPassword == null || rawPassword.trim().isEmpty()) {
-            throw new IllegalArgumentException("Worker name, email, and password are required.");
+        if (name == null || name.trim().isEmpty()) {
+            throw new IllegalArgumentException("Worker name is required.");
         }
-        String lowerEmail = email.toLowerCase().trim();
-        if (userMap.containsKey(lowerEmail)) {
-            throw new IllegalArgumentException("An account with email " + email + " already exists.");
+        if (email == null || email.trim().isEmpty()) {
+            throw new IllegalArgumentException("Email is required.");
+        }
+        String cleanEmail = email.toLowerCase().trim();
+        if (!cleanEmail.contains("@") || !cleanEmail.contains(".")) {
+            throw new IllegalArgumentException("Invalid email format: " + email);
+        }
+        String cleanUsername = (username != null && !username.trim().isEmpty())
+                ? username.trim().toLowerCase()
+                : (cleanEmail.contains("@") ? cleanEmail.substring(0, cleanEmail.indexOf('@')) : cleanEmail);
+        if (cleanUsername.isEmpty()) {
+            throw new IllegalArgumentException("Username is required.");
+        }
+        if (mobile == null || mobile.trim().isEmpty()) {
+            throw new IllegalArgumentException("Mobile number is required.");
+        }
+        if (rawPassword == null || rawPassword.trim().isEmpty()) {
+            throw new IllegalArgumentException("Password is required.");
+        }
+        if (rawPassword.trim().length() < 6) {
+            throw new IllegalArgumentException("Password must be at least 6 characters long.");
+        }
+        if (departmentName == null || departmentName.trim().isEmpty()) {
+            throw new IllegalArgumentException("Department assignment is required.");
+        }
+
+        if (isEmailTaken(cleanEmail, null)) {
+            throw new IllegalArgumentException("An account with email '" + email + "' already exists.");
+        }
+        if (isUsernameTaken(cleanUsername, null)) {
+            throw new IllegalArgumentException("Username '" + cleanUsername + "' is already taken.");
         }
 
         Department dept = getDepartmentByAnyIdentifier(departmentName);
@@ -1044,19 +1414,23 @@ public class Database {
         }
         String workerId = "WRK" + UUID.randomUUID().toString().substring(0, 6).toUpperCase();
         DepartmentStaff worker = new DepartmentStaff(
-                workerId, lowerEmail, lowerEmail, mobile, hashPassword(rawPassword), "WORKER",
+                workerId, cleanUsername, cleanEmail, mobile.trim(), hashPassword(rawPassword.trim()), "STAFF",
                 name.trim(), dept != null ? dept.getDepartmentId() : "DEPT-GEN", dept,
                 java.time.LocalDateTime.now().format(java.time.format.DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss"))
         );
-        userMap.put(lowerEmail, worker);
+        worker.setUsername(cleanUsername);
+        worker.setRole("STAFF");
+        worker.setActive(true);
+
+        userMap.put(cleanEmail, worker);
         userMap.put(workerId, worker);
-        userMap.put(worker.getUsername().toLowerCase(), worker);
+        userMap.put(cleanUsername, worker);
 
         if (useMySql) {
             try {
                 userRepository.save(worker);
                 auditLogRepository.log(adminActor.getId(), "CREATE_WORKER", "USER", workerId,
-                        "Created worker: " + worker.getStaffName() + " for " + worker.getDepartment());
+                        "Created worker: " + worker.getStaffName() + " (" + cleanUsername + ") for " + worker.getDepartment());
             } catch (SQLException e) {
                 System.err.println("[MYSQL WORKER ERROR] " + e.getMessage());
                 throw new RuntimeException("MySQL Persistence Error: " + e.getMessage(), e);
@@ -1067,11 +1441,99 @@ public class Database {
         return worker;
     }
 
+    public synchronized List<DepartmentStaff> createMultipleWorkers(List<Map<String, String>> workerDataList, User adminActor) {
+        if (adminActor == null || !adminActor.isAdmin()) {
+            throw new SecurityException("Unauthorized: Only administrators can create workers.");
+        }
+        if (workerDataList == null || workerDataList.isEmpty()) {
+            throw new IllegalArgumentException("Worker list cannot be empty.");
+        }
+
+        // 1. Batch-level validation: check internal duplicates within the submitted batch
+        Set<String> batchEmails = new HashSet<>();
+        Set<String> batchUsernames = new HashSet<>();
+
+        for (int i = 0; i < workerDataList.size(); i++) {
+            Map<String, String> data = workerDataList.get(i);
+            int rowNum = i + 1;
+            String name = data.get("name");
+            String email = data.get("email");
+            String username = data.get("username");
+            String mobile = data.get("mobile");
+            String password = data.get("password");
+            String dept = data.get("department");
+
+            if (name == null || name.trim().isEmpty()) {
+                throw new IllegalArgumentException("Row " + rowNum + ": Officer Name is required.");
+            }
+            if (email == null || email.trim().isEmpty()) {
+                throw new IllegalArgumentException("Row " + rowNum + ": Email is required.");
+            }
+            String cleanEmail = email.toLowerCase().trim();
+            if (!cleanEmail.contains("@") || !cleanEmail.contains(".")) {
+                throw new IllegalArgumentException("Row " + rowNum + ": Invalid email format (" + email + ").");
+            }
+            String cleanUsername = (username != null && !username.trim().isEmpty())
+                    ? username.trim().toLowerCase()
+                    : (cleanEmail.contains("@") ? cleanEmail.substring(0, cleanEmail.indexOf('@')) : cleanEmail);
+
+            if (batchEmails.contains(cleanEmail)) {
+                throw new IllegalArgumentException("Row " + rowNum + ": Duplicate email within submission batch (" + cleanEmail + ").");
+            }
+            batchEmails.add(cleanEmail);
+
+            if (batchUsernames.contains(cleanUsername)) {
+                throw new IllegalArgumentException("Row " + rowNum + ": Duplicate username within submission batch (" + cleanUsername + ").");
+            }
+            batchUsernames.add(cleanUsername);
+
+            if (isEmailTaken(cleanEmail, null)) {
+                throw new IllegalArgumentException("Row " + rowNum + ": Email '" + email + "' is already registered in the system.");
+            }
+            if (isUsernameTaken(cleanUsername, null)) {
+                throw new IllegalArgumentException("Row " + rowNum + ": Username '" + cleanUsername + "' is already taken in the system.");
+            }
+
+            if (mobile == null || mobile.trim().isEmpty()) {
+                throw new IllegalArgumentException("Row " + rowNum + ": Mobile number is required.");
+            }
+            if (password == null || password.trim().isEmpty()) {
+                throw new IllegalArgumentException("Row " + rowNum + ": Password is required.");
+            }
+            if (password.trim().length() < 6) {
+                throw new IllegalArgumentException("Row " + rowNum + ": Password must be at least 6 characters long.");
+            }
+            if (dept == null || dept.trim().isEmpty()) {
+                throw new IllegalArgumentException("Row " + rowNum + ": Department is required.");
+            }
+        }
+
+        // 2. All rows valid -> Create each worker
+        List<DepartmentStaff> createdWorkers = new ArrayList<>();
+        for (Map<String, String> data : workerDataList) {
+            String name = data.get("name").trim();
+            String email = data.get("email").trim();
+            String username = data.get("username");
+            String mobile = data.get("mobile").trim();
+            String password = data.get("password").trim();
+            String dept = data.get("department").trim();
+
+            DepartmentStaff w = createWorker(name, username, email, mobile, password, dept, adminActor);
+            createdWorkers.add(w);
+        }
+
+        return createdWorkers;
+    }
+
     public synchronized DepartmentStaff updateWorker(String workerId, String name, String mobile, String departmentName, Boolean active, User adminActor) {
-        return updateWorker(workerId, name, null, mobile, departmentName, active, adminActor);
+        return updateWorker(workerId, name, null, null, mobile, departmentName, active, adminActor);
     }
 
     public synchronized DepartmentStaff updateWorker(String workerId, String name, String email, String mobile, String departmentName, Boolean active, User adminActor) {
+        return updateWorker(workerId, name, null, email, mobile, departmentName, active, adminActor);
+    }
+
+    public synchronized DepartmentStaff updateWorker(String workerId, String name, String username, String email, String mobile, String departmentName, Boolean active, User adminActor) {
         if (adminActor == null || !adminActor.isAdmin()) {
             throw new SecurityException("Unauthorized: Only administrators can update workers.");
         }
@@ -1084,11 +1546,33 @@ public class Database {
 
         if (name != null && !name.trim().isEmpty()) {
             worker.setStaffName(name.trim());
-            worker.setUsername(name.trim());
         }
-        if (mobile != null) {
+
+        if (username != null && !username.trim().isEmpty()) {
+            String cleanUsername = username.trim().toLowerCase();
+            if (isUsernameTaken(cleanUsername, workerId)) {
+                throw new IllegalArgumentException("Username '" + username + "' is already taken.");
+            }
+            worker.setUsername(cleanUsername);
+            userMap.put(cleanUsername, worker);
+        }
+
+        if (email != null && !email.trim().isEmpty()) {
+            String cleanEmail = email.trim().toLowerCase();
+            if (!cleanEmail.contains("@") || !cleanEmail.contains(".")) {
+                throw new IllegalArgumentException("Invalid email format: " + email);
+            }
+            if (isEmailTaken(cleanEmail, workerId)) {
+                throw new IllegalArgumentException("Email '" + email + "' is already registered to another user.");
+            }
+            worker.setEmail(cleanEmail);
+            userMap.put(cleanEmail, worker);
+        }
+
+        if (mobile != null && !mobile.trim().isEmpty()) {
             worker.setMobile(mobile.trim());
         }
+
         if (active != null) {
             worker.setActive(active);
         }
@@ -1284,7 +1768,9 @@ public class Database {
     }
 
     public List<Complaint> getAllComplaints() {
-        return new ArrayList<>(complaintList);
+        List<Complaint> list = new ArrayList<>(complaintList);
+        list.sort(Complaint.NEWEST_FIRST_COMPARATOR);
+        return list;
     }
 
     public List<Complaint> getComplaintsByCitizenId(String citizenId) {
@@ -1294,6 +1780,7 @@ public class Database {
                 result.add(c);
             }
         }
+        result.sort(Complaint.NEWEST_FIRST_COMPARATOR);
         return result;
     }
 
@@ -1476,21 +1963,118 @@ public class Database {
         saveDatabase();
     }
 
-    public List<Notification> getNotificationsForUser(User user) {
-        if (user == null) return new ArrayList<>();
-        List<Notification> list = new ArrayList<>();
-        String uId = user.getId();
-        for (Notification n : notificationList) {
-            if (n.getCitizenId() != null) {
-                String target = n.getCitizenId();
-                if (target.equalsIgnoreCase(uId) ||
-                    ((user.isAdmin() || user.isManager()) && target.equalsIgnoreCase("ADMIN_OR_MANAGER")) ||
-                    (user.isAdmin() && (target.equalsIgnoreCase("ADMIN") || target.equalsIgnoreCase("ALL_ADMINS"))) ||
-                    (user.isManager() && (target.equalsIgnoreCase("MANAGER") || target.equalsIgnoreCase("ALL_MANAGERS")))) {
-                    list.add(n);
+    public synchronized Notification createNotification(String recipientId, String recipientRole, String complaintId,
+                                                         String title, String message, String type) {
+        if (title == null) title = "";
+        if (message == null) message = "";
+        if (complaintId == null) complaintId = "";
+
+        // Deduplication: prevent identical notifications for the same event and target
+        for (Notification existing : notificationList) {
+            if (existing.getComplaintId() != null && existing.getComplaintId().equalsIgnoreCase(complaintId) &&
+                existing.getTitle() != null && existing.getTitle().equalsIgnoreCase(title)) {
+                boolean sameRecipient = (recipientId == null && existing.getRecipientId() == null) ||
+                        (recipientId != null && recipientId.equalsIgnoreCase(existing.getRecipientId())) ||
+                        (recipientId != null && recipientId.equalsIgnoreCase(existing.getCitizenId()));
+                boolean sameRole = (recipientRole == null && existing.getRecipientRole() == null) ||
+                        (recipientRole != null && recipientRole.equalsIgnoreCase(existing.getRecipientRole()));
+                if (sameRecipient || sameRole) {
+                    return existing;
                 }
             }
         }
+
+        Notification n = new Notification(
+                generateNotificationId(),
+                recipientId,
+                recipientRole,
+                complaintId,
+                title,
+                message,
+                type != null ? type : "info"
+        );
+        notificationList.add(n);
+        saveDatabase();
+        return n;
+    }
+
+    public boolean isNotificationForUser(Notification n, User user) {
+        if (n == null || user == null) return false;
+        String uId = user.getId();
+        String uName = user.getUsername();
+        String rId = n.getRecipientId();
+        String cId = n.getCitizenId();
+        String target = (rId != null && !rId.isEmpty()) ? rId : cId;
+
+        // 1. Direct ID / username match
+        if (target != null && !target.isEmpty()) {
+            if (target.equalsIgnoreCase(uId) || target.equalsIgnoreCase(uName)) {
+                return true;
+            }
+            if (user.getDisplayName() != null &&
+                (target.equalsIgnoreCase(user.getDisplayName()) ||
+                 user.getDisplayName().toLowerCase().contains(target.toLowerCase()) ||
+                 target.toLowerCase().contains(user.getDisplayName().toLowerCase()))) {
+                return true;
+            }
+            if (user instanceof DepartmentStaff) {
+                DepartmentStaff staff = (DepartmentStaff) user;
+                if ((staff.getStaffName() != null &&
+                        (target.equalsIgnoreCase(staff.getStaffName()) ||
+                         target.toLowerCase().contains(staff.getStaffName().toLowerCase()) ||
+                         staff.getStaffName().toLowerCase().contains(target.toLowerCase()))) ||
+                    (staff.getStaffId() != null && target.equalsIgnoreCase(staff.getStaffId())) ||
+                    (target.toLowerCase().contains(uName.toLowerCase()))) {
+                    return true;
+                }
+            }
+        }
+
+        // 2. Role matching
+        String rRole = n.getRecipientRole();
+        if (user.isAdmin()) {
+            if ("ADMIN".equalsIgnoreCase(rRole) || "ALL_ADMINS".equalsIgnoreCase(rRole) ||
+                "ADMIN_OR_MANAGER".equalsIgnoreCase(rRole) || "ALL".equalsIgnoreCase(rRole)) return true;
+            if (target != null && ("ADMIN".equalsIgnoreCase(target) || "ALL_ADMINS".equalsIgnoreCase(target) ||
+                "ADMIN_OR_MANAGER".equalsIgnoreCase(target) || "ALL".equalsIgnoreCase(target))) return true;
+        }
+
+        if (user.isManager()) {
+            if ("MANAGER".equalsIgnoreCase(rRole) || "ALL_MANAGERS".equalsIgnoreCase(rRole) ||
+                "ADMIN_OR_MANAGER".equalsIgnoreCase(rRole) || "ALL".equalsIgnoreCase(rRole)) return true;
+            if (target != null && ("MANAGER".equalsIgnoreCase(target) || "ALL_MANAGERS".equalsIgnoreCase(target) ||
+                "ADMIN_OR_MANAGER".equalsIgnoreCase(target) || "ALL".equalsIgnoreCase(target))) return true;
+        }
+
+        if (user.isWorker()) {
+            if ("STAFF".equalsIgnoreCase(rRole) || "WORKER".equalsIgnoreCase(rRole) ||
+                "ALL_STAFF".equalsIgnoreCase(rRole) || "ALL_WORKERS".equalsIgnoreCase(rRole) || "ALL".equalsIgnoreCase(rRole)) return true;
+            if (target != null && ("STAFF".equalsIgnoreCase(target) || "WORKER".equalsIgnoreCase(target) ||
+                "ALL_STAFF".equalsIgnoreCase(target) || "ALL_WORKERS".equalsIgnoreCase(target) || "ALL".equalsIgnoreCase(target))) return true;
+        }
+
+        if (user.isCitizen()) {
+            if ("CITIZEN".equalsIgnoreCase(rRole) && (target == null || target.isEmpty())) return true;
+            if (target != null && target.equalsIgnoreCase("ALL_CITIZENS")) return true;
+        }
+
+        return false;
+    }
+
+    public List<Notification> getNotificationsForUser(User user) {
+        if (user == null) return new ArrayList<>();
+        List<Notification> list = new ArrayList<>();
+        for (Notification n : notificationList) {
+            if (isNotificationForUser(n, user)) {
+                list.add(n);
+            }
+        }
+        list.sort((a, b) -> {
+            if (a.getCreatedAt() == null && b.getCreatedAt() == null) return 0;
+            if (a.getCreatedAt() == null) return 1;
+            if (b.getCreatedAt() == null) return -1;
+            return b.getCreatedAt().compareTo(a.getCreatedAt());
+        });
         return list;
     }
 
@@ -1509,7 +2093,83 @@ public class Database {
         return list;
     }
 
+    public synchronized boolean markNotificationAsRead(String notificationId, User user) {
+        if (notificationId == null || user == null) return false;
+        for (Notification n : notificationList) {
+            if (n.getNotificationId().equalsIgnoreCase(notificationId)) {
+                if (isNotificationForUser(n, user) || user.isAdmin()) {
+                    n.setRead(true);
+                    saveDatabase();
+                    return true;
+                }
+            }
+        }
+        return false;
+    }
+
+    public synchronized int markAllNotificationsAsRead(User user) {
+        if (user == null) return 0;
+        int count = 0;
+        for (Notification n : notificationList) {
+            if (!n.isRead() && (isNotificationForUser(n, user) || user.isAdmin())) {
+                n.setRead(true);
+                count++;
+            }
+        }
+        if (count > 0) {
+            saveDatabase();
+        }
+        return count;
+    }
+
+    public int getUnreadNotificationCount(User user) {
+        if (user == null) return 0;
+        int count = 0;
+        for (Notification n : notificationList) {
+            if (!n.isRead() && isNotificationForUser(n, user)) {
+                count++;
+            }
+        }
+        return count;
+    }
+
     public List<Notification> getAllNotifications() {
         return new ArrayList<>(notificationList);
+    }
+
+    private void parseDuplicateTracking(String json) {
+        int idx = 0;
+        Map<String, Integer> tracking = new HashMap<>();
+        while ((idx = json.indexOf("{\"pairKey\":", idx)) != -1) {
+            int close = json.indexOf("}", idx);
+            if (close == -1) break;
+            String objStr = json.substring(idx, close + 1);
+            String pairKey = extractJsonVal(objStr, "pairKey");
+            String countStr = extractJsonIntVal(objStr, "citizenCount");
+            int count = countStr.isEmpty() ? 0 : Integer.parseInt(countStr);
+            if (!pairKey.isEmpty()) {
+                tracking.put(pairKey, count);
+            }
+            idx = close + 1;
+        }
+        duplicateRepository.loadTrackingData(tracking);
+    }
+
+    public synchronized void recordDuplicateNotification(String pairKey, int citizenCount) {
+        duplicateRepository.recordNotificationSent(pairKey, citizenCount);
+        saveDatabase();
+    }
+
+    public synchronized int getNotifiedDuplicateCitizenCount(String pairKey) {
+        return duplicateRepository.getNotifiedCitizenCount(pairKey);
+    }
+
+    public synchronized boolean hasDuplicateNotificationBeenSent(String pairKey, int citizenCount) {
+        return duplicateRepository.hasNotificationBeenSent(pairKey, citizenCount);
+    }
+
+    public synchronized void clearDuplicateTracking() {
+        duplicateRepository.clearTracking();
+        saveDatabase();
     }
 }

@@ -205,11 +205,18 @@ public class DataValidator {
 
             // d. Severity Validation
             String severity = c.getSeverity();
-            if (severity == null || !VALID_SEVERITIES.contains(severity.trim().toUpperCase())) {
+            if (severity != null && !severity.trim().isEmpty() && !"UNASSESSED".equalsIgnoreCase(severity.trim())) {
+                if (!VALID_SEVERITIES.contains(severity.trim().toUpperCase())) {
+                    report.errors.add("Complaint " + cid + " has invalid severity value: '" + severity + "' (Allowed: CRITICAL, HIGH, MEDIUM, LOW).");
+                    hasRecordError = true;
+                } else {
+                    report.severityCounts.merge(severity.trim().toUpperCase(), 1, Integer::sum);
+                }
+            } else if (severity == null || "UNASSESSED".equalsIgnoreCase(severity.trim())) {
+                report.severityCounts.merge("UNASSESSED", 1, Integer::sum);
+            } else {
                 report.errors.add("Complaint " + cid + " has invalid severity value: '" + severity + "' (Allowed: CRITICAL, HIGH, MEDIUM, LOW).");
                 hasRecordError = true;
-            } else {
-                report.severityCounts.merge(severity.trim().toUpperCase(), 1, Integer::sum);
             }
 
             // e. Affected-Person Count Validation

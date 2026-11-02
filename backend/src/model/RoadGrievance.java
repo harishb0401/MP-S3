@@ -10,20 +10,26 @@ public class RoadGrievance extends Complaint {
         super();
         this.category = "Roads";
         this.department = "Roads Department";
-        this.departmentId = "DEPT-ROADS";
+        if (this.departmentId == null || this.departmentId.isEmpty()) {
+            this.departmentId = "DEPT-ROADS";
+        }
     }
 
     public RoadGrievance(String id, String complaintId, String citizenId, String citizenName, String citizenMobile,
                          String description, String location, int citizenReportedImpact, String priority, String status) {
         super(id, complaintId, citizenId, citizenName, citizenMobile, "Roads", description, location, "Roads Department", citizenReportedImpact, priority, status);
-        this.departmentId = "DEPT-ROADS";
+        if (this.departmentId == null || this.departmentId.isEmpty()) {
+            this.departmentId = "DEPT-ROADS";
+        }
     }
 
     public RoadGrievance(String id, String complaintId, String citizenId, String citizenName, String citizenMobile,
                          String category, String description, String location, String department,
                          int citizenReportedImpact, String priority, String status) {
         super(id, complaintId, citizenId, citizenName, citizenMobile, category != null ? category : "Roads", description, location, department != null ? department : "Roads Department", citizenReportedImpact, priority, status);
-        this.departmentId = "DEPT-ROADS";
+        if (this.departmentId == null || this.departmentId.isEmpty()) {
+            this.departmentId = "DEPT-ROADS";
+        }
     }
 
     public RoadGrievance(Complaint source) {
@@ -34,7 +40,9 @@ public class RoadGrievance extends Complaint {
         if (this.department == null || this.department.isEmpty()) {
             this.department = "Roads Department";
         }
-        this.departmentId = "DEPT-ROADS";
+        if (this.departmentId == null || this.departmentId.isEmpty()) {
+            this.departmentId = "DEPT-ROADS";
+        }
     }
 
     @Override

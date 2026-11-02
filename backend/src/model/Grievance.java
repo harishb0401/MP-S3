@@ -233,11 +233,22 @@ public abstract class Grievance {
     }
     public void setTitle(String title) { this.title = title; }
 
-    public String getDepartment() { return department; }
+    public String getDepartment() {
+        if (department != null && !department.trim().isEmpty()) {
+            return department;
+        }
+        if ("DEPT-WATER".equalsIgnoreCase(departmentId)) return "Water Department";
+        if ("DEPT-ROADS".equalsIgnoreCase(departmentId)) return "Roads Department";
+        if ("DEPT-WASTE".equalsIgnoreCase(departmentId)) return "Waste Management Department";
+        if ("DEPT-LIGHT".equalsIgnoreCase(departmentId)) return "Streetlight Department";
+        if ("DEPT-GEN".equalsIgnoreCase(departmentId)) return "General Administration";
+        return department;
+    }
     public void setDepartment(String department) { this.department = department; }
 
     public String getAssignedDepartment() {
-        return department != null ? department : "Unassigned";
+        String d = getDepartment();
+        return d != null && !d.trim().isEmpty() ? d : "Unassigned";
     }
 
     public int getCitizenReportedImpact() { return citizenReportedImpact; }

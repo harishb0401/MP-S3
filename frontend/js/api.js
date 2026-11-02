@@ -38,11 +38,17 @@ const ApiClient = {
     },
 
     // 1. Citizen Registration
-    async registerCitizen(name, email, mobile, password) {
+    async registerCitizen(name, email, mobile, password, identityNumber) {
+        let payload;
+        if (typeof name === 'object') {
+            payload = name;
+        } else {
+            payload = { name, email, mobile, password, identityNumber };
+        }
         const response = await fetch(`${API_BASE_URL}/auth/register`, {
             method: "POST",
             headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ name, email, mobile, password })
+            body: JSON.stringify(payload)
         });
         return this.handleResponse(response);
     },
@@ -217,10 +223,34 @@ const ApiClient = {
         return this.handleResponse(response);
     },
 
-    // 15. Get Citizen Notifications
+    // 15. Notifications API
     async getNotifications() {
         const response = await fetch(`${API_BASE_URL}/notifications/my`, {
             method: "GET",
+            headers: this.getHeaders()
+        });
+        return this.handleResponse(response);
+    },
+
+    async getUnreadNotificationCount() {
+        const response = await fetch(`${API_BASE_URL}/notifications/unread-count`, {
+            method: "GET",
+            headers: this.getHeaders()
+        });
+        return this.handleResponse(response);
+    },
+
+    async markNotificationRead(id) {
+        const response = await fetch(`${API_BASE_URL}/notifications/${id}/read`, {
+            method: "POST",
+            headers: this.getHeaders()
+        });
+        return this.handleResponse(response);
+    },
+
+    async markAllNotificationsRead() {
+        const response = await fetch(`${API_BASE_URL}/notifications/read-all`, {
+            method: "POST",
             headers: this.getHeaders()
         });
         return this.handleResponse(response);
@@ -344,20 +374,45 @@ const ApiClient = {
         return this.handleResponse(response);
     },
 
-    async createWorker(name, email, mobile, password, department) {
+    async createWorker(name, username, email, mobile, password, department) {
+        let payload;
+        if (typeof name === 'object') {
+            payload = name;
+        } else if (arguments.length === 5) {
+            payload = { name: arguments[0], email: arguments[1], mobile: arguments[2], password: arguments[3], department: arguments[4] };
+        } else {
+            payload = { name, username, email, mobile, password, department };
+        }
         const response = await fetch(`${API_BASE_URL}/admin/workers`, {
             method: "POST",
             headers: this.getHeaders(),
-            body: JSON.stringify({ name, email, mobile, password, department })
+            body: JSON.stringify(payload)
         });
         return this.handleResponse(response);
     },
 
-    async updateWorker(workerId, name, mobile, department, active) {
+    async createMultipleWorkers(workersList) {
+        const response = await fetch(`${API_BASE_URL}/admin/workers`, {
+            method: "POST",
+            headers: this.getHeaders(),
+            body: JSON.stringify({ workers: workersList })
+        });
+        return this.handleResponse(response);
+    },
+
+    async updateWorker(workerId, name, username, email, mobile, department, active) {
+        let payload;
+        if (typeof name === 'object') {
+            payload = name;
+        } else if (arguments.length === 5) {
+            payload = { name: arguments[1], mobile: arguments[2], department: arguments[3], active: arguments[4] };
+        } else {
+            payload = { name, username, email, mobile, department, active };
+        }
         const response = await fetch(`${API_BASE_URL}/admin/workers/${workerId}`, {
             method: "PUT",
             headers: this.getHeaders(),
-            body: JSON.stringify({ name, mobile, department, active })
+            body: JSON.stringify(payload)
         });
         return this.handleResponse(response);
     },
@@ -381,7 +436,24 @@ const ApiClient = {
         return this.handleResponse(response);
     },
 
-    // 27. Logout
+    // 27. Registered Citizen Management (Admin)
+    async getRegisteredCitizens() {
+        const response = await fetch(`${API_BASE_URL}/admin/citizens`, {
+            method: "GET",
+            headers: this.getHeaders()
+        });
+        return this.handleResponse(response);
+    },
+
+    async getCitizenDetails(citizenId) {
+        const response = await fetch(`${API_BASE_URL}/admin/citizens/${encodeURIComponent(citizenId)}`, {
+            method: "GET",
+            headers: this.getHeaders()
+        });
+        return this.handleResponse(response);
+    },
+
+    // 28. Logout
     async logout() {
         try {
             await fetch(`${API_BASE_URL}/auth/logout`, {

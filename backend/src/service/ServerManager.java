@@ -3,7 +3,9 @@ package service;
 import com.sun.net.httpserver.HttpExchange;
 import com.sun.net.httpserver.HttpHandler;
 import com.sun.net.httpserver.HttpServer;
+import model.Citizen;
 import model.Complaint;
+import model.ComplaintStatus;
 import model.ComplaintHistory;
 import model.Department;
 import model.DuplicateCandidate;
@@ -22,6 +24,7 @@ import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.HashMap;
 import java.util.Map;
 
 public class ServerManager {
@@ -135,6 +138,21 @@ public class ServerManager {
                     return;
                 }
 
+                // Admin Registered Citizens Management
+                if (path.equals("/api/admin/citizens") || path.startsWith("/api/admin/citizens/")) {
+                    if ("GET".equalsIgnoreCase(method)) {
+                        if (path.equals("/api/admin/citizens")) {
+                            handleGetCitizens(exchange);
+                        } else {
+                            String citizenId = path.substring("/api/admin/citizens/".length());
+                            handleGetCitizenDetails(exchange, citizenId);
+                        }
+                    } else {
+                        sendJsonResponse(exchange, 403, "{\"error\":\"Forbidden: Citizen records are read-only and cannot be modified by administrators.\"}");
+                    }
+                    return;
+                }
+
                 // Admin / Manager Worker Management & Directory
                 if ((path.equals("/api/admin/workers") || path.equals("/api/workers")) && "GET".equalsIgnoreCase(method)) {
                     handleGetWorkers(exchange);
@@ -164,6 +182,19 @@ public class ServerManager {
                     handleGetNotifications(exchange);
                     return;
                 }
+                if (path.equals("/api/notifications/read-all") && ("POST".equalsIgnoreCase(method) || "PUT".equalsIgnoreCase(method))) {
+                    handleMarkAllNotificationsRead(exchange);
+                    return;
+                }
+                if (path.equals("/api/notifications/unread-count") && "GET".equalsIgnoreCase(method)) {
+                    handleGetUnreadNotificationCount(exchange);
+                    return;
+                }
+                if (path.startsWith("/api/notifications/") && path.endsWith("/read") && ("POST".equalsIgnoreCase(method) || "PUT".equalsIgnoreCase(method))) {
+                    String notifId = path.substring("/api/notifications/".length(), path.length() - "/read".length());
+                    handleMarkNotificationRead(exchange, notifId);
+                    return;
+                }
 
                 // Complaints
                 if (path.equals("/api/complaints") && "POST".equalsIgnoreCase(method)) {
@@ -176,17 +207,17 @@ public class ServerManager {
                     return;
                 }
 
-                if (path.equals("/api/my-complaints") && "GET".equalsIgnoreCase(method)) {
+                if ((path.equals("/api/my-complaints") || path.equals("/api/complaints/my")) && "GET".equalsIgnoreCase(method)) {
                     handleGetMyComplaints(exchange);
                     return;
                 }
 
-                if (path.equals("/api/worker/complaints") && "GET".equalsIgnoreCase(method)) {
+                if ((path.equals("/api/worker/complaints") || path.equals("/api/complaints/worker")) && "GET".equalsIgnoreCase(method)) {
                     handleGetWorkerComplaints(exchange);
                     return;
                 }
 
-                if (path.equals("/api/complaints/priority-queue") && "GET".equalsIgnoreCase(method)) {
+                if ((path.equals("/api/complaints/priority-queue") || path.equals("/api/complaints/priority")) && "GET".equalsIgnoreCase(method)) {
                     handleGetPriorityQueue(exchange);
                     return;
                 }
@@ -255,7 +286,7 @@ public class ServerManager {
                     }
 
                     // Status update: /api/complaints/:id/status
-                    if (subPath.endsWith("/status") && ("PUT".equalsIgnoreCase(method) || "PATCH".equalsIgnoreCase(method))) {
+                    if (subPath.endsWith("/status") && ("PUT".equalsIgnoreCase(method) || "PATCH".equalsIgnoreCase(method) || "POST".equalsIgnoreCase(method))) {
                         String id = subPath.replace("/status", "");
                         handleUpdateStatus(exchange, id, body);
                         return;
@@ -319,29 +350,51 @@ public class ServerManager {
         String email = extractVal(body, "email");
         String mobile = extractVal(body, "mobile");
         String password = extractVal(body, "password");
+        String username = extractVal(body, "username");
+        String identityNumber = extractVal(body, "identityNumber");
+        if (identityNumber.isEmpty()) identityNumber = extractVal(body, "aadhaarNumber");
+        if (identityNumber.isEmpty()) identityNumber = extractVal(body, "identity");
 
         if (name.isEmpty() || email.isEmpty() || password.isEmpty()) {
             sendJsonResponse(exchange, 400, "{\"error\":\"Name, email, and password are required.\"}");
             return;
         }
-
-        User user = database.registerUser(name, email, mobile, password, "CITIZEN", "");
-        if (user == null) {
-            sendJsonResponse(exchange, 409, "{\"error\":\"Email is already registered.\"}");
+        if (password.length() < 6) {
+            sendJsonResponse(exchange, 400, "{\"error\":\"Password must be at least 6 characters long.\"}");
             return;
         }
 
-        String token = database.createSession(user);
-        sendJsonResponse(exchange, 201, String.format(
-                "{\"message\":\"Registration successful\",\"token\":\"%s\",\"user\":%s}",
-                token, formatUserJson(user)
-        ));
+        try {
+            User user = database.registerUser(name, username, email, mobile, password, "CITIZEN", "", identityNumber);
+            if (user == null) {
+                sendJsonResponse(exchange, 409, "{\"error\":\"Email is already registered.\"}");
+                return;
+            }
+
+            String token = database.createSession(user);
+            sendJsonResponse(exchange, 201, String.format(
+                    "{\"message\":\"Registration successful\",\"token\":\"%s\",\"user\":%s}",
+                    token, formatUserJson(user)
+            ));
+        } catch (Database.DuplicateIdentityException e) {
+            sendJsonResponse(exchange, 409, "{\"error\":\"" + esc(e.getMessage()) + "\"}");
+        } catch (Database.InvalidIdentityException e) {
+            sendJsonResponse(exchange, 400, "{\"error\":\"" + esc(e.getMessage()) + "\"}");
+        } catch (IllegalArgumentException e) {
+            sendJsonResponse(exchange, 400, "{\"error\":\"" + esc(e.getMessage()) + "\"}");
+        }
     }
 
     private void handleLogin(HttpExchange exchange, String body) throws Exception {
         String emailOrId = extractVal(body, "email");
         if (emailOrId.isEmpty()) {
             emailOrId = extractVal(body, "staffId");
+        }
+        if (emailOrId.isEmpty()) {
+            emailOrId = extractVal(body, "username");
+        }
+        if (emailOrId.isEmpty()) {
+            emailOrId = extractVal(body, "identifier");
         }
         String password = extractVal(body, "password");
 
@@ -353,6 +406,9 @@ public class ServerManager {
         User user = database.getUserByEmail(emailOrId);
         if (user == null) {
             user = database.getUserById(emailOrId);
+        }
+        if (user == null) {
+            user = database.getUserByUsername(emailOrId);
         }
 
         boolean passMatch = user != null && user.getPasswordHash() != null && user.getPasswordHash().equals(Database.hashPassword(password));
@@ -654,11 +710,14 @@ public class ServerManager {
         StringBuilder sb = new StringBuilder("[");
         for (int i = 0; i < candidates.size(); i++) {
             DuplicateCandidate dc = candidates.get(i);
-            sb.append(String.format(
-                    "{\"sourceComplaintId\":\"%s\",\"candidateComplaintId\":\"%s\",\"reason\":\"%s\",\"category\":\"%s\",\"location\":\"%s\",\"status\":\"%s\",\"citizenName\":\"%s\",\"createdAt\":\"%s\"}",
-                    esc(dc.getSourceComplaintId()), esc(dc.getCandidateComplaintId()), esc(dc.getReason()),
+            String distStr = (dc.getDistanceMeters() != null) ? String.format(java.util.Locale.US, "%.1f", dc.getDistanceMeters()) : "null";
+            sb.append(String.format(java.util.Locale.US,
+                    "{\"sourceComplaintId\":\"%s\",\"candidateComplaintId\":\"%s\",\"candidateId\":\"%s\",\"reason\":\"%s\",\"category\":\"%s\",\"location\":\"%s\",\"status\":\"%s\",\"citizenName\":\"%s\",\"createdAt\":\"%s\",\"distinctCitizenCount\":%d,\"similarityScore\":%.2f,\"distanceMeters\":%s,\"candidateDescription\":\"%s\"}",
+                    esc(dc.getSourceComplaintId()), esc(dc.getCandidateComplaintId()), esc(dc.getCandidateComplaintId()), esc(dc.getReason()),
                     esc(dc.getCategory()), esc(dc.getLocation()), esc(dc.getStatus()),
-                    esc(dc.getCitizenName()), esc(dc.getCreatedAt())
+                    esc(dc.getCitizenName()), esc(dc.getCreatedAt()),
+                    dc.getDistinctCitizenCount(), dc.getSimilarityScore(), distStr,
+                    esc(dc.getCandidateDescription())
             ));
             if (i < candidates.size() - 1) sb.append(",");
         }
@@ -935,20 +994,63 @@ public class ServerManager {
             return;
         }
 
-        List<Notification> list = manager.getCitizenNotifications(user.getId());
+        List<Notification> list = database.getNotificationsForUser(user);
         StringBuilder sb = new StringBuilder("[");
         for (int i = 0; i < list.size(); i++) {
             Notification n = list.get(i);
             sb.append(String.format(
-                    "{\"notificationId\":\"%s\",\"complaintId\":\"%s\",\"originalImpact\":%d,\"verifiedImpact\":%d,\"verificationReason\":\"%s\",\"title\":\"%s\",\"message\":\"%s\",\"createdAt\":\"%s\",\"isRead\":%b}",
-                    esc(n.getNotificationId()), esc(n.getComplaintId()), n.getOriginalImpact(),
-                    n.getVerifiedImpact(), esc(n.getVerificationReason()), esc(n.getTitle()),
-                    esc(n.getMessage()), esc(n.getCreatedAt()), n.isRead()
+                    "{\"notificationId\":\"%s\",\"citizenId\":\"%s\",\"recipientId\":\"%s\",\"recipientRole\":\"%s\",\"complaintId\":\"%s\",\"originalImpact\":%d,\"verifiedImpact\":%d,\"verificationReason\":\"%s\",\"title\":\"%s\",\"message\":\"%s\",\"type\":\"%s\",\"createdAt\":\"%s\",\"isRead\":%b}",
+                    esc(n.getNotificationId()),
+                    esc(n.getCitizenId() != null ? n.getCitizenId() : ""),
+                    esc(n.getRecipientId() != null ? n.getRecipientId() : ""),
+                    esc(n.getRecipientRole() != null ? n.getRecipientRole() : ""),
+                    esc(n.getComplaintId() != null ? n.getComplaintId() : ""),
+                    n.getOriginalImpact(), n.getVerifiedImpact(),
+                    esc(n.getVerificationReason() != null ? n.getVerificationReason() : ""),
+                    esc(n.getTitle() != null ? n.getTitle() : ""),
+                    esc(n.getMessage() != null ? n.getMessage() : ""),
+                    esc(n.getType() != null ? n.getType() : "info"),
+                    esc(n.getCreatedAt() != null ? n.getCreatedAt() : ""),
+                    n.isRead()
             ));
             if (i < list.size() - 1) sb.append(",");
         }
         sb.append("]");
         sendJsonResponse(exchange, 200, sb.toString());
+    }
+
+    private void handleMarkNotificationRead(HttpExchange exchange, String notifId) throws Exception {
+        User user = getAuthenticatedUser(exchange);
+        if (user == null) {
+            sendJsonResponse(exchange, 401, "{\"error\":\"Unauthorized access.\"}");
+            return;
+        }
+        boolean ok = database.markNotificationAsRead(notifId, user);
+        if (ok) {
+            sendJsonResponse(exchange, 200, "{\"success\":true,\"message\":\"Notification marked as read.\"}");
+        } else {
+            sendJsonResponse(exchange, 404, "{\"error\":\"Notification not found or access denied.\"}");
+        }
+    }
+
+    private void handleMarkAllNotificationsRead(HttpExchange exchange) throws Exception {
+        User user = getAuthenticatedUser(exchange);
+        if (user == null) {
+            sendJsonResponse(exchange, 401, "{\"error\":\"Unauthorized access.\"}");
+            return;
+        }
+        int markedCount = database.markAllNotificationsAsRead(user);
+        sendJsonResponse(exchange, 200, String.format("{\"success\":true,\"markedCount\":%d,\"message\":\"All notifications marked as read.\"}", markedCount));
+    }
+
+    private void handleGetUnreadNotificationCount(HttpExchange exchange) throws Exception {
+        User user = getAuthenticatedUser(exchange);
+        if (user == null) {
+            sendJsonResponse(exchange, 401, "{\"error\":\"Unauthorized access.\"}");
+            return;
+        }
+        int count = database.getUnreadNotificationCount(user);
+        sendJsonResponse(exchange, 200, String.format("{\"unreadCount\":%d}", count));
     }
 
     // ------------------- STATUS & ASSIGN HANDLERS -------------------
@@ -1047,6 +1149,26 @@ public class ServerManager {
             return;
         }
 
+        Complaint existing = manager.getComplaintById(id);
+        if (existing == null) {
+            sendJsonResponse(exchange, 404, "{\"error\":\"Complaint not found.\"}");
+            return;
+        }
+
+        ComplaintStatus existingStatus = ComplaintStatus.fromString(existing.getStatus());
+        if (existingStatus == ComplaintStatus.RESOLVED) {
+            sendJsonResponse(exchange, 400, "{\"error\":\"Invalid assessment: Resolved complaints are in a terminal state and cannot be assessed or assigned.\"}");
+            return;
+        }
+        if (existingStatus == ComplaintStatus.IN_PROGRESS) {
+            sendJsonResponse(exchange, 400, "{\"error\":\"Invalid assessment: Complaint is currently In Progress. Initial assignment is disabled; use Reassign instead.\"}");
+            return;
+        }
+        if (existingStatus == ComplaintStatus.ASSIGNED) {
+            sendJsonResponse(exchange, 400, "{\"error\":\"Invalid assessment: Complaint is already assigned. Initial assignment is disabled; use Reassign to change department or worker.\"}");
+            return;
+        }
+
         String severity = extractVal(body, "severity");
         String reason = extractVal(body, "reason");
         if (reason.isEmpty()) reason = extractVal(body, "assessmentReason");
@@ -1079,6 +1201,26 @@ public class ServerManager {
         User user = getAuthenticatedUser(exchange);
         if (user == null || !user.canAssignDepartment()) {
             sendJsonResponse(exchange, 403, "{\"error\":\"Forbidden: Manager or Admin access required to assign departments.\"}");
+            return;
+        }
+
+        Complaint existing = manager.getComplaintById(id);
+        if (existing == null) {
+            sendJsonResponse(exchange, 404, "{\"error\":\"Complaint not found.\"}");
+            return;
+        }
+
+        ComplaintStatus existingStatus = ComplaintStatus.fromString(existing.getStatus());
+        if (existingStatus == ComplaintStatus.RESOLVED) {
+            sendJsonResponse(exchange, 400, "{\"error\":\"Invalid assignment: Resolved complaints are in a terminal state and cannot be assigned.\"}");
+            return;
+        }
+        if (existingStatus == ComplaintStatus.IN_PROGRESS) {
+            sendJsonResponse(exchange, 400, "{\"error\":\"Invalid assignment: Complaint is currently In Progress. Initial assignment is disabled; use Reassign instead.\"}");
+            return;
+        }
+        if (existingStatus == ComplaintStatus.ASSIGNED) {
+            sendJsonResponse(exchange, 400, "{\"error\":\"Invalid assignment: Complaint is already assigned. Initial assignment is disabled; use Reassign to change department or worker.\"}");
             return;
         }
 
@@ -1138,9 +1280,28 @@ public class ServerManager {
             return;
         }
 
+        Complaint existing = manager.getComplaintById(id);
+        if (existing == null) {
+            sendJsonResponse(exchange, 404, "{\"error\":\"Complaint not found.\"}");
+            return;
+        }
+
+        ComplaintStatus existingStatus = ComplaintStatus.fromString(existing.getStatus());
+        if (existingStatus == ComplaintStatus.RESOLVED) {
+            sendJsonResponse(exchange, 400, "{\"error\":\"Invalid reassignment: Resolved complaints are in a terminal state and cannot be reassigned.\"}");
+            return;
+        }
+
         String department = extractVal(body, "department");
         String staffName = extractVal(body, "staffName");
         String reason = extractVal(body, "reason");
+        if (reason.isEmpty()) reason = extractVal(body, "reassignReason");
+        if (reason.isEmpty()) reason = extractVal(body, "remarks");
+
+        if (reason == null || reason.trim().isEmpty()) {
+            sendJsonResponse(exchange, 400, "{\"error\":\"Reassignment reason is mandatory.\"}");
+            return;
+        }
 
         try {
             boolean success = manager.reassignComplaint(id, department, staffName, reason, user);
@@ -1190,6 +1351,78 @@ public class ServerManager {
     }
 
     // ------------------- ADMIN / MANAGER WORKER MANAGEMENT HANDLERS -------------------
+    // ------------------- REGISTERED CITIZENS HANDLERS -------------------
+    private void handleGetCitizens(HttpExchange exchange) throws Exception {
+        User user = getAuthenticatedUser(exchange);
+        if (user == null) {
+            sendJsonResponse(exchange, 401, "{\"error\":\"Unauthorized: Please log in.\"}");
+            return;
+        }
+        if (!user.isAdmin()) {
+            sendJsonResponse(exchange, 403, "{\"error\":\"Forbidden: Administrator privileges required to access registered citizens.\"}");
+            return;
+        }
+
+        List<Citizen> citizens = database.getAllCitizens();
+        StringBuilder sb = new StringBuilder("[");
+        for (int i = 0; i < citizens.size(); i++) {
+            Citizen c = citizens.get(i);
+            if (c.getRole() != null && !c.getRole().equalsIgnoreCase("CITIZEN")) continue;
+            String cleanName = (c.getName() != null && !c.getName().isBlank()) ? c.getName() : c.getUsername();
+            String maskedId = (c.getMaskedIdentity() != null) ? c.getMaskedIdentity() : "";
+            sb.append(String.format(
+                    "{\"citizenId\":\"%s\",\"id\":\"%s\",\"name\":\"%s\",\"citizenName\":\"%s\",\"username\":\"%s\",\"email\":\"%s\",\"mobile\":\"%s\",\"role\":\"CITIZEN\",\"identityNumber\":\"%s\",\"maskedIdentity\":\"%s\",\"identityVerified\":%b,\"active\":%b,\"createdAt\":\"%s\"}",
+                    esc(c.getId()), esc(c.getId()), esc(cleanName), esc(cleanName), esc(c.getUsername()), esc(c.getEmail()),
+                    esc(c.getMobile() != null ? c.getMobile() : ""), esc(maskedId), esc(maskedId), c.isIdentityVerified(), c.isActive(), esc(c.getCreatedAt() != null ? c.getCreatedAt() : "")
+            ));
+            if (i < citizens.size() - 1) sb.append(",");
+        }
+        sb.append("]");
+        sendJsonResponse(exchange, 200, sb.toString());
+    }
+
+    private void handleGetCitizenDetails(HttpExchange exchange, String citizenId) throws Exception {
+        User user = getAuthenticatedUser(exchange);
+        if (user == null) {
+            sendJsonResponse(exchange, 401, "{\"error\":\"Unauthorized: Please log in.\"}");
+            return;
+        }
+        if (!user.isAdmin()) {
+            sendJsonResponse(exchange, 403, "{\"error\":\"Forbidden: Administrator privileges required to access registered citizens.\"}");
+            return;
+        }
+
+        Citizen c = database.getCitizenById(citizenId);
+        if (c == null) {
+            sendJsonResponse(exchange, 404, "{\"error\":\"Citizen not found: " + esc(citizenId) + "\"}");
+            return;
+        }
+
+        Map<String, Integer> stats = database.getCitizenComplaintStats(c.getId());
+        List<Complaint> complaints = database.getComplaintsByCitizenId(c.getId());
+
+        StringBuilder compSb = new StringBuilder("[");
+        for (int i = 0; i < complaints.size(); i++) {
+            compSb.append(formatComplaintJson(complaints.get(i), user));
+            if (i < complaints.size() - 1) compSb.append(",");
+        }
+        compSb.append("]");
+
+        String cleanName = (c.getName() != null && !c.getName().isBlank()) ? c.getName() : c.getUsername();
+        String maskedId = (c.getMaskedIdentity() != null) ? c.getMaskedIdentity() : "";
+        String json = String.format(
+                "{\"citizen\":{\"citizenId\":\"%s\",\"id\":\"%s\",\"name\":\"%s\",\"citizenName\":\"%s\",\"username\":\"%s\",\"email\":\"%s\",\"mobile\":\"%s\",\"role\":\"CITIZEN\",\"identityNumber\":\"%s\",\"maskedIdentity\":\"%s\",\"identityVerified\":%b,\"active\":%b,\"createdAt\":\"%s\"}," +
+                "\"stats\":{\"total\":%d,\"pending\":%d,\"inProgress\":%d,\"resolved\":%d,\"rejected\":%d}," +
+                "\"complaints\":%s}",
+                esc(c.getId()), esc(c.getId()), esc(cleanName), esc(cleanName), esc(c.getUsername()), esc(c.getEmail()),
+                esc(c.getMobile() != null ? c.getMobile() : ""), esc(maskedId), esc(maskedId), c.isIdentityVerified(), c.isActive(), esc(c.getCreatedAt() != null ? c.getCreatedAt() : ""),
+                stats.getOrDefault("total", 0), stats.getOrDefault("pending", 0), stats.getOrDefault("inProgress", 0),
+                stats.getOrDefault("resolved", 0), stats.getOrDefault("rejected", 0),
+                compSb.toString()
+        );
+        sendJsonResponse(exchange, 200, json);
+    }
+
     private void handleGetWorkers(HttpExchange exchange) throws Exception {
         User user = getAuthenticatedUser(exchange);
         if (user == null) {
@@ -1207,8 +1440,8 @@ public class ServerManager {
             model.DepartmentStaff w = workers.get(i);
             String cleanName = (w.getStaffName() != null && !w.getStaffName().isEmpty()) ? w.getStaffName() : w.getUsername();
             sb.append(String.format(
-                    "{\"id\":\"%s\",\"name\":\"%s\",\"displayName\":\"%s\",\"email\":\"%s\",\"mobile\":\"%s\",\"department\":\"%s\",\"role\":\"%s\",\"active\":%b,\"createdAt\":\"%s\"}",
-                    esc(w.getId()), esc(cleanName), esc(w.getDisplayName()), esc(w.getEmail()), esc(w.getMobile()),
+                    "{\"id\":\"%s\",\"workerId\":\"%s\",\"name\":\"%s\",\"displayName\":\"%s\",\"username\":\"%s\",\"email\":\"%s\",\"mobile\":\"%s\",\"department\":\"%s\",\"role\":\"%s\",\"active\":%b,\"createdAt\":\"%s\"}",
+                    esc(w.getId()), esc(w.getId()), esc(cleanName), esc(w.getDisplayName()), esc(w.getUsername()), esc(w.getEmail()), esc(w.getMobile()),
                     esc(w.getDepartment()), esc(w.getRole()), w.isActive(), esc(w.getCreatedAt())
             ));
             if (i < workers.size() - 1) sb.append(",");
@@ -1228,7 +1461,53 @@ public class ServerManager {
             return;
         }
 
+        // Check if batch creation: { "workers": [ ... ] }
+        if (body.contains("\"workers\":") || body.contains("\"workers\" :")) {
+            List<Map<String, String>> workersList = new ArrayList<>();
+            int wIdx = body.indexOf("\"workers\"");
+            int openBracket = body.indexOf("[", wIdx);
+            int closeBracket = body.lastIndexOf("]");
+            if (openBracket != -1 && closeBracket != -1) {
+                String arrayContent = body.substring(openBracket + 1, closeBracket);
+                int curr = 0;
+                while ((curr = arrayContent.indexOf("{", curr)) != -1) {
+                    int end = arrayContent.indexOf("}", curr);
+                    if (end == -1) break;
+                    String itemStr = arrayContent.substring(curr + 1, end);
+                    Map<String, String> map = new HashMap<>();
+                    map.put("name", extractVal(itemStr, "name"));
+                    map.put("username", extractVal(itemStr, "username"));
+                    map.put("email", extractVal(itemStr, "email"));
+                    map.put("mobile", extractVal(itemStr, "mobile"));
+                    map.put("password", extractVal(itemStr, "password"));
+                    map.put("department", extractVal(itemStr, "department"));
+                    workersList.add(map);
+                    curr = end + 1;
+                }
+            }
+
+            try {
+                List<model.DepartmentStaff> createdList = database.createMultipleWorkers(workersList, user);
+                StringBuilder rsb = new StringBuilder("{\"message\":\"Workers registered successfully\",\"workers\":[");
+                for (int i = 0; i < createdList.size(); i++) {
+                    model.DepartmentStaff w = createdList.get(i);
+                    rsb.append(String.format(
+                            "{\"id\":\"%s\",\"workerId\":\"%s\",\"name\":\"%s\",\"username\":\"%s\",\"email\":\"%s\",\"mobile\":\"%s\",\"department\":\"%s\",\"role\":\"%s\",\"active\":%b}",
+                            esc(w.getId()), esc(w.getId()), esc(w.getDisplayName()), esc(w.getUsername()), esc(w.getEmail()), esc(w.getMobile()), esc(w.getDepartment()), esc(w.getRole()), w.isActive()
+                    ));
+                    if (i < createdList.size() - 1) rsb.append(",");
+                }
+                rsb.append("]}");
+                sendJsonResponse(exchange, 201, rsb.toString());
+            } catch (IllegalArgumentException e) {
+                sendJsonResponse(exchange, 400, "{\"error\":\"" + esc(e.getMessage()) + "\"}");
+            }
+            return;
+        }
+
+        // Single worker creation
         String name = extractVal(body, "name");
+        String username = extractVal(body, "username");
         String email = extractVal(body, "email");
         String mobile = extractVal(body, "mobile");
         String password = extractVal(body, "password");
@@ -1240,10 +1519,11 @@ public class ServerManager {
         }
 
         try {
-            User worker = database.createWorker(name, email, mobile, password, department, user);
+            model.DepartmentStaff worker = database.createWorker(name, username, email, mobile, password, department, user);
+            database.createNotification("ADMIN", "ADMIN", "", "System Event: Worker Registered", "Worker " + worker.getDisplayName() + " registered by " + user.getDisplayName() + ".", "info");
             sendJsonResponse(exchange, 201, String.format(
-                    "{\"message\":\"Worker created successfully\",\"worker\":{\"id\":\"%s\",\"name\":\"%s\",\"email\":\"%s\",\"department\":\"%s\",\"role\":\"%s\",\"active\":%b}}",
-                    esc(worker.getId()), esc(worker.getDisplayName()), esc(worker.getEmail()), esc(worker.getDepartment()), esc(worker.getRole()), worker.isActive()
+                    "{\"message\":\"Worker created successfully\",\"worker\":{\"id\":\"%s\",\"workerId\":\"%s\",\"name\":\"%s\",\"username\":\"%s\",\"email\":\"%s\",\"mobile\":\"%s\",\"department\":\"%s\",\"role\":\"%s\",\"active\":%b}}",
+                    esc(worker.getId()), esc(worker.getId()), esc(worker.getDisplayName()), esc(worker.getUsername()), esc(worker.getEmail()), esc(worker.getMobile()), esc(worker.getDepartment()), esc(worker.getRole()), worker.isActive()
             ));
         } catch (IllegalArgumentException e) {
             sendJsonResponse(exchange, 400, "{\"error\":\"" + esc(e.getMessage()) + "\"}");
@@ -1262,16 +1542,19 @@ public class ServerManager {
         }
 
         String name = extractVal(body, "name");
+        String username = extractVal(body, "username");
+        String email = extractVal(body, "email");
         String mobile = extractVal(body, "mobile");
         String department = extractVal(body, "department");
         String activeStr = extractVal(body, "active");
         Boolean active = activeStr.isEmpty() ? null : "true".equalsIgnoreCase(activeStr);
 
         try {
-            User updated = database.updateWorker(workerId, name, mobile, department, active, user);
+            model.DepartmentStaff updated = database.updateWorker(workerId, name, username, email, mobile, department, active, user);
+            database.createNotification("ADMIN", "ADMIN", "", "System Event: Worker Updated", "Worker " + updated.getDisplayName() + " profile/status updated by " + user.getDisplayName() + ".", "info");
             sendJsonResponse(exchange, 200, String.format(
-                    "{\"message\":\"Worker updated successfully\",\"worker\":{\"id\":\"%s\",\"name\":\"%s\",\"email\":\"%s\",\"department\":\"%s\",\"role\":\"%s\",\"active\":%b}}",
-                    esc(updated.getId()), esc(updated.getDisplayName()), esc(updated.getEmail()), esc(updated.getDepartment()), esc(updated.getRole()), updated.isActive()
+                    "{\"message\":\"Worker updated successfully\",\"worker\":{\"id\":\"%s\",\"workerId\":\"%s\",\"name\":\"%s\",\"username\":\"%s\",\"email\":\"%s\",\"department\":\"%s\",\"role\":\"%s\",\"active\":%b}}",
+                    esc(updated.getId()), esc(updated.getId()), esc(updated.getDisplayName()), esc(updated.getUsername()), esc(updated.getEmail()), esc(updated.getDepartment()), esc(updated.getRole()), updated.isActive()
             ));
         } catch (IllegalArgumentException e) {
             sendJsonResponse(exchange, 400, "{\"error\":\"" + esc(e.getMessage()) + "\"}");
@@ -1487,9 +1770,11 @@ public class ServerManager {
     }
 
     private String formatUserJson(User u) {
+        String maskedId = (u.getMaskedIdentity() != null) ? u.getMaskedIdentity() : "";
         return String.format(
-                "{\"id\":\"%s\",\"name\":\"%s\",\"email\":\"%s\",\"mobile\":\"%s\",\"role\":\"%s\",\"department\":\"%s\",\"active\":%b,\"createdAt\":\"%s\"}",
-                esc(u.getId()), esc(u.getDisplayName()), esc(u.getEmail()), esc(u.getMobile()), esc(u.getRole()), esc(u.getDepartment()), u.isActive(), esc(u.getCreatedAt())
+                "{\"id\":\"%s\",\"workerId\":\"%s\",\"name\":\"%s\",\"username\":\"%s\",\"email\":\"%s\",\"mobile\":\"%s\",\"role\":\"%s\",\"department\":\"%s\",\"maskedIdentity\":\"%s\",\"identityVerified\":%b,\"active\":%b,\"createdAt\":\"%s\"}",
+                esc(u.getId()), esc(u.getId()), esc(u.getDisplayName()), esc(u.getUsername()), esc(u.getEmail()), esc(u.getMobile()), esc(u.getRole()), esc(u.getDepartment()),
+                esc(maskedId), u.isIdentityVerified(), u.isActive(), esc(u.getCreatedAt())
         );
     }
 

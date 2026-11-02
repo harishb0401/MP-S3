@@ -198,6 +198,33 @@ public class Complaint extends Grievance implements Comparable<Complaint> {
     public static final GrievancePriorityPolicy DEFAULT_PRIORITY_POLICY = new StandardGrievancePriorityPolicy();
     public static final Comparator<Complaint> PRIORITY_COMPARATOR = DEFAULT_PRIORITY_POLICY;
 
+    /**
+     * Reusable Comparator for reverse chronological complaint listing:
+     * 1. Submission timestamp (createdAt) descending (Newest first).
+     * 2. Arrival sequence number descending as tie-breaker for identical timestamps.
+     * 3. Deterministic complaint ID / ID descending as final tie-breaker.
+     */
+    public static final Comparator<Complaint> NEWEST_FIRST_COMPARATOR = (a, b) -> {
+        if (a == b) return 0;
+        if (a == null) return 1;
+        if (b == null) return -1;
+
+        // 1. Primary: Submission timestamp (createdAt) descending
+        String d1 = a.getCreatedAt() != null ? a.getCreatedAt().trim().replace('T', ' ') : "";
+        String d2 = b.getCreatedAt() != null ? b.getCreatedAt().trim().replace('T', ' ') : "";
+        int cmp = d2.compareTo(d1);
+        if (cmp != 0) return cmp;
+
+        // 2. Secondary tie-breaker: arrivalSequence descending (higher sequence = newer)
+        int seqCmp = Long.compare(b.getArrivalSequence(), a.getArrivalSequence());
+        if (seqCmp != 0) return seqCmp;
+
+        // 3. Tertiary tie-breaker: complaintId / id descending
+        String id1 = a.getComplaintId() != null ? a.getComplaintId() : (a.getId() != null ? a.getId() : "");
+        String id2 = b.getComplaintId() != null ? b.getComplaintId() : (b.getId() != null ? b.getId() : "");
+        return id2.compareTo(id1);
+    };
+
     @Override
     public String responsibleDepartment() {
         if (department != null && !department.trim().isEmpty()) {

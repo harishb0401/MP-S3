@@ -19,6 +19,7 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -45,6 +46,16 @@ public class GrievanceManager {
     private AuditLogRepository auditLogRepository = new AuditLogRepository();
     private final Set<String> notifiedDuplicatePairs = Collections.synchronizedSet(new HashSet<>());
 
+    // Configurable thresholds for Duplicate Detection
+    private double gpsDistanceThresholdMeters = 300.0;
+    private double descriptionSimilarityThreshold = 0.30;
+
+    public double getGpsDistanceThresholdMeters() { return gpsDistanceThresholdMeters; }
+    public void setGpsDistanceThresholdMeters(double meters) { this.gpsDistanceThresholdMeters = meters; }
+
+    public double getDescriptionSimilarityThreshold() { return descriptionSimilarityThreshold; }
+    public void setDescriptionSimilarityThreshold(double threshold) { this.descriptionSimilarityThreshold = threshold; }
+
     private String getDuplicatePairKey(String id1, String id2) {
         if (id1 == null || id2 == null) return "";
         return id1.compareTo(id2) < 0 ? (id1 + ":" + id2) : (id2 + ":" + id1);
@@ -52,6 +63,9 @@ public class GrievanceManager {
 
     public GrievanceManager(Database database) {
         this.database = database;
+        if (database != null && database.getDuplicateRepository() != null) {
+            this.duplicateRepository = database.getDuplicateRepository();
+        }
     }
 
     // Category to Department Mapping
@@ -135,6 +149,26 @@ public class GrievanceManager {
         String gpsInfo = complaint.hasGpsCoordinates() ? String.format(" [GPS: %.6f, %.6f]", latitude, longitude) : "";
         String remarks = "Complaint registered by citizen with Reported Impact: " + impact + " at " + location + gpsInfo + ". Status: Registered (Awaiting Manager Risk Assessment).";
         recordHistory(complaintId, "None", "Registered", citizen.getDisplayName(), remarks);
+
+        // Generate Citizen Registration Notification
+        database.createNotification(
+                citizen.getId(),
+                "CITIZEN",
+                complaintId,
+                "Complaint Registered: " + complaintId,
+                "Your complaint " + complaintId + " (" + category + " at " + location + ") has been successfully submitted and is awaiting department assessment.",
+                "success"
+        );
+
+        // Generate Admin & Manager New Grievance Notification
+        database.createNotification(
+                "ADMIN_OR_MANAGER",
+                "ADMIN_OR_MANAGER",
+                complaintId,
+                "New Grievance Submitted: " + complaintId,
+                "New complaint " + complaintId + " (" + category + " at " + location + ") submitted by " + citizen.getDisplayName() + " with reported impact " + impact + ".",
+                "info"
+        );
 
         // Automated Duplicate Detection & Admin/Manager Alerting (Requirement 2)
         checkAndAlertDuplicateCandidates(complaint);
@@ -285,6 +319,42 @@ public class GrievanceManager {
                     oldSeverity != null ? oldSeverity : "UNASSESSED", normSeverity, assessor.getDisplayName(), reason.trim());
         }
         recordHistory(complaintId, oldStatus, complaint.getStatus(), assessor.getDisplayName(), remarks);
+
+        // Citizen Notification for Department & Worker Assignment
+        database.createNotification(
+                complaint.getCitizenId(),
+                "CITIZEN",
+                complaint.getComplaintId(),
+                "Department Assigned: " + complaint.getComplaintId(),
+                "Your complaint " + complaint.getComplaintId() + " has been assigned to " + complaint.getDepartment() + " (Priority: " + complaint.getPriority() + ").",
+                "info"
+        );
+        if (complaint.getAssignedStaff() != null && !complaint.getAssignedStaff().equalsIgnoreCase("Unassigned") && !complaint.getAssignedStaff().startsWith("Queued")) {
+            database.createNotification(
+                    complaint.getCitizenId(),
+                    "CITIZEN",
+                    complaint.getComplaintId(),
+                    "Worker Assigned: " + complaint.getComplaintId(),
+                    "Worker " + complaint.getAssignedStaff() + " has been assigned to your complaint " + complaint.getComplaintId() + ".",
+                    "info"
+            );
+            database.createNotification(
+                    complaint.getAssignedStaff(),
+                    "STAFF",
+                    complaint.getComplaintId(),
+                    "New Task Assigned: " + complaint.getComplaintId(),
+                    "You have been assigned to handle complaint " + complaint.getComplaintId() + " (" + complaint.getCategory() + " at " + complaint.getLocation() + "). Priority: " + complaint.getPriority() + ".",
+                    "urgent"
+            );
+        }
+        database.createNotification(
+                "MANAGER",
+                "MANAGER",
+                complaint.getComplaintId(),
+                "Department Allocation: " + complaint.getComplaintId(),
+                "Complaint " + complaint.getComplaintId() + " allocated to " + complaint.getDepartment() + " with severity " + normSeverity + " by " + assessor.getDisplayName() + ".",
+                "info"
+        );
 
         database.updateComplaint(complaint);
         database.saveDatabase();
@@ -627,6 +697,71 @@ public class GrievanceManager {
         String remarks = (remarksText != null && !remarksText.trim().isEmpty()) ? remarksText.trim() : "Status updated to " + targetCanonical;
         recordHistory(complaintId, oldStatus, targetCanonical, userDisplay, remarks);
 
+        if (targetStatusEnum == ComplaintStatus.IN_PROGRESS) {
+            database.createNotification(
+                    complaint.getCitizenId(),
+                    "CITIZEN",
+                    complaint.getComplaintId(),
+                    "Complaint In Progress: " + complaint.getComplaintId(),
+                    "Work has begun on your complaint " + complaint.getComplaintId() + " (" + complaint.getDepartment() + "). Field team: " + complaint.getAssignedStaff() + ".",
+                    "info"
+            );
+            database.createNotification(
+                    "ADMIN_OR_MANAGER",
+                    "ADMIN_OR_MANAGER",
+                    complaint.getComplaintId(),
+                    "Status Update: " + complaint.getComplaintId() + " In Progress",
+                    "Complaint " + complaint.getComplaintId() + " (" + complaint.getDepartment() + ") is now In Progress. Officer: " + complaint.getAssignedStaff() + ".",
+                    "info"
+            );
+        } else if (targetStatusEnum == ComplaintStatus.RESOLVED) {
+            String resNotes = (complaint.getResolutionNotes() != null && !complaint.getResolutionNotes().isEmpty()) ? complaint.getResolutionNotes() : "Action completed by municipal team.";
+            database.createNotification(
+                    complaint.getCitizenId(),
+                    "CITIZEN",
+                    complaint.getComplaintId(),
+                    "Complaint Resolved: " + complaint.getComplaintId(),
+                    "Your complaint " + complaint.getComplaintId() + " has been marked as Resolved. Resolution: " + resNotes,
+                    "success"
+            );
+            database.createNotification(
+                    "ADMIN_OR_MANAGER",
+                    "ADMIN_OR_MANAGER",
+                    complaint.getComplaintId(),
+                    "Complaint Resolved: " + complaint.getComplaintId(),
+                    "Complaint " + complaint.getComplaintId() + " (" + complaint.getDepartment() + ") was successfully resolved by " + userDisplay + ".",
+                    "success"
+            );
+            if (complaint.getAssignedStaff() != null && !complaint.getAssignedStaff().equalsIgnoreCase("Unassigned") && !complaint.getAssignedStaff().startsWith("Queued")) {
+                database.createNotification(
+                        complaint.getAssignedStaff(),
+                        "STAFF",
+                        complaint.getComplaintId(),
+                        "Task Completed: " + complaint.getComplaintId(),
+                        "Complaint " + complaint.getComplaintId() + " has been marked as Resolved.",
+                        "success"
+                );
+            }
+        } else if (targetCanonical.equalsIgnoreCase("Rejected") || (isExplicitCancellation && targetStatusEnum == ComplaintStatus.REGISTERED)) {
+            String rejReason = (remarksText != null && !remarksText.trim().isEmpty()) ? remarksText.trim() : "Unable to verify or out of scope.";
+            database.createNotification(
+                    complaint.getCitizenId(),
+                    "CITIZEN",
+                    complaint.getComplaintId(),
+                    "Complaint Rejected: " + complaint.getComplaintId(),
+                    "Your complaint " + complaint.getComplaintId() + " was rejected. Reason: " + rejReason,
+                    "warning"
+            );
+            database.createNotification(
+                    "ADMIN_OR_MANAGER",
+                    "ADMIN_OR_MANAGER",
+                    complaint.getComplaintId(),
+                    "Complaint Rejected: " + complaint.getComplaintId(),
+                    "Complaint " + complaint.getComplaintId() + " was rejected by " + userDisplay + ". Reason: " + rejReason,
+                    "warning"
+            );
+        }
+
         database.updateComplaint(complaint);
         database.saveDatabase();
         return true;
@@ -708,6 +843,11 @@ public class GrievanceManager {
         // Terminal state check
         if ("RESOLVED".equalsIgnoreCase(complaint.getStatus()) || "CLOSED".equalsIgnoreCase(complaint.getStatus())) {
             throw new IllegalStateException("Invalid status transition: A resolved complaint is in a terminal state and cannot be reassigned.");
+        }
+
+        // Validate reassignment reason
+        if (reason == null || reason.trim().isEmpty()) {
+            throw new IllegalArgumentException("Reassignment reason is mandatory.");
         }
 
         // Validate destination department strictly
@@ -795,6 +935,38 @@ public class GrievanceManager {
             }
         }
 
+        // Citizen reassignment notification
+        database.createNotification(
+                complaint.getCitizenId(),
+                "CITIZEN",
+                complaintId,
+                "Complaint Reassigned: " + complaintId,
+                "Your complaint " + complaintId + " has been reassigned to " + complaint.getDepartment() + " (Officer: " + complaint.getAssignedStaff() + "). Reason: " + (reason != null && !reason.trim().isEmpty() ? reason.trim() : "Operational handover") + ".",
+                "info"
+        );
+
+        // Worker notification
+        if (newStaff != null && !newStaff.trim().isEmpty() && !newStaff.startsWith("Queued")) {
+            database.createNotification(
+                    newStaff.trim(),
+                    "STAFF",
+                    complaintId,
+                    "Task Reassigned: " + complaintId,
+                    "Complaint " + complaintId + " (" + complaint.getDepartment() + ") has been assigned to you. Reason: " + (reason != null && !reason.trim().isEmpty() ? reason.trim() : "Operational handover") + ".",
+                    "urgent"
+            );
+        }
+
+        // Manager notification
+        database.createNotification(
+                "MANAGER",
+                "MANAGER",
+                complaintId,
+                "Grievance Reassigned: " + complaintId,
+                "Complaint " + complaintId + " reassigned to " + complaint.getDepartment() + " by " + userDisplay + ".",
+                "info"
+        );
+
         complaint.setUpdatedAt(now);
         database.saveDatabase();
         return true;
@@ -819,6 +991,20 @@ public class GrievanceManager {
      * Does NOT automatically mutate complaints or set duplicateOfId.
      * Respects previous operator rejections.
      */
+    private String getCitizenIdentifier(Complaint c) {
+        if (c == null) return "";
+        if (c.getCitizenId() != null && !c.getCitizenId().trim().isEmpty()) {
+            return c.getCitizenId().trim().toLowerCase();
+        }
+        if (c.getCitizenMobile() != null && !c.getCitizenMobile().trim().isEmpty()) {
+            return c.getCitizenMobile().trim().toLowerCase();
+        }
+        if (c.getCitizenName() != null && !c.getCitizenName().trim().isEmpty()) {
+            return c.getCitizenName().trim().toLowerCase();
+        }
+        return "";
+    }
+
     public List<DuplicateCandidate> findDuplicateCandidates(String complaintId) {
         List<DuplicateCandidate> candidates = new ArrayList<>();
         if (complaintId == null || complaintId.trim().isEmpty()) return candidates;
@@ -867,17 +1053,44 @@ public class GrievanceManager {
             boolean refMatch = (refA != null && refA.equalsIgnoreCase(target.getComplaintId())) ||
                                (refB != null && refB.equalsIgnoreCase(source.getComplaintId()));
 
-            boolean catAndLocMatch = (normLocA != null && normLocB != null && normLocA.equals(normLocB)) &&
-                                     (normCatA != null && normCatB != null && normCatA.equals(normCatB));
+            boolean catMatch = (normCatA != null && normCatB != null && !normCatA.isEmpty() && normCatA.equals(normCatB));
 
-            if (refMatch || catAndLocMatch) {
+            boolean locMatch = false;
+            Double gpsDist = null;
+            if (source.hasGpsCoordinates() && target.hasGpsCoordinates()) {
+                double d = LocationNormalizer.calculateGpsDistanceMeters(source.getLatitude(), source.getLongitude(), target.getLatitude(), target.getLongitude());
+                if (d >= 0.0) {
+                    gpsDist = d;
+                    locMatch = (d <= gpsDistanceThresholdMeters);
+                }
+            }
+            if (!locMatch && (!source.hasGpsCoordinates() || !target.hasGpsCoordinates())) {
+                locMatch = LocationNormalizer.isNormalizedLocationMatch(source.getLocation(), target.getLocation());
+            }
+
+            double sim = LocationNormalizer.calculateDescriptionSimilarity(source.getDescription(), target.getDescription());
+            boolean descMatch = (sim >= descriptionSimilarityThreshold);
+
+            if (refMatch || (catMatch && locMatch && descMatch)) {
+                // Calculate distinct citizen count between source and target
+                Set<String> distinctCitizenKeys = new HashSet<>();
+                String keyA = getCitizenIdentifier(source);
+                String keyB = getCitizenIdentifier(target);
+                if (!keyA.isEmpty()) distinctCitizenKeys.add(keyA);
+                if (!keyB.isEmpty()) distinctCitizenKeys.add(keyB);
+                int citizenCount = Math.max(2, distinctCitizenKeys.size());
+
                 String reason;
-                if (refMatch && catAndLocMatch) {
-                    reason = "Open-issue reference and matching Category & Normalized Location";
+                if (refMatch && catMatch && locMatch) {
+                    reason = "Open-issue reference and matching Category & Location (" + String.format("%.0f%%", sim * 100) + " similarity)";
                 } else if (refMatch) {
                     reason = "Explicit open-issue reference match (" + (refA != null ? refA : refB) + ")";
+                } else if (gpsDist != null) {
+                    reason = String.format("Same category (%s), GPS proximity (%.1fm <= %.0fm), and description similarity (%.0f%%)",
+                            source.getCategory(), gpsDist, gpsDistanceThresholdMeters, sim * 100);
                 } else {
-                    reason = "Same category (" + source.getCategory() + ") and normalized location (" + normLocA + ")";
+                    reason = String.format("Same category (%s), normalized location (%s), and description similarity (%.0f%%)",
+                            source.getCategory(), normLocA != null ? normLocA : source.getLocation(), sim * 100);
                 }
 
                 candidates.add(new DuplicateCandidate(
@@ -888,9 +1101,29 @@ public class GrievanceManager {
                         target.getLocation(),
                         target.getStatus(),
                         target.getCitizenName(),
-                        target.getCreatedAt()
+                        target.getCreatedAt(),
+                        citizenCount,
+                        sim,
+                        gpsDist,
+                        target.getDescription()
                 ));
             }
+        }
+
+        // Calculate distinct citizen count across the entire cluster of source + all matching targets
+        Set<String> distinctCitizenKeys = new HashSet<>();
+        String keyA = getCitizenIdentifier(source);
+        if (!keyA.isEmpty()) distinctCitizenKeys.add(keyA);
+        for (DuplicateCandidate cand : candidates) {
+            Complaint target = database.getComplaintById(cand.getCandidateComplaintId());
+            if (target != null) {
+                String keyB = getCitizenIdentifier(target);
+                if (!keyB.isEmpty()) distinctCitizenKeys.add(keyB);
+            }
+        }
+        int totalClusterCitizens = Math.max(2, distinctCitizenKeys.size());
+        for (DuplicateCandidate cand : candidates) {
+            cand.setDistinctCitizenCount(totalClusterCitizens);
         }
 
         return candidates;
@@ -899,27 +1132,113 @@ public class GrievanceManager {
     /**
      * Checks for duplicate candidates and sends duplicate alert notifications to Admin and Manager.
      * Prevents repeated notifications for the same duplicate relationship.
+     * Supports multiple citizens reporting the same issue and alerts on additional reports.
+     * Persists duplicate tracking state to prevent spam across restarts.
      */
-    public void checkAndAlertDuplicateCandidates(Complaint complaint) {
+    public synchronized void checkAndAlertDuplicateCandidates(Complaint complaint) {
         if (complaint == null) return;
         List<DuplicateCandidate> candidates = findDuplicateCandidates(complaint.getComplaintId());
+        if (candidates.isEmpty()) return;
+
+        // Collect all related complaints in this duplicate group
+        Set<String> clusterComplaintIds = new LinkedHashSet<>();
+        clusterComplaintIds.add(complaint.getComplaintId());
         for (DuplicateCandidate cand : candidates) {
-            String pairKey = getDuplicatePairKey(complaint.getComplaintId(), cand.getCandidateComplaintId());
-            if (!notifiedDuplicatePairs.contains(pairKey)) {
-                notifiedDuplicatePairs.add(pairKey);
-                Notification notif = new Notification(
-                        database.generateNotificationId(),
-                        "ADMIN_OR_MANAGER",
-                        complaint.getComplaintId(),
-                        complaint.getCitizenReportedImpact(),
-                        0,
-                        "Possible Duplicate Alert: Complaint " + complaint.getComplaintId() +
-                        " (" + complaint.getCategory() + " at " + complaint.getLocation() +
-                        ") matches existing complaint " + cand.getCandidateComplaintId() + "."
-                );
-                database.addNotification(notif);
+            clusterComplaintIds.add(cand.getCandidateComplaintId());
+        }
+
+        // Calculate distinct citizens across all matching complaints
+        Set<String> distinctCitizenKeys = new HashSet<>();
+        for (String cId : clusterComplaintIds) {
+            Complaint c = database.getComplaintById(cId);
+            if (c != null) {
+                String cKey = getCitizenIdentifier(c);
+                if (!cKey.isEmpty()) distinctCitizenKeys.add(cKey);
             }
         }
+        int totalDistinctCitizens = Math.max(2, distinctCitizenKeys.size());
+
+        // Check if this complaint or any pair has not been notified at the current citizen count
+        int prevComplaintCount = database.getNotifiedDuplicateCitizenCount(complaint.getComplaintId());
+        boolean needsNotification = (prevComplaintCount == 0 || totalDistinctCitizens > prevComplaintCount);
+
+        if (!needsNotification) {
+            // Also check if any individual pair hasn't been notified
+            for (DuplicateCandidate cand : candidates) {
+                String pairKey = getDuplicatePairKey(complaint.getComplaintId(), cand.getCandidateComplaintId());
+                int prevPairCount = database.getNotifiedDuplicateCitizenCount(pairKey);
+                if (prevPairCount == 0 || totalDistinctCitizens > prevPairCount) {
+                    needsNotification = true;
+                    break;
+                }
+            }
+        }
+
+        if (!needsNotification) {
+            return; // Anti-spam: already notified for this citizen count
+        }
+
+        // Record updated tracking for this complaint and all pairs in the cluster
+        database.recordDuplicateNotification(complaint.getComplaintId(), totalDistinctCitizens);
+        for (String id1 : clusterComplaintIds) {
+            database.recordDuplicateNotification(id1, totalDistinctCitizens);
+            for (String id2 : clusterComplaintIds) {
+                if (!id1.equalsIgnoreCase(id2)) {
+                    String pairKey = getDuplicatePairKey(id1, id2);
+                    database.recordDuplicateNotification(pairKey, totalDistinctCitizens);
+                    notifiedDuplicatePairs.add(pairKey);
+                }
+            }
+        }
+
+        List<String> matchingIds = new ArrayList<>();
+        for (DuplicateCandidate cand : candidates) {
+            matchingIds.add(cand.getCandidateComplaintId());
+        }
+        String matchingIdsStr = String.join(", ", matchingIds);
+
+        String now = LocalDateTime.now().format(DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss"));
+        String title = "Multiple Citizens Reported the Same Issue";
+        String message;
+        if (totalDistinctCitizens > 2) {
+            message = String.format(
+                    "Multiple citizens have reported a similar %s complaint at %s. An additional complaint %s has been matched with existing complaint(s) %s. Total distinct citizens reporting: %d. Reported at: %s. Please review the complaints.",
+                    complaint.getCategory(), complaint.getLocation(), complaint.getComplaintId(), matchingIdsStr, totalDistinctCitizens, now
+            );
+        } else {
+            message = String.format(
+                    "Multiple citizens have reported a similar %s complaint at %s. A new complaint %s has been matched with existing complaint %s. Number of distinct citizens reporting this issue: %d. Reported at: %s. Please review the complaints.",
+                    complaint.getCategory(), complaint.getLocation(), complaint.getComplaintId(), matchingIdsStr, totalDistinctCitizens, now
+            );
+        }
+
+        // 1. Generate notification for all authorized Admin accounts
+        Notification notifAdmin = new Notification(
+                database.generateNotificationId(),
+                "ADMIN",
+                "ADMIN",
+                complaint.getComplaintId(),
+                title,
+                message,
+                "warning"
+        );
+        notifAdmin.setCreatedAt(now);
+        database.addNotification(notifAdmin);
+
+        // 2. Generate notification for all authorized Manager accounts
+        Notification notifManager = new Notification(
+                database.generateNotificationId(),
+                "MANAGER",
+                "MANAGER",
+                complaint.getComplaintId(),
+                title,
+                message,
+                "warning"
+        );
+        notifManager.setCreatedAt(now);
+        database.addNotification(notifManager);
+
+        database.saveDatabase();
     }
 
     /**
@@ -1235,12 +1554,19 @@ public class GrievanceManager {
         String target = deptNameOrId.trim();
 
         for (Complaint c : all) {
-            if (target.equalsIgnoreCase(c.getDepartment()) || target.equalsIgnoreCase(c.getDepartmentId())
-                || (targetDeptId != null && targetDeptId.equalsIgnoreCase(c.getDepartmentId()))
-                || (targetDeptName != null && targetDeptName.equalsIgnoreCase(c.getDepartment()))) {
+            String cDeptName = c.getDepartment();
+            String cDeptId = c.getDepartmentId();
+            boolean match = target.equalsIgnoreCase(cDeptName) || target.equalsIgnoreCase(cDeptId)
+                || (targetDeptId != null && targetDeptId.equalsIgnoreCase(cDeptId))
+                || (targetDeptName != null && targetDeptName.equalsIgnoreCase(cDeptName));
+            if (match) {
+                if (cDeptName != null && targetDeptName != null && !cDeptName.equalsIgnoreCase(targetDeptName) && !target.equalsIgnoreCase(cDeptName)) {
+                    continue;
+                }
                 filtered.add(c);
             }
         }
+        filtered.sort(Complaint.NEWEST_FIRST_COMPARATOR);
         return filtered;
     }
 

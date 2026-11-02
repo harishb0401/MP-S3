@@ -129,6 +129,19 @@ public class UserRepository {
         return null;
     }
 
+    public User findByIdentityHash(String identityHash) throws SQLException {
+        if (identityHash == null || identityHash.trim().isEmpty()) return null;
+        String sql = "SELECT * FROM users WHERE identity_hash = ?";
+        try (Connection conn = DatabaseConnection.getConnection();
+             PreparedStatement ps = conn.prepareStatement(sql)) {
+            ps.setString(1, identityHash.trim());
+            try (ResultSet rs = ps.executeQuery()) {
+                if (rs.next()) return mapRowToUser(rs);
+            }
+        } catch (SQLException ignored) {}
+        return null;
+    }
+
     public List<User> findAll() throws SQLException {
         List<User> list = new ArrayList<>();
         String sql = "SELECT * FROM users ORDER BY created_at ASC";
@@ -178,18 +191,27 @@ public class UserRepository {
         boolean active = rs.getBoolean("active");
         String createdAt = rs.getString("created_at");
 
+        String username = (email != null && email.contains("@")) ? email.substring(0, email.indexOf('@')) : email;
+
         User u;
         if ("ADMIN".equalsIgnoreCase(role)) {
-            u = new Admin(id, email, email, mobile, passHash, name, createdAt);
+            u = new Admin(id, username, email, mobile, passHash, name, createdAt);
         } else if ("MANAGER".equalsIgnoreCase(role)) {
-            u = new Manager(id, email, email, mobile, passHash, name, createdAt);
+            u = new Manager(id, username, email, mobile, passHash, name, createdAt);
         } else if ("WORKER".equalsIgnoreCase(role) || "STAFF".equalsIgnoreCase(role)) {
             Department dept = new Department(deptId != null ? deptId : "DEPT-GEN", deptId != null ? deptId : "General", 10, 0);
-            u = new DepartmentStaff(id, email, email, mobile, passHash, "WORKER", name, deptId, dept, createdAt);
+            u = new DepartmentStaff(id, username, email, mobile, passHash, "STAFF", name, deptId, dept, createdAt);
         } else {
             u = new Citizen(id, name, email, mobile, passHash, createdAt);
+            u.setUsername(username);
         }
         u.setActive(active);
+        try {
+            String idHash = rs.getString("identity_hash");
+            String maskedId = rs.getString("masked_identity");
+            if (idHash != null) u.setIdentityHash(idHash);
+            if (maskedId != null) u.setMaskedIdentity(maskedId);
+        } catch (SQLException ignored) {}
         return u;
     }
 }

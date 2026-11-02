@@ -9,6 +9,11 @@
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
     <!-- FontAwesome Icons CDN -->
+    <!-- Google Fonts: Public Sans & Material Symbols Outlined (Civic Resolve Architecture) -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Public+Sans:ital,wght@0,100..900;1,100..900&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@20..48,100..700,0..1,-50..200" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <link rel="stylesheet" href="css/style.css">
 </head>
@@ -76,8 +81,8 @@
                     <span class="badge" style="background:#eff6ff; color:#1d4ed8;">Portal 2 of 4</span>
                 </div>
                 <div class="form-group">
-                    <label class="form-label">Worker Email or Staff ID *</label>
-                    <input type="text" id="w-login-id" class="form-control" placeholder="e.g. water_staff@makkal.gov.in" value="water_staff@makkal.gov.in" required>
+                    <label class="form-label">Worker Email, Username, or Staff ID *</label>
+                    <input type="text" id="w-login-id" class="form-control" placeholder="e.g. water_staff / STF-W01 / water_staff@makkal.gov.in" value="water_staff@makkal.gov.in" required>
                 </div>
                 <div class="form-group">
                     <label class="form-label">Password *</label>
@@ -162,6 +167,37 @@
                     <input type="tel" id="c-reg-mobile" class="form-control" placeholder="e.g. 9876543210" required>
                 </div>
                 <div class="form-group">
+                    <label class="form-label" style="display: flex; justify-content: space-between; align-items: center;">
+                        <span><i class="fa-solid fa-id-card" style="color: var(--primary);"></i> Citizen Identity Verification (Aadhaar / UID) *</span>
+                        <span style="font-size: 11px; color: #059669; font-weight: 600;"><i class="fa-solid fa-shield-check"></i> Secure & Masked</span>
+                    </label>
+                    <div style="position: relative;">
+                        <input type="password" id="c-reg-identity" class="form-control"
+                               placeholder="12-digit Aadhaar / Resident UID (e.g. 2345 6789 0123)"
+                               maxlength="14" autocomplete="off" required
+                               oninput="formatAndValidateIdentityInput(this)"
+                               style="letter-spacing: 1.5px; font-family: monospace;">
+                        <button type="button" id="btn-toggle-id-mask" onclick="toggleIdentityVisibility()"
+                                style="position: absolute; right: 10px; top: 50%; transform: translateY(-50%); background: none; border: none; cursor: pointer; color: var(--text-muted); font-size: 13px;" title="Show / Hide Identity Number">
+                            <i class="fa-solid fa-eye" id="icon-toggle-id-mask"></i>
+                        </button>
+                    </div>
+                    <div id="c-reg-identity-error" style="display: none; color: #dc2626; font-size: 12px; margin-top: 4px;"></div>
+
+                    <!-- Explanation note for Requirement 2 & 9 -->
+                    <div style="background: #f0fdf4; border: 1px solid #bbf7d0; border-radius: 6px; padding: 8px 10px; margin-top: 6px; font-size: 11.5px; color: #166534; line-height: 1.45;">
+                        <div style="font-weight: 700; margin-bottom: 2px;">
+                            <i class="fa-solid fa-circle-info"></i> Why is Identity Verification Required?
+                        </div>
+                        <div>
+                            In accordance with municipal governance rules, identity verification ensures one authentic account per resident, protects grievance records from fraudulent submissions, and guarantees priority dispatch for genuine civic issues.
+                        </div>
+                        <div style="margin-top: 4px; font-size: 11px; color: #15803d; border-top: 1px dashed #86efac; padding-top: 3px;">
+                            <i class="fa-solid fa-lock"></i> <strong>Privacy Guarantee:</strong> Raw 12-digit identity numbers are never stored in plain text. A cryptographic hash is created for duplicate prevention, and your profile displays only masked format (<code>XXXX-XXXX-1234</code>) in full compliance with UIDAI privacy standards.
+                        </div>
+                    </div>
+                </div>
+                <div class="form-group">
                     <label class="form-label">Password *</label>
                     <input type="password" id="c-reg-password" class="form-control" placeholder="Min 6 characters" required>
                 </div>
@@ -223,28 +259,37 @@
             <!-- Top Header Bar -->
             <header class="top-header">
                 <div class="header-left">
+                    <div class="brand-emblem" style="width: 38px; height: 38px; font-size: 20px; border-radius: var(--radius-md); background: linear-gradient(135deg, #0F2942, #1B365D);">
+                        <i class="fa-solid fa-building-columns"></i>
+                    </div>
                     <div class="header-title-box">
-                        <h1 id="header-page-title">Municipal Administrative Portal</h1>
-                        <p id="header-page-subtitle">Government Grievance Management & Resolution System</p>
+                        <h1 id="header-page-title" style="font-size: 16px; font-weight: 700; color: var(--primary);">National Civic Grievance & Priority Resolution Portal</h1>
+                        <p id="header-page-subtitle" style="font-size: 11.5px; color: var(--text-muted);">Government of Public Administration • NC-GPRS Command Platform</p>
                     </div>
                 </div>
 
                 <div class="header-right">
+                    <!-- Active Role Indicator Pill (Stitch Component) -->
+                    <div class="stitch-role-pill-group">
+                        <span class="stitch-role-label">Active Role:</span>
+                        <span class="stitch-role-badge" id="header-role-badge">Citizen</span>
+                    </div>
+
                     <!-- Notification Bell Drawer Button -->
-                    <button class="header-icon-btn" onclick="toggleNotificationDrawer()" title="Notifications">
+                    <button class="header-icon-btn" id="notif-bell-btn" onclick="toggleNotificationDrawer()" title="Notifications & Dispatch Alerts">
                         <i class="fa-solid fa-bell"></i>
-                        <span class="notification-badge" id="noti-badge-count">3</span>
+                        <span class="notification-badge" id="noti-badge-count" style="display: none;">0</span>
                     </button>
 
                     <!-- Help Trigger -->
-                    <button class="header-icon-btn" onclick="showHelpModal()" title="Help & Support">
+                    <button class="header-icon-btn" onclick="showHelpModal()" title="Help & Support Guidelines">
                         <i class="fa-solid fa-circle-question"></i>
                     </button>
 
                     <!-- User Profile Dropdown -->
                     <div class="profile-menu-container">
                         <div class="profile-trigger" onclick="toggleProfileMenu()">
-                            <div class="user-avatar" id="header-avatar-initials" style="width: 28px; height: 28px; font-size: 12px;">U</div>
+                            <div class="user-avatar" id="header-avatar-initials" style="width: 30px; height: 30px; font-size: 12px; background: #0F2942; color: #fff;">U</div>
                             <span id="header-user-name" style="font-size: 13px; font-weight: 600;">User</span>
                             <i class="fa-solid fa-chevron-down" style="font-size: 10px; color: var(--text-muted);"></i>
                         </div>
@@ -260,6 +305,26 @@
                 </div>
             </header>
 
+            <!-- Sub-Header Bar: Breadcrumb + Live Service Level & Priority Hotline (Stitch Component) -->
+            <div class="stitch-subbar" id="app-subbar">
+                <div class="stitch-subbar-breadcrumb">
+                    <span class="material-symbols-outlined" style="font-size: 16px;">corporate_fare</span>
+                    <span>NC-GPRS Portal</span>
+                    <span class="material-symbols-outlined" style="font-size: 14px;">chevron_right</span>
+                    <span class="crumb-active" id="subbar-current-view">Central Operations</span>
+                </div>
+                <div class="stitch-subbar-actions">
+                    <div class="stitch-service-level-pill">
+                        <span class="stitch-service-level-dot"></span>
+                        <span>Public Service Level: Normal • 99.4% Uptime</span>
+                    </div>
+                    <a href="tel:18002484276" class="stitch-hotline-pill" title="National Civic Emergency Hotline">
+                        <span class="material-symbols-outlined" style="font-size: 14px;">warning</span>
+                        <span>Priority Hotline: 1800-CIVIC-SOS</span>
+                    </a>
+                </div>
+            </div>
+
             <!-- Main Content Area -->
             <main class="content-container">
 
@@ -267,73 +332,136 @@
 
                 <!-- Citizen Dashboard View -->
                 <section id="citizen-dashboard" class="page-view">
-                    <div class="page-header">
-                        <div>
-                            <h2>Good Day, <span id="citizen-welcome-name">Citizen</span> 👋</h2>
-                            <p>Here is the live status of your reported municipal complaints</p>
-                        </div>
-                        <button class="btn btn-primary" onclick="switchView('citizen-submit')">
-                            <i class="fa-solid fa-plus"></i> Submit New Complaint
-                        </button>
-                    </div>
-
-                    <!-- Personal Stats -->
-                    <div class="stats-grid">
-                        <div class="stat-card">
-                            <div class="stat-icon total"><i class="fa-solid fa-folder-open"></i></div>
-                            <div class="stat-info">
-                                <div class="stat-value" id="c-stat-total">0</div>
-                                <div class="stat-label">Total Complaints</div>
+                    <!-- Stitch Hero Welcome Banner -->
+                    <div class="stitch-hero-banner" id="citizen-hero-banner">
+                        <div class="stitch-hero-flex">
+                            <div>
+                                <div class="stitch-hero-tag">
+                                    <span class="stitch-service-level-dot" style="background: #93c5fd;"></span>
+                                    <span>Citizen Redressal Gateway • Ward 42</span>
+                                </div>
+                                <h1 class="stitch-hero-title">Welcome, <span id="citizen-welcome-name">Citizen</span></h1>
+                                <div class="stitch-hero-meta">
+                                    <span class="stitch-hero-meta-chip">
+                                        <span class="material-symbols-outlined" style="font-size: 14px;">verified_user</span>
+                                        <span id="citizen-cit-id">CIT-88214</span>
+                                    </span>
+                                    <span>•</span>
+                                    <span>Registered Mobile: <strong id="citizen-mobile-display">+91 98765 43210</strong></span>
+                                    <span>•</span>
+                                    <span style="color: #93c5fd; font-weight: 600;"><i class="fa-solid fa-shield-check"></i> Aadhaar Linked & Verified</span>
+                                </div>
                             </div>
-                        </div>
-                        <div class="stat-card">
-                            <div class="stat-icon pending"><i class="fa-solid fa-clock"></i></div>
-                            <div class="stat-info">
-                                <div class="stat-value" id="c-stat-pending">0</div>
-                                <div class="stat-label">Pending Action</div>
-                            </div>
-                        </div>
-                        <div class="stat-card">
-                            <div class="stat-icon progress"><i class="fa-solid fa-gears"></i></div>
-                            <div class="stat-info">
-                                <div class="stat-value" id="c-stat-progress">0</div>
-                                <div class="stat-label">In Progress</div>
-                            </div>
-                        </div>
-                        <div class="stat-card">
-                            <div class="stat-icon resolved"><i class="fa-solid fa-circle-check"></i></div>
-                            <div class="stat-info">
-                                <div class="stat-value" id="c-stat-resolved">0</div>
-                                <div class="stat-label">Resolved</div>
+                            <div class="stitch-hero-actions">
+                                <div class="stitch-token-search">
+                                    <span class="material-symbols-outlined search-icon">search</span>
+                                    <input type="text" id="citizen-quick-token-search" placeholder="Track Token (e.g. #GRV-2026-0001)" oninput="handleCitizenTokenSearch(this.value)">
+                                </div>
+                                <button type="button" class="btn btn-primary" onclick="switchView('citizen-submit')" style="background: #ffffff; color: #0F2942; border: none; font-weight: 700; box-shadow: var(--shadow-card);">
+                                    <span class="material-symbols-outlined" style="font-size: 18px;">add_circle</span>
+                                    <span>New Complain</span>
+                                </button>
                             </div>
                         </div>
                     </div>
 
-                    <!-- Citizen Complaints Table -->
+                    <!-- Personal Stats - Stitch KPI Cards with Colored Vertical Accent Strips -->
+                    <div class="stitch-kpi-grid">
+                        <div class="stitch-kpi-card accent-navy">
+                            <div class="stitch-kpi-header">
+                                <span class="stitch-kpi-label">Total Grievances</span>
+                                <div class="stitch-kpi-icon"><i class="fa-solid fa-folder-open"></i></div>
+                            </div>
+                            <div class="stitch-kpi-value" id="c-stat-total">0</div>
+                            <div class="stitch-kpi-footer">
+                                <span><i class="fa-solid fa-clock-rotate-left"></i> Lifetime submissions</span>
+                                <span>100% Tracked</span>
+                            </div>
+                        </div>
+                        <div class="stitch-kpi-card accent-amber">
+                            <div class="stitch-kpi-header">
+                                <span class="stitch-kpi-label">Pending Review</span>
+                                <div class="stitch-kpi-icon" style="color: #d97706; background: #fef3c7;"><i class="fa-solid fa-hourglass-start"></i></div>
+                            </div>
+                            <div class="stitch-kpi-value" id="c-stat-pending">0</div>
+                            <div class="stitch-kpi-footer">
+                                <span><i class="fa-solid fa-shield-halved"></i> Under scrutiny</span>
+                                <span class="font-data-mono">SLA &lt; 24h</span>
+                            </div>
+                        </div>
+                        <div class="stitch-kpi-card accent-blue">
+                            <div class="stitch-kpi-header">
+                                <span class="stitch-kpi-label">In Progress</span>
+                                <div class="stitch-kpi-icon" style="color: #2563eb; background: #eff6ff;"><i class="fa-solid fa-screwdriver-wrench"></i></div>
+                            </div>
+                            <div class="stitch-kpi-value" id="c-stat-progress">0</div>
+                            <div class="stitch-kpi-footer">
+                                <span><i class="fa-solid fa-person-digging"></i> Field crew active</span>
+                                <span>Dispatched</span>
+                            </div>
+                        </div>
+                        <div class="stitch-kpi-card accent-green">
+                            <div class="stitch-kpi-header">
+                                <span class="stitch-kpi-label">Resolved & Closed</span>
+                                <div class="stitch-kpi-icon" style="color: #16a34a; background: #dcfce7;"><i class="fa-solid fa-circle-check"></i></div>
+                            </div>
+                            <div class="stitch-kpi-value" id="c-stat-resolved">0</div>
+                            <div class="stitch-kpi-footer">
+                                <span><i class="fa-solid fa-award"></i> Verified signoff</span>
+                                <span>Avg 48h</span>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Complaints Table & Management -->
                     <div class="content-card">
-                        <div class="card-title-bar">
-                            <h3>My Submitted Grievances</h3>
+                            <div class="card-title-bar" style="display: flex; justify-content: space-between; align-items: flex-start; flex-wrap: wrap; gap: 12px; margin-bottom: 16px;">
+                                <div>
+                                    <h3 style="font-size: 18px; font-weight: 700; color: var(--primary); margin: 0;">My Complaints & Grievance History</h3>
+                                    <p style="font-size: 12.5px; color: var(--text-muted); margin: 2px 0 0 0;">Review status updates and official resolution transcripts.</p>
+                                </div>
+                                <div style="display: flex; gap: 8px;">
+                                    <button type="button" class="btn btn-secondary btn-sm" onclick="loadCitizenDashboard()" title="Refresh Complaints">
+                                        <i class="fa-solid fa-arrow-rotate-right"></i> Refresh
+                                    </button>
+                                </div>
+                            </div>
+
+                            <!-- Filter Tabs Toolbar -->
+                            <div style="background: var(--surface-container-low); padding: 8px 12px; border-radius: var(--radius-md); margin-bottom: 16px; display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 10px;">
+                                <div class="stitch-filter-tabs">
+                                    <button type="button" class="stitch-filter-tab active" id="c-tab-all" onclick="filterCitizenTable('ALL')">All (<span id="c-tab-all-cnt">0</span>)</button>
+                                    <button type="button" class="stitch-filter-tab" id="c-tab-pending" onclick="filterCitizenTable('PENDING')">Pending (<span id="c-tab-pending-cnt">0</span>)</button>
+                                    <button type="button" class="stitch-filter-tab" id="c-tab-progress" onclick="filterCitizenTable('IN_PROGRESS')">In Progress (<span id="c-tab-progress-cnt">0</span>)</button>
+                                    <button type="button" class="stitch-filter-tab" id="c-tab-resolved" onclick="filterCitizenTable('RESOLVED')">Resolved (<span id="c-tab-resolved-cnt">0</span>)</button>
+                                </div>
+                                <div style="position: relative; width: 220px;">
+                                    <i class="fa-solid fa-filter" style="position: absolute; left: 10px; top: 50%; transform: translateY(-50%); color: var(--text-muted); font-size: 12px;"></i>
+                                    <input type="text" id="c-table-keyword-filter" class="form-control" style="padding: 6px 10px 6px 30px; font-size: 12.5px; height: 32px;" placeholder="Filter by keyword..." oninput="handleCitizenKeywordFilter(this.value)">
+                                </div>
+                            </div>
+
+                            <!-- Table -->
+                            <div class="table-responsive">
+                                <table class="custom-table">
+                                    <thead>
+                                        <tr>
+                                            <th>Token ID</th>
+                                            <th>Category</th>
+                                            <th>Location</th>
+                                            <th>Priority</th>
+                                            <th>Department</th>
+                                            <th>Status</th>
+                                            <th>Submitted Date</th>
+                                            <th style="text-align: right;">Action</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody id="citizen-complaints-tbody">
+                                        <!-- Populated dynamically -->
+                                    </tbody>
+                                </table>
+                            </div>
                         </div>
-                        <div class="table-responsive">
-                            <table class="custom-table">
-                                <thead>
-                                    <tr>
-                                        <th>Complaint ID</th>
-                                        <th>Category</th>
-                                        <th>Location</th>
-                                        <th>Priority</th>
-                                        <th>Department</th>
-                                        <th>Status</th>
-                                        <th>Submitted Date</th>
-                                        <th>Action</th>
-                                    </tr>
-                                </thead>
-                                <tbody id="citizen-complaints-tbody">
-                                    <!-- Populated dynamically -->
-                                </tbody>
-                            </table>
-                        </div>
-                    </div>
                 </section>
 
                 <!-- Citizen Multi-Step Registration Wizard View -->
@@ -529,13 +657,28 @@
 
                 <!-- ------------------- DEPARTMENT WORKER PORTAL VIEW ------------------- -->
                 <section id="worker-dashboard" class="page-view">
-                    <div class="page-header">
-                        <div>
-                            <h2>Field Worker Operational Console 👷</h2>
-                            <p>Assigned Municipal Department: <span class="locked-badge" id="worker-dept-badge"><i class="fa-solid fa-lock"></i> Water Supply</span> | Worker: <strong id="worker-name-display">-</strong></p>
-                        </div>
-                        <div>
-                            <button class="btn btn-secondary" onclick="loadWorkerDashboard()"><i class="fa-solid fa-arrows-rotate"></i> Refresh Workload</button>
+                    <!-- Stitch Workforce Operational Status Strip -->
+                    <div class="stitch-hero-banner" id="worker-hero-banner" style="background: linear-gradient(135deg, #0F2942 0%, #1A365D 60%, #20416E 100%);">
+                        <div class="stitch-hero-flex">
+                            <div>
+                                <div class="stitch-hero-tag">
+                                    <span class="stitch-service-level-dot" style="background: #10b981;"></span>
+                                    <span>Field Dispatch Command • Section 12-B Civic Operations</span>
+                                </div>
+                                <h1 class="stitch-hero-title">Field Worker Operational Console 👷</h1>
+                                <div class="stitch-hero-meta">
+                                    <span>Department: <span class="locked-badge" id="worker-dept-badge" style="background: rgba(255,255,255,0.18); border-color: rgba(255,255,255,0.3); color: #fff;"><i class="fa-solid fa-lock"></i> Water Supply</span></span>
+                                    <span>•</span>
+                                    <span>Worker Officer: <strong id="worker-name-display" style="color: #fff;">-</strong></span>
+                                    <span>•</span>
+                                    <span class="stitch-badge stitch-badge-resolved" style="background: rgba(22, 163, 74, 0.25); border: 1px solid #16a34a; color: #a7f3d0;"><span class="stitch-badge-dot" style="background: #10b981;"></span> On Duty / Deployed</span>
+                                </div>
+                            </div>
+                            <div class="stitch-hero-actions">
+                                <button class="btn btn-secondary btn-sm" onclick="loadWorkerDashboard()" style="background: rgba(255,255,255,0.18); color: #fff; border: 1px solid rgba(255,255,255,0.3);" title="Refresh Workload">
+                                    <span class="material-symbols-outlined" style="font-size: 16px;">refresh</span> Refresh Workload
+                                </button>
+                            </div>
                         </div>
                     </div>
 
@@ -600,13 +743,30 @@
 
                 <!-- ------------------- MANAGER PORTAL VIEW ------------------- -->
                 <section id="manager-dashboard" class="page-view">
-                    <div class="page-header">
-                        <div>
-                            <h2>Municipal Grievance Triage & Routing Console 📋</h2>
-                            <p>Review new citizen submissions, route to departments, manage waiting queues & confirm duplicates</p>
-                        </div>
-                        <div>
-                            <button class="btn btn-secondary" onclick="loadManagerDashboard()"><i class="fa-solid fa-arrows-rotate"></i> Refresh Triage</button>
+                    <!-- Stitch Zone Desk Allocation Console Header Banner -->
+                    <div class="stitch-hero-banner" id="manager-hero-banner" style="background: linear-gradient(135deg, #0F2942 0%, #1e3a5f 60%, #2c4c77 100%);">
+                        <div class="stitch-hero-flex">
+                            <div>
+                                <div class="stitch-hero-tag">
+                                    <span class="stitch-service-level-dot" style="background: #f59e0b;"></span>
+                                    <span>Municipal Operations • Department Allocation Console</span>
+                                </div>
+                                <h1 class="stitch-hero-title">Grievance Triage & Inter-Department Routing 📋</h1>
+                                <p style="font-size: 13.5px; opacity: 0.9; margin: 4px 0 0 0; max-width: 680px;">
+                                    Triage citizen submissions, enforce departmental capacity quotas, monitor unassigned queues, and resolve duplicate grievance candidates.
+                                </p>
+                            </div>
+                            <div class="stitch-hero-actions">
+                                <div style="display: flex; align-items: center; gap: 8px;">
+                                    <div class="stitch-service-level-pill" style="background: rgba(255,255,255,0.15); color: #fff;">
+                                        <span class="stitch-service-level-dot" style="background: #f59e0b;"></span>
+                                        <span>Capacity Queue: Active</span>
+                                    </div>
+                                    <button class="btn btn-secondary btn-sm" onclick="loadManagerDashboard()" style="background: rgba(255,255,255,0.18); color: #fff; border: 1px solid rgba(255,255,255,0.3);" title="Refresh Triage Data">
+                                        <span class="material-symbols-outlined" style="font-size: 16px;">refresh</span> Refresh
+                                    </button>
+                                </div>
+                            </div>
                         </div>
                     </div>
 
@@ -715,44 +875,89 @@
 
                 <!-- ------------------- ADMINISTRATOR PORTAL VIEW ------------------- -->
                 <section id="admin-dashboard" class="page-view">
-                    <div class="page-header">
-                        <div>
-                            <h2>Municipal Governance & Administration Portal 🛡️</h2>
-                            <p>System-wide oversight, department worker lifecycle, capacity provisioning & master audits</p>
-                        </div>
-                        <div>
-                            <button class="btn btn-primary" onclick="openAddWorkerModal()"><i class="fa-solid fa-user-plus"></i> Add New Department Worker</button>
+                    <!-- Stitch Admin Command Center Hero Banner -->
+                    <div class="stitch-hero-banner" id="admin-hero-banner" style="background: linear-gradient(135deg, #0F2942 0%, #173656 60%, #1e446d 100%);">
+                        <div class="stitch-hero-flex">
+                            <div>
+                                <div class="stitch-hero-tag">
+                                    <span class="stitch-service-level-dot" style="background: #60a5fa;"></span>
+                                    <span>Central Operations Command • Municipal Jurisdiction</span>
+                                </div>
+                                <h1 class="stitch-hero-title">Municipal Administration & Control Center 🛡️</h1>
+                                <p style="font-size: 13.5px; opacity: 0.9; margin: 4px 0 0 0; max-width: 680px;">
+                                    Unified civic governance, high-impact emergency grievance triage, departmental worker lifecycle & registered citizen administration.
+                                </p>
+                            </div>
+                            
                         </div>
                     </div>
 
-                    <!-- Admin Global Overview Stats -->
-                    <div class="stats-grid">
-                        <div class="stat-card">
-                            <div class="stat-icon total"><i class="fa-solid fa-city"></i></div>
-                            <div class="stat-info">
-                                <div class="stat-value" id="adm-stat-complaints">0</div>
-                                <div class="stat-label">Total Municipal Complaints</div>
+                    <!-- Admin 6-Card KPI Grid (Civic Resolve Specifications) -->
+                    <div class="stitch-kpi-grid" style="grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));">
+                        <div class="stitch-kpi-card accent-navy">
+                            <div class="stitch-kpi-header">
+                                <span class="stitch-kpi-label">Total Received</span>
+                                <div class="stitch-kpi-icon"><i class="fa-solid fa-city"></i></div>
+                            </div>
+                            <div class="stitch-kpi-value" id="adm-stat-complaints">0</div>
+                            <div class="stitch-kpi-footer">
+                                <span><i class="fa-solid fa-database"></i> Master Registry</span>
+                                <span>All Wards</span>
                             </div>
                         </div>
-                        <div class="stat-card">
-                            <div class="stat-icon progress"><i class="fa-solid fa-people-carry-box"></i></div>
-                            <div class="stat-info">
-                                <div class="stat-value" id="adm-stat-workers">0</div>
-                                <div class="stat-label">Active Field Workers</div>
+                        <div class="stitch-kpi-card accent-red">
+                            <div class="stitch-kpi-header">
+                                <span class="stitch-kpi-label">Pending Action</span>
+                                <div class="stitch-kpi-icon" style="color: #dc2626; background: #fee2e2;"><i class="fa-solid fa-triangle-exclamation"></i></div>
+                            </div>
+                            <div class="stitch-kpi-value" id="adm-stat-pending">0</div>
+                            <div class="stitch-kpi-footer">
+                                <span><i class="fa-solid fa-bullhorn"></i> Requires Dispatch</span>
+                                <span class="stitch-badge stitch-badge-urgent" style="font-size: 9px; padding: 1px 6px;">Urgent</span>
                             </div>
                         </div>
-                        <div class="stat-card">
-                            <div class="stat-icon pending"><i class="fa-solid fa-sliders"></i></div>
-                            <div class="stat-info">
-                                <div class="stat-value" id="adm-stat-capacity">4 Core</div>
-                                <div class="stat-label">Operational Departments</div>
+                        <div class="stitch-kpi-card accent-blue">
+                            <div class="stitch-kpi-header">
+                                <span class="stitch-kpi-label">Field Mobilized</span>
+                                <div class="stitch-kpi-icon" style="color: #2563eb; background: #eff6ff;"><i class="fa-solid fa-helmet-safety"></i></div>
+                            </div>
+                            <div class="stitch-kpi-value" id="adm-stat-progress">0</div>
+                            <div class="stitch-kpi-footer">
+                                <span><i class="fa-solid fa-wrench"></i> In-Progress Ops</span>
+                                <span>Active Squads</span>
                             </div>
                         </div>
-                        <div class="stat-card">
-                            <div class="stat-icon resolved"><i class="fa-solid fa-circle-check"></i></div>
-                            <div class="stat-info">
-                                <div class="stat-value" id="adm-stat-resolved">0</div>
-                                <div class="stat-label">Resolved Civic Cases</div>
+                        <div class="stitch-kpi-card accent-green">
+                            <div class="stitch-kpi-header">
+                                <span class="stitch-kpi-label">Resolved Cases</span>
+                                <div class="stitch-kpi-icon" style="color: #16a34a; background: #dcfce7;"><i class="fa-solid fa-circle-check"></i></div>
+                            </div>
+                            <div class="stitch-kpi-value" id="adm-stat-resolved">0</div>
+                            <div class="stitch-kpi-footer">
+                                <span><i class="fa-solid fa-medal"></i> SLA Compliant</span>
+                                <span id="adm-compliance-rate">94.8%</span>
+                            </div>
+                        </div>
+                        <div class="stitch-kpi-card accent-blue">
+                            <div class="stitch-kpi-header">
+                                <span class="stitch-kpi-label">Citizen Registry</span>
+                                <div class="stitch-kpi-icon" style="color: #465f88; background: #e5eeff;"><i class="fa-solid fa-users"></i></div>
+                            </div>
+                            <div class="stitch-kpi-value" id="adm-stat-citizens">0</div>
+                            <div class="stitch-kpi-footer">
+                                <span><i class="fa-solid fa-id-card"></i> Digital ID Verified</span>
+                                <span>Aadhaar</span>
+                            </div>
+                        </div>
+                        <div class="stitch-kpi-card accent-navy">
+                            <div class="stitch-kpi-header">
+                                <span class="stitch-kpi-label">Municipal Squad</span>
+                                <div class="stitch-kpi-icon" style="color: #0F2942; background: #eff4ff;"><i class="fa-solid fa-people-carry-box"></i></div>
+                            </div>
+                            <div class="stitch-kpi-value" id="adm-stat-workers">0</div>
+                            <div class="stitch-kpi-footer">
+                                <span><i class="fa-solid fa-briefcase"></i> Active Personnel</span>
+                                <span>Roster Active</span>
                             </div>
                         </div>
                     </div>
@@ -760,6 +965,7 @@
                     <!-- Sub-Tabs for Admin Workflow -->
                     <div class="subtab-nav">
                         <button class="subtab-btn active" id="btn-adm-workers" onclick="switchAdminSubtab('workers')"><i class="fa-solid fa-users-gear"></i> Manage Department Workers</button>
+                        <button class="subtab-btn" id="btn-adm-citizens" onclick="switchAdminSubtab('citizens')"><i class="fa-solid fa-address-book"></i> Registered Citizens</button>
                         <button class="subtab-btn" id="btn-adm-capacity" onclick="switchAdminSubtab('capacity')"><i class="fa-solid fa-sliders"></i> Department Capacity Settings</button>
                         <button class="subtab-btn" id="btn-adm-audit" onclick="switchAdminSubtab('audit')"><i class="fa-solid fa-file-shield"></i> System Activity & Audit Report</button>
                     </div>
@@ -767,20 +973,58 @@
                     <!-- Admin Subtab 1: Worker Management -->
                     <div class="subtab-content active" id="adm-tab-workers">
                         <div class="content-card">
-                            <div class="card-title-bar">
-                                <h3><i class="fa-solid fa-users"></i> Department Field Workers Directory</h3>
-                                <button class="btn btn-primary btn-sm" onclick="openAddWorkerModal()"><i class="fa-solid fa-user-plus"></i> Add Worker</button>
+                            <div class="card-title-bar" style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 10px;">
+                                <div>
+                                    <h3 style="margin: 0;"><i class="fa-solid fa-users"></i> Department Field Workers Directory</h3>
+                                    <span style="font-size: 12px; color: var(--text-muted);" id="adm-workers-count-summary">Managing municipal field staff and departmental workforce</span>
+                                </div>
+                                <div style="display: flex; gap: 8px;">
+                                    <button class="btn btn-secondary btn-sm" onclick="openAddWorkerModal('multi')" title="Add multiple department workers in batch">
+                                        <i class="fa-solid fa-users-plus"></i> Add Multiple Workers
+                                    </button>
+                                    <button class="btn btn-primary btn-sm" onclick="openAddWorkerModal('single')" title="Add single department worker">
+                                        <i class="fa-solid fa-user-plus"></i> Add Worker
+                                    </button>
+                                </div>
                             </div>
+
+                            <!-- Search & Filter Controls -->
+                            <div class="toolbar" style="margin: 14px 0 16px 0; display: flex; gap: 10px; flex-wrap: wrap; align-items: center;">
+                                <div class="search-box" style="flex: 1; min-width: 240px; position: relative;">
+                                    <i class="fa-solid fa-magnifying-glass" style="position: absolute; left: 12px; top: 50%; transform: translateY(-50%); color: var(--text-muted);"></i>
+                                    <input type="text" id="adm-worker-search" class="form-control" style="padding-left: 36px; width: 100%;" placeholder="Search by Worker ID, Name, Username, Email, Mobile..." oninput="handleWorkerFilterChange()">
+                                </div>
+                                <div class="filter-group" style="display: flex; gap: 8px; flex-wrap: wrap;">
+                                    <select id="adm-worker-dept-filter" class="form-control" style="min-width: 170px;" onchange="handleWorkerFilterChange()">
+                                        <option value="">All Departments</option>
+                                        <option value="Water Department">Water Supply Department</option>
+                                        <option value="Roads Department">Roads Department</option>
+                                        <option value="Waste Management Department">Waste Management Department</option>
+                                        <option value="Streetlight Department">Streetlight Maintenance</option>
+                                        <option value="General Administration">General Administration</option>
+                                    </select>
+                                    <select id="adm-worker-status-filter" class="form-control" style="min-width: 130px;" onchange="handleWorkerFilterChange()">
+                                        <option value="">All Statuses</option>
+                                        <option value="active">Active Only</option>
+                                        <option value="deactivated">Deactivated Only</option>
+                                    </select>
+                                    <button class="btn btn-secondary btn-sm" onclick="resetWorkerFilters()" title="Reset Filters">
+                                        <i class="fa-solid fa-arrow-rotate-left"></i> Reset
+                                    </button>
+                                </div>
+                            </div>
+
                             <div class="table-responsive">
-                                <table class="custom-table">
+                                <table class="custom-table" id="adm-workers-table">
                                     <thead>
                                         <tr>
                                             <th>Worker ID</th>
-                                            <th>Officer Name</th>
-                                            <th>Email / Username</th>
-                                            <th>Mobile</th>
+                                            <th>Worker Name</th>
+                                            <th>Username</th>
+                                            <th>Email</th>
+                                            <th>Mobile Number</th>
                                             <th>Assigned Department</th>
-                                            <th>Status</th>
+                                            <th>Account Status</th>
                                             <th>Admin Actions</th>
                                         </tr>
                                     </thead>
@@ -788,6 +1032,101 @@
                                         <!-- Populated dynamically -->
                                     </tbody>
                                 </table>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Admin Subtab: Registered Citizens Management -->
+                    <div class="subtab-content" id="adm-tab-citizens">
+                        <div class="content-card">
+                            <div class="card-title-bar" style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 10px;">
+                                <div>
+                                    <h3 style="margin: 0;"><i class="fa-solid fa-address-book"></i> Registered Citizens Directory</h3>
+                                    <p style="margin: 3px 0 0; font-size: 13px; color: var(--text-muted);">
+                                        Comprehensive directory of registered citizens, civic accounts & grievance participation
+                                    </p>
+                                </div>
+                                <div style="display: flex; gap: 8px;">
+                                    <button class="btn btn-secondary" onclick="loadAdminCitizens(true)">
+                                        <i class="fa-solid fa-arrows-rotate"></i> Refresh List
+                                    </button>
+                                </div>
+                            </div>
+
+                            <!-- Search, Filter & Controls Toolbar -->
+                            <div class="toolbar-filter-grid" style="display: grid; grid-template-columns: 2fr 1fr auto; gap: 12px; margin: 15px 0 20px;">
+                                <div class="search-box" style="position: relative;">
+                                    <i class="fa-solid fa-magnifying-glass" style="position: absolute; left: 12px; top: 50%; transform: translateY(-50%); color: var(--text-muted);"></i>
+                                    <input type="text" id="adm-citizen-search" class="form-control" style="padding-left: 36px;"
+                                           placeholder="Search by Name, Username, Mobile, or Citizen ID..." oninput="handleCitizenFilterChange()">
+                                </div>
+                                <div>
+                                    <select id="adm-citizen-status-filter" class="form-control" onchange="handleCitizenFilterChange()">
+                                        <option value="ALL">All Account Statuses</option>
+                                        <option value="ACTIVE">Active Accounts Only</option>
+                                        <option value="INACTIVE">Inactive Accounts Only</option>
+                                    </select>
+                                </div>
+                                <div>
+                                    <button class="btn btn-secondary" onclick="resetCitizenFilters()" title="Reset all filters">
+                                        <i class="fa-solid fa-arrow-rotate-left"></i> Reset
+                                    </button>
+                                </div>
+                            </div>
+
+                            <!-- Table Container with Horizontal and Vertical Scrolling -->
+                            <div class="citizens-table-container">
+                                <table class="citizens-directory-table data-table" id="adm-citizens-table">
+                                    <colgroup>
+                                        <col class="col-citizen-id" style="width: 130px;">
+                                        <col class="col-citizen-name" style="width: 180px;">
+                                        <col class="col-username" style="width: 180px;">
+                                        <col class="col-email" style="width: 260px;">
+                                        <col class="col-mobile" style="width: 140px;">
+                                        <col class="col-aadhaar" style="width: 130px;">
+                                        <col class="col-date" style="width: 140px;">
+                                        <col class="col-status" style="width: 120px;">
+                                        <col class="col-action" style="width: 130px;">
+                                    </colgroup>
+                                    <thead>
+                                        <tr>
+                                            <th class="col-citizen-id">Citizen ID</th>
+                                            <th class="col-citizen-name">Citizen Name</th>
+                                            <th class="col-username">Username</th>
+                                            <th class="col-email">Email Address</th>
+                                            <th class="col-mobile">Mobile Number</th>
+                                            <th class="col-aadhaar">Masked Aadhaar</th>
+                                            <th class="col-date">Registration Date</th>
+                                            <th class="col-status">Account Status</th>
+                                            <th class="col-action" style="text-align: center;">Action</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody id="adm-citizens-tbody">
+                                        <!-- Rendered dynamically -->
+                                    </tbody>
+                                </table>
+                            </div>
+                            <!-- Pagination Controls -->
+                            <div class="pagination-bar" id="adm-citizen-pagination" style="display: flex; justify-content: space-between; align-items: center; margin-top: 16px; padding-top: 12px; border-top: 1px solid var(--border-color); flex-wrap: wrap; gap: 10px;">
+                                <div style="display: flex; align-items: center; gap: 10px; font-size: 13px; color: var(--text-muted);">
+                                    <span>Rows per page:</span>
+                                    <select id="adm-citizen-page-size" class="form-control" style="width: auto; padding: 4px 8px; font-size: 13px;" onchange="setCitizenPageSize(this.value)">
+                                        <option value="5">5</option>
+                                        <option value="10" selected>10</option>
+                                        <option value="25">25</option>
+                                        <option value="50">50</option>
+                                    </select>
+                                    <span id="adm-citizen-page-info">Showing 0 of 0</span>
+                                </div>
+                                <div style="display: flex; gap: 6px; align-items: center;">
+                                    <button class="btn btn-secondary btn-sm" id="btn-citizen-prev" onclick="changeCitizenPage(-1)" disabled>
+                                        <i class="fa-solid fa-chevron-left"></i> Previous
+                                    </button>
+                                    <span id="adm-citizen-page-current" style="font-size: 13px; font-weight: 600; padding: 0 8px;">Page 1</span>
+                                    <button class="btn btn-secondary btn-sm" id="btn-citizen-next" onclick="changeCitizenPage(1)" disabled>
+                                        Next <i class="fa-solid fa-chevron-right"></i>
+                                    </button>
+                                </div>
                             </div>
                         </div>
                     </div>
@@ -1057,9 +1396,25 @@
     <!-- 3. SLIDE-OUT NOTIFICATION DRAWER -->
     <div class="notification-drawer-overlay" id="noti-drawer-overlay" onclick="toggleNotificationDrawer()"></div>
     <aside class="notification-drawer" id="noti-drawer">
-        <div class="drawer-header">
-            <h3 style="font-size: 16px; font-weight: 700;"><i class="fa-solid fa-bell"></i> Notifications Center</h3>
-            <button class="close-btn" onclick="toggleNotificationDrawer()"><i class="fa-solid fa-xmark"></i></button>
+        <div class="drawer-header" style="display: flex; flex-direction: column; gap: 8px; padding: 16px 20px; border-bottom: 1px solid var(--border-color);">
+            <div style="display: flex; justify-content: space-between; align-items: center; width: 100%;">
+                <div style="display: flex; align-items: center; gap: 8px;">
+                    <h3 style="font-size: 16px; font-weight: 700; margin: 0;"><i class="fa-solid fa-bell"></i> Notifications</h3>
+                    <span id="drawer-unread-count-badge" class="badge" style="background: #eff6ff; color: #1d4ed8; border: 1px solid #bfdbfe; font-size: 11px; padding: 2px 8px; border-radius: 12px; font-weight: 600;">0 unread</span>
+                </div>
+                <div style="display: flex; align-items: center; gap: 6px;">
+                    <button class="header-icon-btn" onclick="fetchNotificationsAndBadge(true)" title="Refresh Notifications" style="width: 28px; height: 28px; font-size: 12px;">
+                        <i class="fa-solid fa-arrows-rotate"></i>
+                    </button>
+                    <button class="close-btn" onclick="toggleNotificationDrawer()" title="Close Notifications"><i class="fa-solid fa-xmark"></i></button>
+                </div>
+            </div>
+            <div style="display: flex; justify-content: space-between; align-items: center; width: 100%; margin-top: 4px;">
+                <span style="font-size: 12px; color: var(--text-muted);">Real-time grievance updates & events</span>
+                <button type="button" class="btn btn-secondary btn-sm" id="btn-mark-all-read" onclick="handleMarkAllNotificationsRead()" title="Mark all notifications as read" style="font-size: 11px; padding: 3px 8px; height: auto;">
+                    <i class="fa-solid fa-check-double"></i> Mark all read
+                </button>
+            </div>
         </div>
         <div class="drawer-body" id="noti-drawer-body">
             <!-- Populated dynamically -->
@@ -1175,9 +1530,9 @@
                 <h4 style="font-size: 14px; color: var(--primary);"><i class="fa-solid fa-user-gear"></i> MUNICIPAL DISPATCH & WORKER ASSIGNMENT</h4>
                 
                 <div class="form-grid">
-                    <!-- Manager/Admin Only: Department & Worker Assignment -->
+                    <!-- Manager/Admin Only: Department & Worker Assignment / Reassignment -->
                     <div class="form-group full-width" id="s-assign-worker-group">
-                        <label class="form-label">Assign Department & Field Worker Officer</label>
+                        <label class="form-label" id="s-assign-worker-label"><i class="fa-solid fa-user-gear"></i> Assign Department & Field Worker Officer</label>
                         <div style="display: flex; gap: 8px; flex-wrap: wrap;">
                             <select id="s-assign-dept-select" class="form-control" style="flex: 1; min-width: 150px;" onchange="onComplaintModalDeptChange()">
                                 <option value="Water Supply">Water Supply Department</option>
@@ -1190,8 +1545,11 @@
                             <select id="s-assign-staff-select" class="form-control" style="flex: 1; min-width: 180px;">
                                 <option value="">-- Select Field Worker --</option>
                             </select>
-                            <button class="btn btn-primary btn-sm" onclick="handleStaffAssign()">
+                            <button id="btn-modal-assign-worker" class="btn btn-primary btn-sm" onclick="handleStaffAssign()">
                                 <i class="fa-solid fa-user-check"></i> Assign Worker
+                            </button>
+                            <button id="btn-modal-reassign-worker" class="btn btn-warning btn-sm" onclick="handleStaffReassignWithConfirmation()" style="display: none; background: #d97706; color: #fff; border-color: #b45309;">
+                                <i class="fa-solid fa-arrows-rotate"></i> Reassign Worker
                             </button>
                         </div>
                     </div>
@@ -1317,6 +1675,80 @@
         </div>
     </div>
 
+    <!-- 5b. REASSIGNMENT MODAL (MANAGER / ADMIN) -->
+    <div class="modal-overlay" id="reassign-modal">
+        <div class="modal-card" style="max-width: 580px;">
+            <div class="modal-header">
+                <h3><i class="fa-solid fa-arrows-rotate" style="color: #d97706;"></i> Reassign Complaint: <span id="reassign-modal-comp-id" style="color: #d97706;">-</span></h3>
+                <button class="close-btn" onclick="closeReassignModal()"><i class="fa-solid fa-xmark"></i></button>
+            </div>
+
+            <!-- Warning / Info Banner -->
+            <div style="background: #fffbeb; border: 1px solid #fde68a; border-radius: var(--radius-sm); padding: 12px 14px; margin-bottom: 16px; font-size: 13px; color: #92400e;">
+                <div style="display: flex; gap: 8px; align-items: flex-start;">
+                    <i class="fa-solid fa-triangle-exclamation" style="margin-top: 2px;"></i>
+                    <div>
+                        <strong>Operational Reassignment:</strong>
+                        This active complaint will be transferred to a new department or field officer. An explicit operational reason and confirmation are required.
+                    </div>
+                </div>
+            </div>
+
+            <!-- Current Assignment Summary -->
+            <div style="background: var(--bg-surface-secondary); padding: 12px 16px; border-radius: var(--radius-sm); border: 1px solid var(--border-color); margin-bottom: 16px; font-size: 13px;">
+                <div style="display: flex; justify-content: space-between; margin-bottom: 6px;">
+                    <div>Current Dept: <strong id="reassign-modal-current-dept" style="color: var(--text-main);">-</strong></div>
+                    <div>Status: <span id="reassign-modal-current-status">-</span></div>
+                </div>
+                <div>Current Assigned Officer: <strong id="reassign-modal-current-staff" style="color: var(--text-main);">-</strong></div>
+                <div style="background: var(--bg-surface); padding: 8px 12px; border-radius: 4px; border: 1px solid var(--border-color); margin-top: 8px; font-size: 12px;" id="reassign-modal-capacity-info">
+                    Capacity status loading...
+                </div>
+            </div>
+
+            <form onsubmit="handleConfirmReassign(event)">
+                <div class="form-group">
+                    <label class="form-label">New Target Department *</label>
+                    <select id="reassign-modal-dept-select" class="form-control" required onchange="updateReassignCapacityFeedback(); onReassignModalDeptChange();">
+                        <option value="Water Supply">Water Supply Department</option>
+                        <option value="Roads">Roads Department</option>
+                        <option value="Waste Management">Waste Management Department</option>
+                        <option value="Streetlights">Streetlights Department</option>
+                        <option value="Drainage">Drainage Department</option>
+                        <option value="General Administration">General Administration</option>
+                    </select>
+                </div>
+
+                <div class="form-group">
+                    <label class="form-label"><i class="fa-solid fa-user-gear" style="color: #d97706;"></i> New Field Worker Officer</label>
+                    <select id="reassign-modal-staff-select" class="form-control">
+                        <option value="">-- Auto-Assign / Department Pool --</option>
+                    </select>
+                    <small style="color: var(--text-muted); font-size: 11px;">Select an available department worker or leave for department pool.</small>
+                </div>
+
+                <div class="form-group">
+                    <label class="form-label">Mandatory Reassignment Reason / Justification *</label>
+                    <textarea id="reassign-modal-reason-input" class="form-control" rows="2" placeholder="Explain why this grievance is being reassigned (e.g. wrong jurisdiction, specialized equipment needed, staff load balancing)..." required></textarea>
+                </div>
+
+                <div class="form-group" style="margin-top: 10px;">
+                    <label style="display: flex; align-items: center; gap: 8px; font-size: 13px; cursor: pointer; color: var(--text-main);">
+                        <input type="checkbox" id="reassign-modal-confirm-check" required style="width: 16px; height: 16px;">
+                        <span>I confirm this operational reassignment request and understand the complaint handover will be audited.</span>
+                    </label>
+                </div>
+
+                <div style="display: flex; justify-content: flex-end; gap: 8px; margin-top: 18px;">
+                    <button type="button" class="btn btn-secondary" onclick="closeReassignModal()">Cancel</button>
+                    <button type="submit" class="btn btn-warning" id="reassign-modal-submit-btn" style="background: #d97706; color: #fff; border-color: #b45309;">
+                        <i class="fa-solid fa-arrows-rotate"></i> Confirm & Reassign
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+
     <!-- 6. WORKER RESOLVE CASE MODAL -->
     <div class="modal-overlay" id="resolve-modal">
         <div class="modal-card" style="max-width: 500px;">
@@ -1342,53 +1774,124 @@
 
     <!-- 7. ADMIN WORKER CREATION / EDIT MODAL -->
     <div class="modal-overlay" id="worker-modal">
-        <div class="modal-card" style="max-width: 540px;">
+        <div class="modal-card" id="worker-modal-card" style="max-width: 600px; transition: max-width 0.25s ease;">
             <div class="modal-header">
                 <h3 id="worker-modal-title"><i class="fa-solid fa-user-plus"></i> Add New Department Worker</h3>
                 <button class="close-btn" onclick="closeWorkerModal()"><i class="fa-solid fa-xmark"></i></button>
             </div>
-            <form onsubmit="handleSaveWorker(event)">
+
+            <!-- Add Mode Switcher Tabs (Single vs Multi) -->
+            <div id="worker-modal-tabs" style="display: flex; gap: 8px; margin-bottom: 16px; border-bottom: 1px solid var(--border-color); padding-bottom: 12px;">
+                <button type="button" class="btn btn-primary btn-sm" id="btn-wmode-single" onclick="switchWorkerModalMode('single')">
+                    <i class="fa-solid fa-user-plus"></i> Single Worker
+                </button>
+                <button type="button" class="btn btn-secondary btn-sm" id="btn-wmode-multi" onclick="switchWorkerModalMode('multi')">
+                    <i class="fa-solid fa-users-plus"></i> Multiple Workers (Batch Entry)
+                </button>
+            </div>
+
+            <!-- Single Worker / Edit Worker Form -->
+            <form id="worker-single-form" onsubmit="handleSaveWorker(event)">
                 <input type="hidden" id="worker-form-id" value="">
                 <div class="form-grid">
+                    <div class="form-group full-width" id="w-form-id-group" style="display: none;">
+                        <label class="form-label">Worker ID</label>
+                        <input type="text" id="w-form-id-display" class="form-control" readonly style="background: var(--bg-surface-secondary); font-weight: 700; color: var(--primary);">
+                    </div>
                     <div class="form-group full-width">
-                        <label class="form-label">Officer Full Name *</label>
+                        <label class="form-label">Worker Full Name *</label>
                         <input type="text" id="w-form-name" class="form-control" placeholder="e.g. Balan Natarajan" required>
                     </div>
                     <div class="form-group">
-                        <label class="form-label">Email / Username *</label>
-                        <input type="text" id="w-form-email" class="form-control" placeholder="balan@makkal.gov.in" required>
+                        <label class="form-label">Username *</label>
+                        <input type="text" id="w-form-username" class="form-control" placeholder="e.g. balan_roads" required>
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">Email Address *</label>
+                        <input type="email" id="w-form-email" class="form-control" placeholder="balan@makkal.gov.in" required>
                     </div>
                     <div class="form-group">
                         <label class="form-label">Mobile Number *</label>
                         <input type="tel" id="w-form-mobile" class="form-control" placeholder="9876543210" required>
                     </div>
-                    <div class="form-group full-width">
+                    <div class="form-group">
                         <label class="form-label">Assigned Core Department *</label>
                         <select id="w-form-dept" class="form-control" required>
                             <option value="Water Supply">Water Supply Department</option>
                             <option value="Roads">Roads Department</option>
                             <option value="Waste Management">Waste Management Department</option>
-                            <option value="Streetlights">Streetlights Department</option>
+                            <option value="Streetlights">Streetlight Maintenance</option>
+                            <option value="General Administration">General Administration</option>
                         </select>
                     </div>
                     <div class="form-group full-width" id="w-form-pwd-group">
-                        <label class="form-label">Initial Password *</label>
-                        <input type="password" id="w-form-pwd" class="form-control" placeholder="••••••••">
+                        <label class="form-label">Initial Password * (Min 6 characters)</label>
+                        <input type="password" id="w-form-pwd" class="form-control" placeholder="••••••••" value="admin123">
                     </div>
                     <div class="form-group full-width" id="w-form-active-group" style="display: none;">
                         <label style="display: flex; align-items: center; gap: 8px; font-size: 13px; font-weight: 600; cursor: pointer;">
-                            <input type="checkbox" id="w-form-active" checked> Active in Service
+                            <input type="checkbox" id="w-form-active" checked> Active in Service (Account Enabled)
                         </label>
                     </div>
                 </div>
                 <div style="background: var(--bg-surface-secondary); border: 1px solid var(--border-color); padding: 10px 14px; border-radius: var(--radius-sm); font-size: 12px; color: var(--text-muted); margin: 16px 0;">
-                    <i class="fa-solid fa-triangle-exclamation" style="color:var(--accent-gold);"></i> <strong>Handover Assurance:</strong> Transferring departments or deactivating a worker automatically initiates a validated handover for active assignments so no complaints are orphaned.
+                    <i class="fa-solid fa-shield-halved" style="color:var(--primary);"></i> <strong>Staff Role Guarantee:</strong> Workers receive the <code>STAFF</code> role and can immediately log in via the Worker Portal. Transferring departments or deactivating initiates automatic complaint handover.
                 </div>
                 <div style="display: flex; justify-content: flex-end; gap: 8px;">
                     <button type="button" class="btn btn-secondary" onclick="closeWorkerModal()">Cancel</button>
                     <button type="submit" class="btn btn-primary" id="w-form-submit-btn"><i class="fa-solid fa-save"></i> Save Worker Account</button>
                 </div>
             </form>
+
+            <!-- Multiple Workers (Batch Entry) Container -->
+            <div id="worker-multi-form-container" style="display: none;">
+                <p style="font-size: 13px; color: var(--text-muted); margin-bottom: 12px;">
+                    Register multiple department field workers simultaneously. All workers will be verified, assigned the <strong>STAFF</strong> role, and persisted to the database.
+                </p>
+                <div class="table-responsive" style="max-height: 360px; overflow-y: auto; margin-bottom: 12px; border: 1px solid var(--border-color); border-radius: 6px;">
+                    <table class="custom-table" style="font-size: 12px; min-width: 820px;" id="multi-workers-table">
+                        <thead>
+                            <tr>
+                                <th style="width: 30px;">#</th>
+                                <th style="min-width: 140px;">Worker Name *</th>
+                                <th style="min-width: 110px;">Username *</th>
+                                <th style="min-width: 150px;">Email *</th>
+                                <th style="min-width: 110px;">Mobile *</th>
+                                <th style="min-width: 140px;">Department *</th>
+                                <th style="min-width: 100px;">Password *</th>
+                                <th style="width: 45px; text-align: center;"></th>
+                            </tr>
+                        </thead>
+                        <tbody id="multi-workers-tbody">
+                            <!-- Populated dynamically with rows -->
+                        </tbody>
+                    </table>
+                </div>
+
+                <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 8px; margin-bottom: 16px;">
+                    <div style="display: flex; gap: 8px;">
+                        <button type="button" class="btn btn-secondary btn-sm" onclick="addMultiWorkerRow()">
+                            <i class="fa-solid fa-plus"></i> Add Worker Row
+                        </button>
+                        <button type="button" class="btn btn-secondary btn-sm" onclick="addMultipleEmptyRows(3)">
+                            <i class="fa-solid fa-list-ol"></i> Add 3 Rows
+                        </button>
+                        <button type="button" class="btn btn-secondary btn-sm" onclick="clearMultiWorkerRows()" style="color: #dc2626;">
+                            <i class="fa-solid fa-trash-can"></i> Clear All
+                        </button>
+                    </div>
+                    <span id="multi-workers-count-label" style="font-size: 12px; font-weight: 600; color: var(--text-main);">
+                        1 worker row ready
+                    </span>
+                </div>
+
+                <div style="display: flex; justify-content: flex-end; gap: 8px;">
+                    <button type="button" class="btn btn-secondary" onclick="closeWorkerModal()">Cancel</button>
+                    <button type="button" class="btn btn-primary" id="btn-save-multi-workers" onclick="handleSaveMultipleWorkers()">
+                        <i class="fa-solid fa-users-check"></i> Register All Workers
+                    </button>
+                </div>
+            </div>
         </div>
     </div>
 
@@ -1527,5 +2030,105 @@
 
     <script src="js/api.js"></script>
     <script src="js/app.js"></script>
+    <!-- 13. REGISTERED CITIZEN DETAILS MODAL (READ-ONLY) -->
+    <div class="modal-overlay" id="citizen-details-modal">
+        <div class="modal-card" style="max-width: 680px; width: 95%;">
+            <div class="modal-header">
+                <h3><i class="fa-solid fa-address-card" style="color: var(--primary);"></i> Citizen Profile & Civic Overview</h3>
+                <button class="close-btn" onclick="closeCitizenDetailsModal()"><i class="fa-solid fa-xmark"></i></button>
+            </div>
+            <div class="modal-body" style="display: flex; flex-direction: column; gap: 16px; max-height: 80vh; overflow-y: auto; padding: 4px;">
+                <!-- Profile Card -->
+                <div style="background: var(--bg-surface); border: 1px solid var(--border-color); border-radius: 8px; padding: 16px;">
+                    <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 12px; flex-wrap: wrap; gap: 8px;">
+                        <div>
+                            <h4 id="cit-modal-name" style="margin: 0; font-size: 18px; color: var(--text-main); font-weight: 700;">-</h4>
+                            <span id="cit-modal-id-badge" style="font-size: 12px; font-family: monospace; color: var(--text-muted);">-</span>
+                        </div>
+                        <span id="cit-modal-status-badge" class="badge badge-success">Active</span>
+                    </div>
+
+                    <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 12px; font-size: 13px;">
+                        <div>
+                            <span style="color: var(--text-muted); display: block; font-size: 11px; text-transform: uppercase; font-weight: 600;">Username</span>
+                            <span id="cit-modal-username" style="font-weight: 600; color: var(--text-main);">-</span>
+                        </div>
+                        <div>
+                            <span style="color: var(--text-muted); display: block; font-size: 11px; text-transform: uppercase; font-weight: 600;">Email Address</span>
+                            <span id="cit-modal-email" style="font-weight: 600; color: var(--text-main);">-</span>
+                        </div>
+                        <div>
+                            <span style="color: var(--text-muted); display: block; font-size: 11px; text-transform: uppercase; font-weight: 600;">Mobile Number</span>
+                            <span id="cit-modal-mobile" style="font-weight: 600; color: var(--text-main);">-</span>
+                        </div>
+                        <div>
+                            <span style="color: var(--text-muted); display: block; font-size: 11px; text-transform: uppercase; font-weight: 600;">Registration Date</span>
+                            <span id="cit-modal-date" style="font-weight: 600; color: var(--text-main);">-</span>
+                        </div>
+                        <div>
+                            <span style="color: var(--text-muted); display: block; font-size: 11px; text-transform: uppercase; font-weight: 600;">Verified Aadhaar / UID</span>
+                            <span id="cit-modal-masked-id" style="font-weight: 700; color: #059669; font-family: monospace;">-</span>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Complaint Statistics -->
+                <div>
+                    <h5 style="margin: 0 0 8px 0; font-size: 13px; text-transform: uppercase; letter-spacing: 0.5px; color: var(--text-muted); font-weight: 700;">
+                        <i class="fa-solid fa-chart-pie"></i> Grievance Activity Summary
+                    </h5>
+                    <div style="display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px;">
+                        <div style="background: rgba(37, 99, 235, 0.08); border: 1px solid rgba(37, 99, 235, 0.2); border-radius: 6px; padding: 10px; text-align: center;">
+                            <div id="cit-stat-total" style="font-size: 20px; font-weight: 700; color: #2563eb;">0</div>
+                            <div style="font-size: 11px; color: var(--text-muted);">Total Filed</div>
+                        </div>
+                        <div style="background: rgba(234, 179, 8, 0.08); border: 1px solid rgba(234, 179, 8, 0.2); border-radius: 6px; padding: 10px; text-align: center;">
+                            <div id="cit-stat-pending" style="font-size: 20px; font-weight: 700; color: #ca8a04;">0</div>
+                            <div style="font-size: 11px; color: var(--text-muted);">Pending</div>
+                        </div>
+                        <div style="background: rgba(14, 165, 233, 0.08); border: 1px solid rgba(14, 165, 233, 0.2); border-radius: 6px; padding: 10px; text-align: center;">
+                            <div id="cit-stat-inprogress" style="font-size: 20px; font-weight: 700; color: #0284c7;">0</div>
+                            <div style="font-size: 11px; color: var(--text-muted);">In Progress</div>
+                        </div>
+                        <div style="background: rgba(16, 185, 129, 0.08); border: 1px solid rgba(16, 185, 129, 0.2); border-radius: 6px; padding: 10px; text-align: center;">
+                            <div id="cit-stat-resolved" style="font-size: 20px; font-weight: 700; color: #059669;">0</div>
+                            <div style="font-size: 11px; color: var(--text-muted);">Resolved</div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Recent Complaints List -->
+                <div>
+                    <h5 style="margin: 0 0 8px 0; font-size: 13px; text-transform: uppercase; letter-spacing: 0.5px; color: var(--text-muted); font-weight: 700;">
+                        <i class="fa-solid fa-clock-rotate-left"></i> Submitted Grievances History
+                    </h5>
+                    <div style="border: 1px solid var(--border-color); border-radius: 6px; overflow: hidden; max-height: 220px; overflow-y: auto;">
+                        <table class="data-table" style="font-size: 12px; margin: 0;">
+                            <thead>
+                                <tr>
+                                    <th>ID</th>
+                                    <th>Category</th>
+                                    <th>Location</th>
+                                    <th>Status</th>
+                                    <th>Date</th>
+                                </tr>
+                            </thead>
+                            <tbody id="cit-modal-complaints-tbody">
+                                <!-- Dynamic -->
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+
+                <!-- Privacy & Read-only notice -->
+                <div style="background: #f8fafc; border-left: 4px solid #64748b; padding: 10px 14px; border-radius: 4px; font-size: 12px; color: #475569;">
+                    <i class="fa-solid fa-shield-halved"></i> <strong>Read-Only Governance Record:</strong> Citizen demographic profile is protected under administrative governance rules and cannot be directly modified by administrators.
+                </div>
+            </div>
+            <div style="display: flex; justify-content: flex-end; margin-top: 16px; padding-top: 12px; border-top: 1px solid var(--border-color);">
+                <button type="button" class="btn btn-secondary" onclick="closeCitizenDetailsModal()">Close Profile</button>
+            </div>
+        </div>
+    </div>
 </body>
 </html>

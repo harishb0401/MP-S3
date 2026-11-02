@@ -84,57 +84,189 @@ document.addEventListener("click", (e) => {
     }
 });
 
-// Notification Drawer Toggle & Renderer
+// ------------------- NOTIFICATIONS SYSTEM (MULTI-ROLE) -------------------
+let cachedNotifications = [];
+let notifPollingInterval = null;
+
 function toggleNotificationDrawer() {
     const overlay = document.getElementById("noti-drawer-overlay");
     const drawer = document.getElementById("noti-drawer");
     if (!overlay || !drawer) return;
 
-    overlay.classList.toggle("active");
-    drawer.classList.toggle("active");
-
-    if (drawer.classList.contains("active")) {
-        renderNotificationDrawerItems();
+    const isActive = drawer.classList.contains("active");
+    if (isActive) {
+        overlay.classList.remove("active");
+        drawer.classList.remove("active");
+    } else {
+        overlay.classList.add("active");
+        drawer.classList.add("active");
+        fetchNotificationsAndBadge(true);
     }
 }
 
-async function renderNotificationDrawerItems() {
-    const body = document.getElementById("noti-drawer-body");
+async function fetchNotificationsAndBadge(forceRenderDrawer = false) {
     const badge = document.getElementById("noti-badge-count");
-    if (!body) return;
+    const drawerBadge = document.getElementById("drawer-unread-count-badge");
+    const drawer = document.getElementById("noti-drawer");
+    const isDrawerOpen = drawer && drawer.classList.contains("active");
+
+    if (!currentUser) {
+        if (badge) badge.style.display = "none";
+        return;
+    }
 
     try {
         const notis = await ApiClient.getNotifications();
-        if (notis && notis.length > 0) {
-            if (badge) badge.innerText = notis.length;
-            body.innerHTML = notis.map(n => `
-                <div class="noti-card success" onclick="toggleNotificationDrawer()">
-                    <div class="noti-title"><i class="fa-solid fa-circle-check"></i> ${escapeHtml(n.title)}</div>
-                    <div class="noti-desc">${escapeHtml(n.message)}</div>
-                    <div class="noti-time"><i class="fa-solid fa-clock"></i> ${escapeHtml(n.createdAt)}</div>
-                </div>
-            `).join("");
-            return;
+        cachedNotifications = Array.isArray(notis) ? notis : [];
+
+        const unreadCount = cachedNotifications.filter(n => !n.isRead).length;
+
+        // Top bar bell badge
+        if (badge) {
+            badge.innerText = unreadCount;
+            badge.style.display = unreadCount > 0 ? "inline-block" : "none";
+        }
+
+        // Drawer header badge
+        if (drawerBadge) {
+            drawerBadge.innerText = `${unreadCount} unread`;
+        }
+
+        // Render drawer items if drawer is open or forced
+        if (isDrawerOpen || forceRenderDrawer) {
+            renderNotificationDrawerItems(cachedNotifications);
         }
     } catch (e) {
-        // Fallback to static alerts if not authenticated
+        console.warn("Failed to fetch notifications:", e.message);
+    }
+}
+
+function renderNotificationDrawerItems(notis) {
+    const body = document.getElementById("noti-drawer-body");
+    if (!body) return;
+
+    if (!notis || notis.length === 0) {
+        body.innerHTML = `
+            <div class="noti-empty">
+                <i class="fa-regular fa-bell"></i>
+                <div style="font-weight: 600; font-size: 14px; color: var(--text-main);">No Notifications Yet</div>
+                <div style="font-size: 12px; max-width: 260px; line-height: 1.4;">
+                    You will receive real-time updates here as grievances are registered, reviewed, assigned, or resolved.
+                </div>
+            </div>
+        `;
+        return;
     }
 
-    const defaultNotis = [
-        { title: "🔴 Priority Queue Monitor", desc: "Highest priority civic grievances ordered dynamically.", time: "Live", type: "urgent" },
-        { title: "🟡 Department SLA Tracking", desc: "Department capacity limits managed via PriorityQueue waiting buffer.", time: "Live", type: "warning" },
-        { title: "🟢 Impact Immutability Guard", desc: "Citizen reported impact values are preserved and locked upon review.", time: "Live", type: "success" }
-    ];
+    body.innerHTML = notis.map(n => {
+        const isUnread = !n.isRead;
+        const typeClass = (n.type && ["urgent", "warning", "success", "info"].includes(n.type.toLowerCase()))
+            ? n.type.toLowerCase()
+            : "info";
 
-    if (badge) badge.innerText = defaultNotis.length;
+        let iconHtml = '<i class="fa-solid fa-circle-info" style="color: #2563eb;"></i>';
+        if (typeClass === "success") iconHtml = '<i class="fa-solid fa-circle-check" style="color: #059669;"></i>';
+        else if (typeClass === "warning") iconHtml = '<i class="fa-solid fa-triangle-exclamation" style="color: #d97706;"></i>';
+        else if (typeClass === "urgent") iconHtml = '<i class="fa-solid fa-bell" style="color: #dc2626;"></i>';
 
-    body.innerHTML = defaultNotis.map(n => `
-        <div class="noti-card ${n.type}" onclick="toggleNotificationDrawer()">
-            <div class="noti-title">${n.title}</div>
-            <div class="noti-desc">${n.desc}</div>
-            <div class="noti-time"><i class="fa-solid fa-clock"></i> ${n.time}</div>
-        </div>
-    `).join("");
+        const dotHtml = isUnread ? '<span class="noti-unread-dot" title="Unread notification"></span>' : '';
+        const complaintTag = n.complaintId ? `
+            <span class="noti-complaint-tag" onclick="handleNotificationComplaintClick('${escapeHtml(n.complaintId)}', '${escapeHtml(n.notificationId)}', event)" title="View Complaint Details">
+                <i class="fa-solid fa-folder-open"></i> ${escapeHtml(n.complaintId)}
+            </span>
+        ` : '';
+
+        const markReadBtn = isUnread ? `
+            <button type="button" class="noti-mark-read-btn" onclick="handleMarkSingleNotificationRead('${escapeHtml(n.notificationId)}', event)" title="Mark as read">
+                <i class="fa-solid fa-check"></i> Mark read
+            </button>
+        ` : `
+            <span style="font-size: 10px; color: #94a3b8;"><i class="fa-solid fa-check-double"></i> Read</span>
+        `;
+
+        return `
+            <div class="noti-card ${typeClass} ${isUnread ? 'unread' : 'read'}" onclick="handleNotificationCardClick('${escapeHtml(n.complaintId || '')}', '${escapeHtml(n.notificationId)}', ${!isUnread})">
+                <div class="noti-title-row">
+                    <div class="noti-title">
+                        ${dotHtml}
+                        ${iconHtml}
+                        <span>${escapeHtml(n.title || 'Notification')}</span>
+                    </div>
+                </div>
+                <div class="noti-desc">${escapeHtml(n.message || '')}</div>
+                <div class="noti-meta-row">
+                    <div class="noti-time">
+                        <i class="fa-regular fa-clock"></i> ${escapeHtml(n.createdAt || '')}
+                    </div>
+                    <div style="display: flex; align-items: center; gap: 8px;">
+                        ${complaintTag}
+                        ${markReadBtn}
+                    </div>
+                </div>
+            </div>
+        `;
+    }).join("");
+}
+
+async function handleNotificationCardClick(complaintId, notificationId, isAlreadyRead) {
+    if (!isAlreadyRead && notificationId) {
+        try {
+            await ApiClient.markNotificationRead(notificationId);
+            const found = cachedNotifications.find(x => x.notificationId === notificationId);
+            if (found) found.isRead = true;
+            fetchNotificationsAndBadge(true);
+        } catch (e) {
+            console.warn("Failed to mark notification read:", e);
+        }
+    }
+
+    if (complaintId && complaintId.trim().length > 0) {
+        toggleNotificationDrawer();
+        await openComplaintModal(complaintId.trim());
+        setTimeout(() => {
+            const dupBox = document.getElementById("duplicate-candidate-box");
+            if (dupBox && dupBox.style.display !== "none") {
+                dupBox.scrollIntoView({ behavior: "smooth" });
+            }
+        }, 150);
+    }
+}
+
+async function handleNotificationComplaintClick(complaintId, notificationId, event) {
+    if (event) event.stopPropagation();
+    if (notificationId) {
+        try {
+            await ApiClient.markNotificationRead(notificationId);
+            const found = cachedNotifications.find(x => x.notificationId === notificationId);
+            if (found) found.isRead = true;
+            fetchNotificationsAndBadge(true);
+        } catch (ignored) {}
+    }
+    toggleNotificationDrawer();
+    openComplaintModal(complaintId);
+}
+
+async function handleMarkSingleNotificationRead(notificationId, event) {
+    if (event) event.stopPropagation();
+    try {
+        await ApiClient.markNotificationRead(notificationId);
+        const found = cachedNotifications.find(x => x.notificationId === notificationId);
+        if (found) found.isRead = true;
+        fetchNotificationsAndBadge(true);
+    } catch (e) {
+        showToast("error", "Error marking notification as read: " + e.message);
+    }
+}
+
+async function handleMarkAllNotificationsRead() {
+    try {
+        const res = await ApiClient.markAllNotificationsRead();
+        cachedNotifications.forEach(n => n.isRead = true);
+        fetchNotificationsAndBadge(true);
+        showToast("success", res.message || "All notifications marked as read.");
+    } catch (e) {
+        showToast("error", "Failed to mark all as read: " + e.message);
+    }
 }
 
 // Check session on load
@@ -188,6 +320,14 @@ function showAppScreen() {
 
     setupSidebarNav();
 
+    // Start Real-Time Notification Polling & Initial Fetch
+    fetchNotificationsAndBadge();
+    if (!notifPollingInterval) {
+        notifPollingInterval = setInterval(() => {
+            fetchNotificationsAndBadge();
+        }, 10000); // 10s polling interval
+    }
+
     // Four Role Redirections
     if (role === "ADMIN") {
         switchView("admin-dashboard");
@@ -212,32 +352,46 @@ function setupSidebarNav() {
 
     if (role === "ADMIN") {
         nav.innerHTML = `
-            <li><a class="nav-link active" data-view="admin-dashboard" onclick="switchView('admin-dashboard')"><i class="fa-solid fa-shield-halved"></i><span>Admin & Workers</span></a></li>
+            <div class="nav-section-label">Admin Authority</div>
+            <li><a class="nav-link active" data-view="admin-dashboard" onclick="switchView('admin-dashboard'); switchAdminSubtab('workers');"><i class="fa-solid fa-shield-halved"></i><span>Admin & Workers</span></a></li>
+            <li><a class="nav-link" data-view="registered-citizens" onclick="switchView('admin-dashboard'); switchAdminSubtab('citizens');"><i class="fa-solid fa-address-book"></i><span>Registered Citizens</span></a></li>
+            <li><a class="nav-link" data-view="analytics" onclick="switchView('analytics')"><i class="fa-solid fa-chart-line"></i><span>Grievance Analytics</span></a></li>
+            <div class="nav-section-label">Department Operations</div>
             <li><a class="nav-link" data-view="staff-dashboard" onclick="switchView('staff-dashboard')"><i class="fa-solid fa-list-check"></i><span>All Complaints</span></a></li>
-            <li><a class="nav-link" data-view="priority-queue" onclick="switchView('priority-queue')"><i class="fa-solid fa-layer-group"></i><span>Priority Queue</span></a></li>
-            <li><a class="nav-link" data-view="analytics" onclick="switchView('analytics')"><i class="fa-solid fa-chart-line"></i><span>Analytics & Reports</span></a></li>
-            <li><a class="nav-link" data-view="departments" onclick="switchView('departments')"><i class="fa-solid fa-sitemap"></i><span>Departments</span></a></li>
+            <li><a class="nav-link" data-view="priority-queue" onclick="switchView('priority-queue')"><i class="fa-solid fa-layer-group"></i><span>Priority Queues</span></a></li>
+            <li><a class="nav-link" data-view="departments" onclick="switchView('departments')"><i class="fa-solid fa-sitemap"></i><span>Department Loads</span></a></li>
+            <div class="nav-section-label">Citizen Services</div>
             <li><a class="nav-link" data-view="profile-settings" onclick="switchView('profile-settings')"><i class="fa-solid fa-user-gear"></i><span>My Profile</span></a></li>
+            <li><a class="nav-link" onclick="showHelpModal()"><i class="fa-solid fa-circle-question"></i><span>Civic Helpdesk</span></a></li>
         `;
     } else if (role === "MANAGER") {
         nav.innerHTML = `
-            <li><a class="nav-link active" data-view="manager-dashboard" onclick="switchView('manager-dashboard')"><i class="fa-solid fa-inbox"></i><span>Triage & Review</span></a></li>
+            <div class="nav-section-label">Department Operations</div>
+            <li><a class="nav-link active" data-view="manager-dashboard" onclick="switchView('manager-dashboard')"><i class="fa-solid fa-inbox"></i><span>Triage & Allocation</span></a></li>
             <li><a class="nav-link" data-view="staff-dashboard" onclick="switchView('staff-dashboard')"><i class="fa-solid fa-list-check"></i><span>All Complaints</span></a></li>
-            <li><a class="nav-link" data-view="priority-queue" onclick="switchView('priority-queue')"><i class="fa-solid fa-layer-group"></i><span>Priority Queue</span></a></li>
-            <li><a class="nav-link" data-view="analytics" onclick="switchView('analytics')"><i class="fa-solid fa-chart-line"></i><span>Reports & Stats</span></a></li>
+            <li><a class="nav-link" data-view="priority-queue" onclick="switchView('priority-queue')"><i class="fa-solid fa-layer-group"></i><span>Priority Queues</span></a></li>
             <li><a class="nav-link" data-view="departments" onclick="switchView('departments')"><i class="fa-solid fa-sitemap"></i><span>Department Loads</span></a></li>
+            <li><a class="nav-link" data-view="analytics" onclick="switchView('analytics')"><i class="fa-solid fa-chart-line"></i><span>Reports & Stats</span></a></li>
+            <div class="nav-section-label">Citizen Services</div>
             <li><a class="nav-link" data-view="profile-settings" onclick="switchView('profile-settings')"><i class="fa-solid fa-user-gear"></i><span>My Profile</span></a></li>
+            <li><a class="nav-link" onclick="showHelpModal()"><i class="fa-solid fa-circle-question"></i><span>Civic Helpdesk</span></a></li>
         `;
     } else if (role === "WORKER" || role === "STAFF") {
         nav.innerHTML = `
+            <div class="nav-section-label">Field Dispatch</div>
             <li><a class="nav-link active" data-view="worker-dashboard" onclick="switchView('worker-dashboard')"><i class="fa-solid fa-helmet-safety"></i><span>My Department Tasks</span></a></li>
+            <div class="nav-section-label">Citizen Services</div>
             <li><a class="nav-link" data-view="profile-settings" onclick="switchView('profile-settings')"><i class="fa-solid fa-user-gear"></i><span>My Profile</span></a></li>
+            <li><a class="nav-link" onclick="showHelpModal()"><i class="fa-solid fa-circle-question"></i><span>Civic Helpdesk</span></a></li>
         `;
     } else {
         nav.innerHTML = `
-            <li><a class="nav-link active" data-view="citizen-dashboard" onclick="switchView('citizen-dashboard')"><i class="fa-solid fa-house"></i><span>My Complaints</span></a></li>
-            <li><a class="nav-link" data-view="citizen-submit" onclick="switchView('citizen-submit')"><i class="fa-solid fa-file-circle-plus"></i><span>Submit Grievance</span></a></li>
+            <div class="nav-section-label">Citizen Services</div>
+            <li><a class="nav-link active" data-view="citizen-dashboard" onclick="switchView('citizen-dashboard')"><i class="fa-solid fa-house"></i><span>My Grievances</span></a></li>
+            <li><a class="nav-link" data-view="citizen-submit" onclick="switchView('citizen-submit')"><i class="fa-solid fa-file-circle-plus"></i><span>File a Complaint</span></a></li>
+            <div class="nav-section-label">Account & Services</div>
             <li><a class="nav-link" data-view="profile-settings" onclick="switchView('profile-settings')"><i class="fa-solid fa-user-gear"></i><span>My Profile</span></a></li>
+            <li><a class="nav-link" onclick="showHelpModal()"><i class="fa-solid fa-circle-question"></i><span>Civic Helpdesk</span></a></li>
         `;
     }
 }
@@ -292,6 +446,31 @@ function switchView(viewId) {
 function updateHeaderTitles(viewId) {
     const title = document.getElementById("header-page-title");
     const sub = document.getElementById("header-page-subtitle");
+    const roleBadge = document.getElementById("header-role-badge");
+    const subbarView = document.getElementById("subbar-current-view");
+
+    if (roleBadge && currentUser) {
+        const r = (currentUser.role || "").toUpperCase();
+        if (r === "ADMIN") roleBadge.innerText = "Administrator";
+        else if (r === "MANAGER") roleBadge.innerText = "Municipal Manager";
+        else if (r === "WORKER" || r === "STAFF") roleBadge.innerText = "Field Worker";
+        else roleBadge.innerText = "Citizen";
+    }
+
+    if (subbarView) {
+        switch (viewId) {
+            case "citizen-dashboard": subbarView.innerText = "Citizen Redressal Gateway"; break;
+            case "citizen-submit": subbarView.innerText = "Lodge Grievance Docket"; break;
+            case "worker-dashboard": subbarView.innerText = "Field Worker Dispatch Console"; break;
+            case "manager-dashboard": subbarView.innerText = "Department Allocation Console"; break;
+            case "admin-dashboard": subbarView.innerText = "Central Operations Command"; break;
+            case "staff-dashboard": subbarView.innerText = "Master Grievance Registry"; break;
+            case "priority-queue": subbarView.innerText = "Priority Triage Queue"; break;
+            case "analytics": subbarView.innerText = "Civic Intelligence & Reports"; break;
+            default: subbarView.innerText = "Central Operations"; break;
+        }
+    }
+
     if (!title || !sub) return;
 
     switch (viewId) {
@@ -409,24 +588,123 @@ async function handleCitizenRegister(e) {
     const mobile = document.getElementById("c-reg-mobile").value.trim();
     const password = document.getElementById("c-reg-password").value;
     const confirm = document.getElementById("c-reg-confirm").value;
+    const idInput = document.getElementById("c-reg-identity");
+    const rawIdentity = idInput ? idInput.value.trim() : "";
+    const errEl = document.getElementById("c-reg-identity-error");
+
+    if (errEl) errEl.style.display = "none";
 
     if (password !== confirm) {
         showToast("Passwords do not match!", "danger");
         return;
     }
 
+    // Frontend identity verification validation
+    const cleanId = rawIdentity.replace(/[\s-]+/g, "");
+    if (!cleanId || cleanId.length !== 12 || !/^[2-9]\d{11}$/.test(cleanId)) {
+        const msg = "Please enter a valid 12-digit identity number (cannot start with 0 or 1).";
+        showToast(msg, "danger");
+        if (errEl) {
+            errEl.innerText = msg;
+            errEl.style.color = "#dc2626";
+            errEl.style.display = "block";
+        }
+        if (idInput) idInput.focus();
+        return;
+    }
+
+    // Check repetitive digits
+    if (/^(\d)\1{11}$/.test(cleanId)) {
+        const msg = "Identity number cannot contain identical repeating digits.";
+        showToast(msg, "danger");
+        if (errEl) {
+            errEl.innerText = msg;
+            errEl.style.color = "#dc2626";
+            errEl.style.display = "block";
+        }
+        if (idInput) idInput.focus();
+        return;
+    }
+
     try {
-        const res = await ApiClient.registerCitizen(name, email, mobile, password);
+        const res = await ApiClient.registerCitizen(name, email, mobile, password, cleanId);
         localStorage.setItem("auth_token", res.token);
         currentUser = res.user;
-        showToast("Citizen account created successfully!");
+        showToast("Citizen account registered and identity verified successfully!", "success");
         showAppScreen();
     } catch (err) {
-        showToast("Registration failed: " + err.message, "danger");
+        const errMsg = err.message || "Registration failed";
+        showToast(errMsg, "danger");
+        if (errEl) {
+            errEl.innerText = errMsg;
+            errEl.style.color = "#dc2626";
+            errEl.style.display = "block";
+        }
+    }
+}
+
+function formatAndValidateIdentityInput(input) {
+    if (!input) return;
+    let val = input.value.replace(/\D/g, "");
+    if (val.length > 12) val = val.substring(0, 12);
+
+    // Format with dashes 4-4-4
+    let formatted = "";
+    for (let i = 0; i < val.length; i++) {
+        if (i === 4 || i === 8) formatted += "-";
+        formatted += val[i];
+    }
+    input.value = formatted;
+
+    const errEl = document.getElementById("c-reg-identity-error");
+    if (!errEl) return;
+
+    if (val.length > 0 && (val.startsWith("0") || val.startsWith("1"))) {
+        errEl.innerText = "Identity number cannot start with 0 or 1 per government identity standards.";
+        errEl.style.color = "#dc2626";
+        errEl.style.display = "block";
+    } else if (val.length === 12 && /^(\d)\1{11}$/.test(val)) {
+        errEl.innerText = "Identity number cannot contain identical repeating digits.";
+        errEl.style.color = "#dc2626";
+        errEl.style.display = "block";
+    } else if (val.length === 12) {
+        errEl.style.display = "none";
+    } else if (val.length > 0 && val.length < 12) {
+        errEl.innerText = `Entering identifier (${val.length}/12 digits)...`;
+        errEl.style.color = "var(--text-muted)";
+        errEl.style.display = "block";
+    } else {
+        errEl.style.display = "none";
+    }
+}
+
+function toggleIdentityVisibility() {
+    const input = document.getElementById("c-reg-identity");
+    const icon = document.getElementById("icon-toggle-id-mask");
+    if (!input) return;
+    if (input.type === "password") {
+        input.type = "text";
+        if (icon) {
+            icon.classList.remove("fa-eye");
+            icon.classList.add("fa-eye-slash");
+        }
+    } else {
+        input.type = "password";
+        if (icon) {
+            icon.classList.remove("fa-eye-slash");
+            icon.classList.add("fa-eye");
+        }
     }
 }
 
 async function handleLogout() {
+    if (notifPollingInterval) {
+        clearInterval(notifPollingInterval);
+        notifPollingInterval = null;
+    }
+    cachedNotifications = [];
+    const badge = document.getElementById("noti-badge-count");
+    if (badge) badge.style.display = "none";
     clearWorkerCache();
     await ApiClient.logout();
     currentUser = null;
@@ -848,10 +1126,29 @@ async function proceedSeparateSubmission() {
     }
 }
 
+// Global State for Citizen Grievances & Live Tracker
+let allCitizenComplaints = [];
+let citizenFilterStatus = "ALL";
+let citizenFilterKeyword = "";
+window.activeTrackedComplaint = null;
+
 async function loadCitizenDashboard() {
     try {
         const complaints = await ApiClient.getMyComplaints();
         currentComplaintsList = complaints;
+        allCitizenComplaints = complaints;
+
+        // Populate Citizen Hero Banner Info
+        if (currentUser) {
+            const welcomeEl = document.getElementById("citizen-welcome-name");
+            if (welcomeEl) welcomeEl.innerText = currentUser.name || currentUser.username || "Citizen";
+
+            const citIdEl = document.getElementById("citizen-cit-id");
+            if (citIdEl) citIdEl.innerText = currentUser.citizenId || (currentUser.id ? "CIT-" + currentUser.id : "CIT-88214");
+
+            const mobileEl = document.getElementById("citizen-mobile-display");
+            if (mobileEl) mobileEl.innerText = currentUser.mobile || "+91 98765 43210";
+        }
 
         const total = complaints.length;
         const pending = complaints.filter(c => {
@@ -867,52 +1164,258 @@ async function loadCitizenDashboard() {
             return s === "RESOLVED" || s === "CLOSED";
         }).length;
 
-        document.getElementById("c-stat-total").innerText = total;
-        document.getElementById("c-stat-pending").innerText = pending;
-        document.getElementById("c-stat-progress").innerText = progress;
-        document.getElementById("c-stat-resolved").innerText = resolved;
+        if (document.getElementById("c-stat-total")) document.getElementById("c-stat-total").innerText = total;
+        if (document.getElementById("c-stat-pending")) document.getElementById("c-stat-pending").innerText = pending;
+        if (document.getElementById("c-stat-progress")) document.getElementById("c-stat-progress").innerText = progress;
+        if (document.getElementById("c-stat-resolved")) document.getElementById("c-stat-resolved").innerText = resolved;
 
-        const tbody = document.getElementById("citizen-complaints-tbody");
-        if (complaints.length === 0) {
-            tbody.innerHTML = `
-                <tr>
-                    <td colspan="8">
-                        <div class="empty-state">
-                            <i class="fa-solid fa-folder-open"></i>
-                            <h3>No complaints registered yet</h3>
-                            <p>You have not filed any grievances yet. Click "Submit New Complaint" to file one.</p>
-                        </div>
-                    </td>
-                </tr>
-            `;
-            return;
+        // Update Filter Tab Count Badges
+        if (document.getElementById("c-tab-all-cnt")) document.getElementById("c-tab-all-cnt").innerText = total;
+        if (document.getElementById("c-tab-pending-cnt")) document.getElementById("c-tab-pending-cnt").innerText = pending;
+        if (document.getElementById("c-tab-progress-cnt")) document.getElementById("c-tab-progress-cnt").innerText = progress;
+        if (document.getElementById("c-tab-resolved-cnt")) document.getElementById("c-tab-resolved-cnt").innerText = resolved;
+
+        // Apply filters and render complaints table
+        applyCitizenFilters();
+
+        // Update Right-side Live Tracker with latest grievance
+        if (complaints.length > 0) {
+            updateCitizenLiveTracker(complaints[0]);
         }
+    } catch (e) {
+        showToast("Error loading citizen complaints: " + e.message, "danger");
+    }
+}
 
-        tbody.innerHTML = complaints.map(c => {
-            const photoThumb = c.imageUrl ? `<img src="${c.imageUrl}" alt="Photo Evidence" style="width:38px; height:38px; object-fit:cover; border-radius:4px; border:1px solid var(--border-color); cursor:pointer; margin-right:8px; vertical-align:middle;" onclick="openImageLightbox('${c.imageUrl}', 'Complaint ${c.complaintId} - Site Photo Evidence')" title="Click to view full photo clearly">` : '';
-            return `
+function handleCitizenTokenSearch(tokenQuery) {
+    const q = (tokenQuery || "").trim().toUpperCase();
+    if (!q) {
+        applyCitizenFilters();
+        return;
+    }
+    const matched = allCitizenComplaints.filter(c => 
+        (c.complaintId || "").toUpperCase().includes(q) ||
+        (c.category || "").toUpperCase().includes(q) ||
+        (c.title || "").toUpperCase().includes(q)
+    );
+    renderCitizenComplaintsTable(matched);
+    if (matched.length > 0) {
+        updateCitizenLiveTracker(matched[0]);
+    }
+}
+
+function handleCitizenKeywordFilter(keyword) {
+    citizenFilterKeyword = (keyword || "").trim().toLowerCase();
+    applyCitizenFilters();
+}
+
+function filterCitizenTable(status) {
+    citizenFilterStatus = status;
+    ["all", "pending", "progress", "resolved"].forEach(t => {
+        const el = document.getElementById("c-tab-" + t);
+        if (el) el.classList.remove("active");
+    });
+    const activeBtn = document.getElementById(
+        status === "ALL" ? "c-tab-all" :
+        status === "PENDING" ? "c-tab-pending" :
+        status === "IN_PROGRESS" ? "c-tab-progress" : "c-tab-resolved"
+    );
+    if (activeBtn) activeBtn.classList.add("active");
+    applyCitizenFilters();
+}
+
+function applyCitizenFilters() {
+    let filtered = allCitizenComplaints.filter(c => {
+        const s = (c.status || "").toUpperCase();
+        if (citizenFilterStatus === "PENDING") {
+            return s === "REGISTERED" || s === "UNDER REVIEW" || s === "PENDING" || s === "ASSIGNED";
+        } else if (citizenFilterStatus === "IN_PROGRESS") {
+            return s === "IN_PROGRESS" || s === "IN PROGRESS";
+        } else if (citizenFilterStatus === "RESOLVED") {
+            return s === "RESOLVED" || s === "CLOSED";
+        }
+        return true;
+    });
+
+    if (citizenFilterKeyword) {
+        filtered = filtered.filter(c => {
+            const str = ((c.complaintId || '') + ' ' + (c.category || '') + ' ' + (c.location || '') + ' ' + (c.description || '') + ' ' + (c.department || '')).toLowerCase();
+            return str.includes(citizenFilterKeyword);
+        });
+    }
+
+    renderCitizenComplaintsTable(filtered);
+}
+
+function renderCitizenComplaintsTable(complaints) {
+    const tbody = document.getElementById("citizen-complaints-tbody");
+    if (!tbody) return;
+
+    if (complaints.length === 0) {
+        tbody.innerHTML = `
             <tr>
-                <td><strong>${c.complaintId}</strong></td>
-                <td><div style="display:flex; align-items:center;">${photoThumb}<span>${escapeHtml(c.category)}</span></div></td>
-                <td>${escapeHtml(c.location)}</td>
-                <td>${getPriorityBadge(c.priority)}</td>
-                <td>${escapeHtml(c.department || 'Awaiting Routing')}</td>
-                <td>${getStatusBadge(c.status, c.isWaiting)}</td>
-                <td>${c.createdAt || 'Today'}</td>
-                <td>
-                    <div class="table-action-group">
-                        ${c.imageUrl ? `<button class="btn btn-secondary btn-sm" onclick="openImageLightbox('${c.imageUrl}', 'Complaint ${c.complaintId} - Site Photo Evidence')" title="Click to view image clearly" style="font-size:11px; padding:2px 8px;"><i class="fa-solid fa-camera"></i> Image</button>` : ''}
-                        <button class="btn btn-secondary btn-sm" onclick="openComplaintModal('${c.complaintId}')" title="View Case Details & Photo Evidence">
-                            <i class="fa-solid fa-eye"></i> Track Case
-                        </button>
+                <td colspan="8">
+                    <div class="empty-state" style="padding: 32px; text-align: center; color: var(--text-muted);">
+                        <i class="fa-solid fa-folder-open" style="font-size: 28px; margin-bottom: 8px; display: block;"></i>
+                        <h4 style="color: var(--text-main); margin-bottom: 4px;">No matching grievances found</h4>
+                        <p style="font-size: 13px;">No complaints match the selected filter criteria. Click "New Complain" to submit one.</p>
                     </div>
                 </td>
             </tr>
         `;
-        }).join("");
-    } catch (e) {
-        showToast("Error loading citizen complaints: " + e.message, "danger");
+        return;
     }
+
+    tbody.innerHTML = complaints.map(c => {
+        const photoThumb = c.imageUrl ? `<img src="${c.imageUrl}" alt="Photo Evidence" style="width:36px; height:36px; object-fit:cover; border-radius:4px; border:1px solid var(--border-color); cursor:pointer; margin-right:8px; vertical-align:middle;" onclick="openImageLightbox('${c.imageUrl}', 'Complaint ${c.complaintId} - Site Photo Evidence')" title="Click to view full photo clearly">` : '';
+        const isUrgent = (c.priority || "").toUpperCase() === "CRITICAL" || (c.priority || "").toUpperCase() === "URGENT";
+        const rowClass = isUrgent ? 'class="stitch-table-urgent-row"' : '';
+        return `
+        <tr ${rowClass}>
+            <td><strong class="font-data-mono" style="color: var(--primary); cursor: pointer;" onclick="openComplaintModal('${c.complaintId}')" title="Click to view case timeline & details">#${c.complaintId}</strong></td>
+            <td><div style="display:flex; align-items:center;">${photoThumb}<span>${escapeHtml(c.category)}</span></div></td>
+            <td>${escapeHtml(c.location)}</td>
+            <td>${getPriorityBadge(c.priority)}</td>
+            <td>${escapeHtml(c.department || 'Awaiting Routing')}</td>
+            <td>${getStatusBadge(c.status, c.isWaiting)}</td>
+            <td class="font-data-mono" style="font-size: 12px; color: var(--text-muted);">${c.createdAt || 'Today'}</td>
+            <td style="text-align: right;">
+                <div class="table-action-group" style="justify-content: flex-end;">
+                    <button class="btn btn-secondary btn-sm" onclick="updateCitizenLiveTrackerById('${c.complaintId}'); openComplaintModal('${c.complaintId}')" title="View Case Timeline & Details" style="font-size: 12px; padding: 4px 10px;">
+                        <span class="material-symbols-outlined" style="font-size: 14px;">visibility</span> <span>Track</span>
+                    </button>
+                </div>
+            </td>
+        </tr>
+    `;
+    }).join("");
+}
+
+function updateCitizenLiveTracker(c) {
+    if (!c) return;
+    window.activeTrackedComplaint = c;
+
+    const tokenEl = document.getElementById("citizen-tracker-token");
+    if (tokenEl) tokenEl.innerText = "#" + (c.complaintId || "");
+
+    const priEl = document.getElementById("citizen-tracker-priority");
+    if (priEl) priEl.innerHTML = getPriorityBadge(c.priority);
+
+    const titleEl = document.getElementById("citizen-tracker-title");
+    if (titleEl) titleEl.innerText = c.title || c.category || "Municipal Grievance";
+
+    const descEl = document.getElementById("citizen-tracker-desc");
+    if (descEl) descEl.innerText = c.description ? (c.description.length > 80 ? c.description.slice(0, 80) + '...' : c.description) : ("Location: " + (c.location || "Makkal Nagar"));
+
+    // Step calculation
+    const status = (c.status || "").toUpperCase().replace(/[\s_-]/g, "");
+    const step1 = document.getElementById("track-step-1");
+    const step2 = document.getElementById("track-step-2");
+    const step3 = document.getElementById("track-step-3");
+    const step4 = document.getElementById("track-step-4");
+
+    const step1Desc = document.getElementById("track-step-1-desc");
+    const step2Desc = document.getElementById("track-step-2-desc");
+    const step3Desc = document.getElementById("track-step-3-desc");
+    const step4Desc = document.getElementById("track-step-4-desc");
+
+    if (step1Desc) step1Desc.innerText = c.createdAt ? `${c.createdAt} • Citizen Portal` : "Citizen Portal Submission Validated";
+
+    if (c.department) {
+        if (step2) { step2.className = "stitch-step-item completed"; step2.querySelector(".stitch-step-node").innerHTML = '<i class="fa-solid fa-check" style="font-size: 10px;"></i>'; }
+        if (step2Desc) step2Desc.innerText = `Routed to ${c.department}`;
+    } else {
+        if (step2) { step2.className = "stitch-step-item active"; step2.querySelector(".stitch-step-node").innerHTML = '<i class="fa-solid fa-rotate" style="font-size: 10px;"></i>'; }
+        if (step2Desc) step2Desc.innerText = "Awaiting Department Allocation";
+    }
+
+    const workerChip = document.getElementById("citizen-tracker-worker-chip");
+    if (status === "RESOLVED" || status === "CLOSED") {
+        if (step3) { step3.className = "stitch-step-item completed"; step3.querySelector(".stitch-step-node").innerHTML = '<i class="fa-solid fa-check" style="font-size: 10px;"></i>'; }
+        if (step4) { step4.className = "stitch-step-item completed"; step4.querySelector(".stitch-step-node").innerHTML = '<i class="fa-solid fa-check" style="font-size: 10px;"></i>'; }
+        if (step3Desc) step3Desc.innerText = c.assignedStaff ? `Completed by ${c.assignedStaff}` : "Work Completed by Field Crew";
+        if (step4Desc) step4Desc.innerText = "Resolved & Verified by Department Lead";
+        if (workerChip) workerChip.style.display = "none";
+    } else if (status === "INPROGRESS") {
+        if (step3) { step3.className = "stitch-step-item active"; step3.querySelector(".stitch-step-node").innerHTML = '<i class="fa-solid fa-rotate" style="font-size: 10px;"></i>'; }
+        if (step4) { step4.className = "stitch-step-item pending"; step4.querySelector(".stitch-step-node").innerHTML = '<i class="fa-solid fa-circle" style="font-size: 6px;"></i>'; }
+        if (step3Desc) step3Desc.innerText = c.assignedStaff ? `Technician ${c.assignedStaff} on ground` : "Field Technician Dispatched on Site";
+        if (step4Desc) step4Desc.innerText = "Pending Site Clearance & Verification";
+        renderWorkerChip(c.assignedStaff, c.department);
+    } else if (status === "ASSIGNED") {
+        if (step3) { step3.className = "stitch-step-item active"; step3.querySelector(".stitch-step-node").innerHTML = '<i class="fa-solid fa-user-check" style="font-size: 10px;"></i>'; }
+        if (step4) { step4.className = "stitch-step-item pending"; step4.querySelector(".stitch-step-node").innerHTML = '<i class="fa-solid fa-circle" style="font-size: 6px;"></i>'; }
+        if (step3Desc) step3Desc.innerText = c.assignedStaff ? `Work order assigned to ${c.assignedStaff}` : "Work Order Dispatched to Field Squad";
+        if (step4Desc) step4Desc.innerText = "Pending Field Execution";
+        renderWorkerChip(c.assignedStaff, c.department);
+    } else {
+        if (step3) { step3.className = "stitch-step-item pending"; step3.querySelector(".stitch-step-node").innerHTML = '<i class="fa-solid fa-circle" style="font-size: 6px;"></i>'; }
+        if (step4) { step4.className = "stitch-step-item pending"; step4.querySelector(".stitch-step-node").innerHTML = '<i class="fa-solid fa-circle" style="font-size: 6px;"></i>'; }
+        if (step3Desc) step3Desc.innerText = "Pending Technician Dispatch";
+        if (step4Desc) step4Desc.innerText = "Pending Site Clearance & Verification";
+        if (workerChip) workerChip.style.display = "none";
+    }
+}
+
+function renderWorkerChip(workerName, department) {
+    const chip = document.getElementById("citizen-tracker-worker-chip");
+    if (!chip) return;
+    if (!workerName) {
+        chip.style.display = "none";
+        return;
+    }
+    chip.style.display = "flex";
+    const initials = workerName.split(" ").map(w => w[0]).join("").toUpperCase().slice(0, 2) || "W";
+    const initEl = document.getElementById("c-track-w-initials");
+    if (initEl) initEl.innerText = initials;
+    const nameEl = document.getElementById("c-track-w-name");
+    if (nameEl) nameEl.innerText = workerName;
+    const deptEl = document.getElementById("c-track-w-dept");
+    if (deptEl) deptEl.innerText = department || "Department Field Squad";
+}
+
+function updateCitizenLiveTrackerById(complaintId) {
+    const c = allCitizenComplaints.find(x => x.complaintId === complaintId);
+    if (c) {
+        updateCitizenLiveTracker(c);
+    }
+}
+
+function viewComplaintLocationFromTracker() {
+    if (window.activeTrackedComplaint) {
+        openComplaintModal(window.activeTrackedComplaint.complaintId);
+    } else if (allCitizenComplaints && allCitizenComplaints.length > 0) {
+        openComplaintModal(allCitizenComplaints[0].complaintId);
+    }
+}
+
+function exportGrievanceDocket() {
+    const list = currentComplaintsList || [];
+    if (list.length === 0) {
+        showToast("No complaints currently loaded to export.", "warning");
+        return;
+    }
+    const headers = ["Complaint ID", "Citizen", "Category", "Location", "Priority", "Department", "Assigned Staff", "Status", "Created Date"];
+    const rows = list.map(c => [
+        c.complaintId,
+        c.citizenName || c.citizenUsername || "",
+        c.category || "",
+        c.location || "",
+        c.priority || "",
+        c.department || "",
+        c.assignedStaff || "",
+        c.status || "",
+        c.createdAt || ""
+    ]);
+    const csvContent = "data:text/csv;charset=utf-8," + [headers.join(","), ...rows.map(e => e.map(x => `"${String(x).replace(/"/g, '""')}"`).join(","))].join("\n");
+    const encodedUri = encodeURI(csvContent);
+    const link = document.createElement("a");
+    link.setAttribute("href", encodedUri);
+    link.setAttribute("download", `Grievance_Docket_${new Date().toISOString().slice(0,10)}.csv`);
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    showToast("Grievance Docket CSV successfully exported.", "success");
 }
 
 // ------------------- DEPARTMENT WORKER PORTAL LOGIC ------------------- //
@@ -1146,9 +1649,14 @@ async function loadManagerDashboard() {
                         <td>${c.duplicateCandidates && c.duplicateCandidates.length > 0 ? '<span class="badge" style="background:#fef3c7; color:#92400e;"><i class="fa-solid fa-clone"></i> ' + c.duplicateCandidates.length + ' Candidates</span>' : '<span style="color:var(--text-dim);">None</span>'}</td>
                         <td>
                             <div class="table-action-group">
-                                <button class="btn btn-primary btn-sm" onclick="openAssignModal('${c.complaintId}')">
-                                    <i class="fa-solid fa-stamp"></i> Assess & Assign
-                                </button>
+                                ${(() => {
+                                    const ns = (c.status || "").toUpperCase().replace(/[\s_-]/g, "");
+                                    if (ns === "RESOLVED" || ns === "CLOSED") return "";
+                                    if (ns === "ASSIGNED" || ns === "INPROGRESS") {
+                                        return `<button class="btn btn-warning btn-sm" onclick="openReassignModal('${c.complaintId}')" style="background:#d97706; color:#fff; border-color:#b45309;"><i class="fa-solid fa-arrows-rotate"></i> Reassign</button>`;
+                                    }
+                                    return `<button class="btn btn-primary btn-sm" onclick="openAssignModal('${c.complaintId}')"><i class="fa-solid fa-stamp"></i> Assess & Assign</button>`;
+                                })()}
                                 ${c.imageUrl ? `<button class="btn btn-secondary btn-sm" onclick="openImageLightbox('${c.imageUrl}', 'Complaint ${c.complaintId} - Site Photo Evidence')" title="Click to view image clearly" style="font-size:11px; padding:2px 8px;"><i class="fa-solid fa-camera"></i> Image</button>` : ''}
                                 <button class="btn btn-secondary btn-sm" onclick="openComplaintModal('${c.complaintId}')" title="View Case File & Photo Evidence">
                                     <i class="fa-solid fa-eye"></i>
@@ -1392,8 +1900,24 @@ async function onComplaintModalDeptChange() {
 let currentAssigningComplaint = null;
 
 async function openAssignModal(complaintId) {
+    if (!currentUser || (currentUser.role !== 'ADMIN' && currentUser.role !== 'MANAGER')) {
+        showToast("Forbidden: Only Administrators and Managers can assign complaints.", "danger");
+        return;
+    }
+
     const complaint = currentComplaintsList.find(c => c.complaintId === complaintId);
     if (!complaint) return;
+
+    const normStatus = (complaint.status || "").toUpperCase().replace(/[\s_-]/g, "");
+    if (normStatus === "RESOLVED" || normStatus === "CLOSED") {
+        showToast("Invalid assignment: Resolved complaints are closed and cannot be assigned.", "warning");
+        return;
+    }
+
+    if (normStatus === "ASSIGNED" || normStatus === "INPROGRESS") {
+        openReassignModal(complaintId);
+        return;
+    }
 
     currentAssigningComplaint = complaint;
     document.getElementById("assign-modal-comp-id").innerText = complaint.complaintId;
@@ -1508,10 +2032,130 @@ async function handleConfirmAssign(e) {
         await ApiClient.assessComplaint(id, severity, reason, dept, staff);
         showToast(`Complaint <strong>${id}</strong> assessed as <strong>${severity}</strong> and routed to ${dept}${staff ? ` (Assigned to ${staff})` : ''}!`);
         closeAssignModal();
-        refreshCurrentView();
+        await refreshCurrentView();
+        const complaintModal = document.getElementById("complaint-modal");
+        if (complaintModal && complaintModal.classList.contains("active") && activeComplaintId === id) {
+            openComplaintModal(id);
+        }
     } catch (err) {
         showToast("Assessment and assignment failed: " + err.message, "danger");
     }
+}
+
+// ------------------- REASSIGNMENT MODAL LOGIC ------------------- //
+let currentReassigningComplaint = null;
+
+async function openReassignModal(complaintId) {
+    if (!currentUser || (currentUser.role !== 'ADMIN' && currentUser.role !== 'MANAGER')) {
+        showToast("Forbidden: Only Administrators and Managers can reassign complaints.", "danger");
+        return;
+    }
+
+    const complaint = currentComplaintsList.find(c => c.complaintId === complaintId);
+    if (!complaint) return;
+
+    const normStatus = (complaint.status || "").toUpperCase().replace(/[\s_-]/g, "");
+    if (normStatus === "RESOLVED" || normStatus === "CLOSED") {
+        showToast("Invalid reassignment: Resolved complaints are closed and cannot be reassigned.", "danger");
+        return;
+    }
+
+    currentReassigningComplaint = complaint;
+
+    const idEl = document.getElementById("reassign-modal-comp-id");
+    if (idEl) idEl.innerText = complaint.complaintId;
+    const deptEl = document.getElementById("reassign-modal-current-dept");
+    if (deptEl) deptEl.innerText = complaint.department || "Unassigned";
+    const staffEl = document.getElementById("reassign-modal-current-staff");
+    if (staffEl) staffEl.innerText = complaint.assignedStaff || "Unassigned";
+    const statusEl = document.getElementById("reassign-modal-current-status");
+    if (statusEl) statusEl.innerHTML = getStatusBadge(complaint.status, complaint.isWaiting);
+
+    const reasonInput = document.getElementById("reassign-modal-reason-input");
+    if (reasonInput) reasonInput.value = "";
+    const checkEl = document.getElementById("reassign-modal-confirm-check");
+    if (checkEl) checkEl.checked = false;
+
+    const targetDeptSelect = document.getElementById("reassign-modal-dept-select");
+    if (targetDeptSelect) {
+        targetDeptSelect.value = complaint.department && complaint.department !== "Unassigned" ? complaint.department : "Water Supply";
+    }
+
+    await populateWorkerDropdown("reassign-modal-dept-select", "reassign-modal-staff-select", complaint.assignedStaff);
+    await updateReassignCapacityFeedback();
+
+    const modal = document.getElementById("reassign-modal");
+    if (modal) modal.classList.add("active");
+}
+
+function closeReassignModal() {
+    const modal = document.getElementById("reassign-modal");
+    if (modal) modal.classList.remove("active");
+    currentReassigningComplaint = null;
+}
+
+async function updateReassignCapacityFeedback() {
+    const deptSelect = document.getElementById("reassign-modal-dept-select");
+    const infoBox = document.getElementById("reassign-modal-capacity-info");
+    if (!deptSelect || !infoBox) return;
+
+    const chosenDept = deptSelect.value;
+    try {
+        const depts = await ApiClient.getDepartmentCapacity();
+        const d = depts.find(item => (item.departmentName || "").toLowerCase().includes(chosenDept.toLowerCase()));
+        if (d) {
+            const hasRoom = d.currentLoad < d.capacity;
+            if (hasRoom) {
+                infoBox.innerHTML = `<span style="color:#059669; font-weight:600;"><i class="fa-solid fa-circle-check"></i> Available Capacity:</span> ${d.currentLoad} of ${d.capacity} active. Reassignment will take effect immediately.`;
+            } else {
+                infoBox.innerHTML = `<span style="color:#d97706; font-weight:600;"><i class="fa-solid fa-hourglass-half"></i> Department Full (${d.currentLoad}/${d.capacity}):</span> Complaint will enter destination department priority waiting queue.`;
+            }
+        }
+    } catch (ignored) {}
+}
+
+async function onReassignModalDeptChange() {
+    await populateWorkerDropdown("reassign-modal-dept-select", "reassign-modal-staff-select");
+}
+
+async function handleConfirmReassign(e) {
+    e.preventDefault();
+    if (!currentReassigningComplaint) return;
+
+    const id = currentReassigningComplaint.complaintId;
+    const dept = document.getElementById("reassign-modal-dept-select").value;
+    const staffSelect = document.getElementById("reassign-modal-staff-select");
+    const staff = staffSelect ? staffSelect.value.trim() : "";
+    const reason = document.getElementById("reassign-modal-reason-input").value.trim();
+    const confirmed = document.getElementById("reassign-modal-confirm-check").checked;
+
+    if (!reason) {
+        showToast("Reassignment reason is mandatory.", "danger");
+        return;
+    }
+
+    if (!confirmed) {
+        showToast("Please check the confirmation box to authorize reassignment.", "warning");
+        return;
+    }
+
+    try {
+        await ApiClient.reassignDepartment(id, dept, staff, reason);
+        showToast(`Complaint <strong>${id}</strong> successfully reassigned to ${dept}${staff ? ` (${staff})` : ''}!`);
+        closeReassignModal();
+        await refreshCurrentView();
+        const complaintModal = document.getElementById("complaint-modal");
+        if (complaintModal && complaintModal.classList.contains("active") && activeComplaintId === id) {
+            openComplaintModal(id);
+        }
+    } catch (err) {
+        showToast("Reassignment failed: " + err.message, "danger");
+    }
+}
+
+function handleStaffReassignWithConfirmation() {
+    if (!activeComplaintId) return;
+    openReassignModal(activeComplaintId);
 }
 
 async function handleManagerConfirmDuplicate(complaintId, primaryComplaintId) {
@@ -1638,62 +2282,62 @@ function switchAdminSubtab(subtab) {
     if (btn) btn.classList.add("active");
     const content = document.getElementById(`adm-tab-${subtab}`);
     if (content) content.classList.add("active");
+
+    // Synchronize left sidebar active state with active admin subtab
+    const adminWorkersLink = document.querySelector('.sidebar .nav-link[data-view="admin-dashboard"]');
+    const regCitizensLink = document.querySelector('.sidebar .nav-link[data-view="registered-citizens"]');
+    if (subtab === "citizens") {
+        if (adminWorkersLink) adminWorkersLink.classList.remove("active");
+        if (regCitizensLink) regCitizensLink.classList.add("active");
+        loadAdminCitizens();
+    } else {
+        if (regCitizensLink) regCitizensLink.classList.remove("active");
+        if (adminWorkersLink) adminWorkersLink.classList.add("active");
+    }
 }
+
+let currentAdminWorkers = [];
+let currentWorkerModalMode = 'single';
 
 async function loadAdminDashboard() {
     try {
-        const [workers, complaints, depts, adminReport] = await Promise.all([
+        const [workers, complaints, depts, adminReport, citizens] = await Promise.all([
             ApiClient.getWorkers().catch(() => []),
             ApiClient.getAllComplaints().catch(() => []),
             ApiClient.getDepartmentCapacity().catch(() => []),
-            ApiClient.getAdminReport().catch(() => null)
+            ApiClient.getAdminReport().catch(() => null),
+            ApiClient.getRegisteredCitizens().catch(() => [])
         ]);
 
-        if (document.getElementById("adm-stat-complaints")) document.getElementById("adm-stat-complaints").innerText = complaints.length;
-        if (document.getElementById("adm-stat-workers")) document.getElementById("adm-stat-workers").innerText = workers.filter(w => w.active !== false).length;
-        if (document.getElementById("adm-stat-resolved")) document.getElementById("adm-stat-resolved").innerText = complaints.filter(c => (c.status || "").toUpperCase() === "RESOLVED").length;
+        currentAdminWorkers = workers || [];
+        currentAdminCitizens = (Array.isArray(citizens) ? citizens : []).filter(c => !c.role || c.role.toUpperCase() === "CITIZEN");
 
-        // 1. Render Workers Table
-        const workersTbody = document.getElementById("adm-workers-tbody");
-        if (workersTbody) {
-            if (workers.length === 0) {
-                workersTbody.innerHTML = `<tr><td colspan="7" class="empty-state">No workers found. Click "Add Worker" to provision accounts.</td></tr>`;
-            } else {
-                workersTbody.innerHTML = workers.map(w => {
-                    const isActive = w.active !== false;
-                    const statusBadge = isActive ?
-                        `<span class="badge badge-resolved"><i class="fa-solid fa-circle-check"></i> Active</span>` :
-                        `<span class="badge" style="background:#fee2e2; color:#dc2626;"><i class="fa-solid fa-ban"></i> Deactivated</span>`;
+        const admTotal = complaints.length;
+        const admPending = complaints.filter(c => {
+            const s = (c.status || "").toUpperCase();
+            return s === "REGISTERED" || s === "UNDER REVIEW" || s === "PENDING" || s === "ASSIGNED";
+        }).length;
+        const admProgress = complaints.filter(c => {
+            const s = (c.status || "").toUpperCase();
+            return s === "IN_PROGRESS" || s === "IN PROGRESS";
+        }).length;
+        const admResolved = complaints.filter(c => (c.status || "").toUpperCase() === "RESOLVED").length;
 
-                    const toggleLabel = isActive ? "Deactivate" : "Activate";
-                    const toggleColor = isActive ? "#dc2626" : "#059669";
-
-                    return `
-                        <tr>
-                            <td><strong>${w.userId || w.id}</strong></td>
-                            <td>${escapeHtml(w.name)}</td>
-                            <td>${escapeHtml(w.email)}</td>
-                            <td>${escapeHtml(w.mobile || '-')}</td>
-                            <td><span class="locked-badge"><i class="fa-solid fa-lock"></i> ${escapeHtml(w.department || 'Operations')}</span></td>
-                            <td>${statusBadge}</td>
-                            <td>
-                                <div class="table-action-group">
-                                    <button class="btn btn-secondary btn-sm" onclick='openEditWorkerModal(${JSON.stringify(w)})' title="Edit Worker Details">
-                                        <i class="fa-solid fa-user-pen"></i> Edit
-                                    </button>
-                                    <button class="btn btn-secondary btn-sm" style="color:${toggleColor};" onclick="handleToggleWorkerActive('${w.userId || w.id}', ${isActive})" title="${toggleLabel} Account">
-                                        <i class="fa-solid fa-power-off"></i> ${toggleLabel}
-                                    </button>
-                                    <button class="btn btn-secondary btn-sm" onclick="openResetPwdModal('${w.userId || w.id}', '${escapeHtml(w.name)}')" title="Reset Password">
-                                        <i class="fa-solid fa-key"></i> Reset
-                                    </button>
-                                </div>
-                            </td>
-                        </tr>
-                    `;
-                }).join("");
-            }
+        if (document.getElementById("adm-stat-complaints")) document.getElementById("adm-stat-complaints").innerText = admTotal;
+        if (document.getElementById("adm-stat-pending")) document.getElementById("adm-stat-pending").innerText = admPending;
+        if (document.getElementById("adm-stat-progress")) document.getElementById("adm-stat-progress").innerText = admProgress;
+        if (document.getElementById("adm-stat-resolved")) document.getElementById("adm-stat-resolved").innerText = admResolved;
+        if (document.getElementById("adm-stat-workers")) document.getElementById("adm-stat-workers").innerText = currentAdminWorkers.filter(w => w.active !== false).length;
+        if (document.getElementById("adm-stat-citizens")) document.getElementById("adm-stat-citizens").innerText = currentAdminCitizens.length;
+        if (document.getElementById("adm-compliance-rate")) {
+            document.getElementById("adm-compliance-rate").innerText = admTotal > 0 ? ((admResolved / admTotal) * 100).toFixed(1) + "%" : "100%";
         }
+
+        // 1. Render Workers Table with Search & Department Filter
+        renderAdminWorkersTable();
+
+        // 2. Render Citizens Table with Search & Status Filter & Pagination
+        renderAdminCitizensTable();
 
         // 2. Render Department Capacities Editors
         const capGrid = document.getElementById("adm-capacity-cards-grid");
@@ -1732,7 +2376,7 @@ async function loadAdminDashboard() {
                         <strong>Worker Account Handover Protocol:</strong> Fully active. Deactivating a worker or transferring their department automatically triggers complaint unassignment and creates an immutable handover record in audit history.
                     </div>
                     <div style="margin-bottom:12px;">
-                        <strong>Persistent Store:</strong> Authoritative JSON storage with password hashing (SHA-256) and strict server-side session role validation on all protected endpoints.
+                        <strong>Persistent Store:</strong> Authoritative database storage with password hashing (SHA-256) and strict server-side session role validation on all protected endpoints.
                     </div>
                 </div>
             `;
@@ -1742,67 +2386,417 @@ async function loadAdminDashboard() {
     }
 }
 
-function openAddWorkerModal() {
+function handleWorkerFilterChange() {
+    renderAdminWorkersTable();
+}
+
+function resetWorkerFilters() {
+    const s = document.getElementById("adm-worker-search");
+    if (s) s.value = "";
+    const d = document.getElementById("adm-worker-dept-filter");
+    if (d) d.value = "";
+    const st = document.getElementById("adm-worker-status-filter");
+    if (st) st.value = "";
+    renderAdminWorkersTable();
+}
+
+function renderAdminWorkersTable() {
+    const workersTbody = document.getElementById("adm-workers-tbody");
+    if (!workersTbody) return;
+
+    const query = (document.getElementById("adm-worker-search")?.value || "").toLowerCase().trim();
+    const deptFilter = (document.getElementById("adm-worker-dept-filter")?.value || "").toLowerCase().trim();
+    const statusFilter = (document.getElementById("adm-worker-status-filter")?.value || "").toLowerCase().trim();
+
+    const filtered = (currentAdminWorkers || []).filter(w => {
+        const id = (w.workerId || w.id || "").toLowerCase();
+        const name = (w.name || w.staffName || w.displayName || "").toLowerCase();
+        const username = (w.username || "").toLowerCase();
+        const email = (w.email || "").toLowerCase();
+        const mobile = (w.mobile || "").toLowerCase();
+        const dept = (w.department || "").toLowerCase();
+        const isActive = w.active !== false;
+
+        const matchesQuery = !query || id.includes(query) || name.includes(query) || username.includes(query) || email.includes(query) || mobile.includes(query);
+        const matchesDept = !deptFilter || dept.includes(deptFilter.replace(" department", "")) || dept === deptFilter;
+        const matchesStatus = !statusFilter || (statusFilter === "active" && isActive) || (statusFilter === "deactivated" && !isActive);
+
+        return matchesQuery && matchesDept && matchesStatus;
+    });
+
+    const countSummary = document.getElementById("adm-workers-count-summary");
+    if (countSummary) {
+        countSummary.innerText = `Showing ${filtered.length} of ${currentAdminWorkers.length} registered field workers`;
+    }
+
+    if (filtered.length === 0) {
+        workersTbody.innerHTML = `<tr><td colspan="8" class="empty-state" style="text-align:center; padding: 28px; color: var(--text-muted);"><i class="fa-solid fa-user-slash" style="font-size:24px; margin-bottom:8px; display:block;"></i>No workers found matching your filter criteria.</td></tr>`;
+        return;
+    }
+
+    workersTbody.innerHTML = filtered.map(w => {
+        const isActive = w.active !== false;
+        const statusBadge = isActive ?
+            `<span class="badge badge-resolved" style="background:#dcfce7; color:#15803d; border:1px solid #bbf7d0; padding:4px 8px; border-radius:4px; font-weight:600;"><i class="fa-solid fa-circle-check"></i> Active</span>` :
+            `<span class="badge" style="background:#fee2e2; color:#dc2626; border:1px solid #fecaca; padding:4px 8px; border-radius:4px; font-weight:600;"><i class="fa-solid fa-ban"></i> Deactivated</span>`;
+
+        const toggleLabel = isActive ? "Deactivate" : "Activate";
+        const toggleIcon = isActive ? "fa-power-off" : "fa-check";
+        const toggleColor = isActive ? "#dc2626" : "#059669";
+        const workerId = w.workerId || w.id;
+        const cleanName = w.name || w.staffName || w.displayName || "Field Officer";
+        const cleanUsername = w.username || (w.email && w.email.includes("@") ? w.email.split("@")[0] : "-");
+
+        return `
+            <tr>
+                <td><strong style="color:var(--primary); font-family:monospace; font-size:13px;">${escapeHtml(workerId)}</strong></td>
+                <td><strong>${escapeHtml(cleanName)}</strong></td>
+                <td><code style="background:var(--bg-surface-secondary); padding:2px 6px; border-radius:4px; font-weight:600; color:var(--text-main); font-size:12px;">${escapeHtml(cleanUsername)}</code></td>
+                <td><span style="font-size:13px;">${escapeHtml(w.email)}</span></td>
+                <td>${escapeHtml(w.mobile || '-')}</td>
+                <td><span class="locked-badge"><i class="fa-solid fa-building"></i> ${escapeHtml(w.department || 'General')}</span></td>
+                <td>${statusBadge}</td>
+                <td>
+                    <div class="table-action-group" style="display:flex; gap:6px;">
+                        <button class="btn btn-secondary btn-sm" onclick='openEditWorkerModal(${JSON.stringify(w).replace(/'/g, "&#39;")})' title="Edit Worker Details">
+                            <i class="fa-solid fa-user-pen"></i> Edit
+                        </button>
+                        <button class="btn btn-secondary btn-sm" style="color:${toggleColor};" onclick="handleToggleWorkerActive('${workerId}', ${isActive})" title="${toggleLabel} Account">
+                            <i class="fa-solid ${toggleIcon}"></i> ${toggleLabel}
+                        </button>
+                        <button class="btn btn-secondary btn-sm" onclick="openResetPwdModal('${workerId}', '${escapeHtml(cleanName).replace(/'/g, "\\'")}')" title="Reset Password">
+                            <i class="fa-solid fa-key"></i> Reset
+                        </button>
+                    </div>
+                </td>
+            </tr>
+        `;
+    }).join("");
+}
+
+function openAddWorkerModal(mode = 'single') {
     const modal = document.getElementById("worker-modal");
     if (!modal) return;
-    document.getElementById("worker-modal-title").innerHTML = `<i class="fa-solid fa-user-plus"></i> Add New Department Worker`;
+    document.getElementById("worker-modal-title").innerHTML = `<i class="fa-solid fa-user-plus"></i> Add Department Field Worker(s)`;
+    const tabs = document.getElementById("worker-modal-tabs");
+    if (tabs) tabs.style.display = "flex";
+
+    // Reset single form
     document.getElementById("worker-form-id").value = "";
+    const idGroup = document.getElementById("w-form-id-group");
+    if (idGroup) idGroup.style.display = "none";
     document.getElementById("w-form-name").value = "";
+    document.getElementById("w-form-username").value = "";
     document.getElementById("w-form-email").value = "";
+    document.getElementById("w-form-email").readOnly = false;
     document.getElementById("w-form-mobile").value = "";
     document.getElementById("w-form-dept").value = "Water Supply";
     document.getElementById("w-form-pwd").value = "admin123";
     document.getElementById("w-form-pwd-group").style.display = "block";
     document.getElementById("w-form-active-group").style.display = "none";
+
+    switchWorkerModalMode(mode);
     modal.classList.add("active");
+}
+
+function switchWorkerModalMode(mode) {
+    currentWorkerModalMode = mode;
+    const card = document.getElementById("worker-modal-card");
+    const singleForm = document.getElementById("worker-single-form");
+    const multiContainer = document.getElementById("worker-multi-form-container");
+    const btnSingle = document.getElementById("btn-wmode-single");
+    const btnMulti = document.getElementById("btn-wmode-multi");
+
+    if (mode === 'multi') {
+        if (card) card.style.maxWidth = "960px";
+        if (singleForm) singleForm.style.display = "none";
+        if (multiContainer) multiContainer.style.display = "block";
+        if (btnSingle) { btnSingle.className = "btn btn-secondary btn-sm"; }
+        if (btnMulti) { btnMulti.className = "btn btn-primary btn-sm"; }
+
+        // Initialize multi table if empty
+        const tbody = document.getElementById("multi-workers-tbody");
+        if (tbody && tbody.children.length === 0) {
+            clearMultiWorkerRows();
+            addMultiWorkerRow();
+            addMultiWorkerRow();
+        }
+    } else {
+        if (card) card.style.maxWidth = "600px";
+        if (singleForm) singleForm.style.display = "block";
+        if (multiContainer) multiContainer.style.display = "none";
+        if (btnSingle) { btnSingle.className = "btn btn-primary btn-sm"; }
+        if (btnMulti) { btnMulti.className = "btn btn-secondary btn-sm"; }
+    }
+}
+
+let multiRowCounter = 0;
+
+function addMultiWorkerRow(data = {}) {
+    const tbody = document.getElementById("multi-workers-tbody");
+    if (!tbody) return;
+    multiRowCounter++;
+    const rowId = `mw-row-${Date.now()}-${multiRowCounter}`;
+
+    const tr = document.createElement("tr");
+    tr.id = rowId;
+    tr.className = "multi-worker-row";
+    tr.innerHTML = `
+        <td class="row-num" style="font-weight:700; color:var(--text-muted); text-align:center;">${tbody.children.length + 1}</td>
+        <td>
+            <input type="text" class="form-control form-control-sm mw-name" placeholder="Full Name" value="${escapeHtml(data.name || '')}" required oninput="autoFillUsername(this)" style="padding:6px 10px; font-size:12px;">
+        </td>
+        <td>
+            <input type="text" class="form-control form-control-sm mw-username" placeholder="Username" value="${escapeHtml(data.username || '')}" required style="padding:6px 10px; font-size:12px;">
+        </td>
+        <td>
+            <input type="email" class="form-control form-control-sm mw-email" placeholder="user@makkal.gov.in" value="${escapeHtml(data.email || '')}" required oninput="autoFillUsernameFromEmail(this)" style="padding:6px 10px; font-size:12px;">
+        </td>
+        <td>
+            <input type="tel" class="form-control form-control-sm mw-mobile" placeholder="9876543210" value="${escapeHtml(data.mobile || '')}" required style="padding:6px 10px; font-size:12px;">
+        </td>
+        <td>
+            <select class="form-control form-control-sm mw-dept" required style="padding:6px 8px; font-size:12px;">
+                <option value="Water Supply" ${data.department === 'Water Supply' ? 'selected' : ''}>Water Supply</option>
+                <option value="Roads" ${data.department === 'Roads' ? 'selected' : ''}>Roads</option>
+                <option value="Waste Management" ${data.department === 'Waste Management' ? 'selected' : ''}>Waste Management</option>
+                <option value="Streetlights" ${data.department === 'Streetlights' ? 'selected' : ''}>Streetlights</option>
+                <option value="General Administration" ${data.department === 'General Administration' ? 'selected' : ''}>General Admin</option>
+            </select>
+        </td>
+        <td>
+            <input type="password" class="form-control form-control-sm mw-pwd" placeholder="Min 6 chars" value="${escapeHtml(data.password || 'admin123')}" required style="padding:6px 8px; font-size:12px;">
+        </td>
+        <td style="text-align:center;">
+            <button type="button" class="btn btn-secondary btn-sm" onclick="removeMultiWorkerRow('${rowId}')" title="Remove this worker row" style="color:#dc2626; padding:4px 8px; border-color:#fecaca;">
+                <i class="fa-solid fa-trash-can"></i>
+            </button>
+        </td>
+    `;
+    tbody.appendChild(tr);
+    updateMultiRowNumbers();
+}
+
+function autoFillUsername(nameInput) {
+    const tr = nameInput.closest("tr");
+    if (!tr) return;
+    const userInput = tr.querySelector(".mw-username");
+    const emailInput = tr.querySelector(".mw-email");
+    if (userInput && !userInput.dataset.manuallyEdited) {
+        const val = nameInput.value.trim().toLowerCase().replace(/[^a-z0-9]/g, '_');
+        if (val) {
+            userInput.value = val;
+            if (emailInput && !emailInput.dataset.manuallyEdited) {
+                emailInput.value = `${val}@makkal.gov.in`;
+            }
+        }
+    }
+}
+
+function autoFillUsernameFromEmail(emailInput) {
+    const tr = emailInput.closest("tr");
+    if (!tr) return;
+    const userInput = tr.querySelector(".mw-username");
+    if (userInput && (!userInput.value || !userInput.dataset.manuallyEdited)) {
+        const val = emailInput.value.trim().toLowerCase();
+        if (val.includes("@")) {
+            userInput.value = val.split("@")[0].replace(/[^a-z0-9_]/g, '');
+        }
+    }
+}
+
+function addMultipleEmptyRows(count = 3) {
+    for (let i = 0; i < count; i++) {
+        addMultiWorkerRow();
+    }
+}
+
+function removeMultiWorkerRow(rowId) {
+    const tbody = document.getElementById("multi-workers-tbody");
+    if (!tbody) return;
+    if (tbody.children.length <= 1) {
+        showToast("At least one worker row is required.", "warning");
+        return;
+    }
+    const row = document.getElementById(rowId);
+    if (row) row.remove();
+    updateMultiRowNumbers();
+}
+
+function clearMultiWorkerRows() {
+    const tbody = document.getElementById("multi-workers-tbody");
+    if (tbody) tbody.innerHTML = "";
+    addMultiWorkerRow();
+}
+
+function updateMultiRowNumbers() {
+    const tbody = document.getElementById("multi-workers-tbody");
+    if (!tbody) return;
+    const rows = tbody.querySelectorAll(".multi-worker-row");
+    rows.forEach((row, i) => {
+        const numCell = row.querySelector(".row-num");
+        if (numCell) numCell.innerText = i + 1;
+    });
+    const label = document.getElementById("multi-workers-count-label");
+    if (label) {
+        label.innerText = `${rows.length} worker row${rows.length === 1 ? '' : 's'} ready`;
+    }
+}
+
+async function handleSaveMultipleWorkers() {
+    const tbody = document.getElementById("multi-workers-tbody");
+    if (!tbody) return;
+    const rows = tbody.querySelectorAll(".multi-worker-row");
+    if (rows.length === 0) {
+        showToast("Please add at least one worker row.", "warning");
+        return;
+    }
+
+    const workersList = [];
+    const seenUsernames = new Set();
+    const seenEmails = new Set();
+
+    for (let i = 0; i < rows.length; i++) {
+        const row = rows[i];
+        const rowNum = i + 1;
+        const name = row.querySelector(".mw-name")?.value.trim() || "";
+        const username = row.querySelector(".mw-username")?.value.trim().toLowerCase() || "";
+        const email = row.querySelector(".mw-email")?.value.trim().toLowerCase() || "";
+        const mobile = row.querySelector(".mw-mobile")?.value.trim() || "";
+        const dept = row.querySelector(".mw-dept")?.value || "";
+        const password = row.querySelector(".mw-pwd")?.value || "";
+
+        if (!name) {
+            showToast(`Row ${rowNum}: Worker Full Name is required.`, "danger");
+            row.querySelector(".mw-name")?.focus();
+            return;
+        }
+        if (!username) {
+            showToast(`Row ${rowNum}: Username is required.`, "danger");
+            row.querySelector(".mw-username")?.focus();
+            return;
+        }
+        if (!email || !email.includes("@") || !email.includes(".")) {
+            showToast(`Row ${rowNum}: Please enter a valid email address.`, "danger");
+            row.querySelector(".mw-email")?.focus();
+            return;
+        }
+        if (!mobile) {
+            showToast(`Row ${rowNum}: Mobile number is required.`, "danger");
+            row.querySelector(".mw-mobile")?.focus();
+            return;
+        }
+        if (!password || password.length < 6) {
+            showToast(`Row ${rowNum}: Password must be at least 6 characters long.`, "danger");
+            row.querySelector(".mw-pwd")?.focus();
+            return;
+        }
+
+        if (seenUsernames.has(username)) {
+            showToast(`Row ${rowNum}: Duplicate username '${username}' within batch entry.`, "danger");
+            row.querySelector(".mw-username")?.focus();
+            return;
+        }
+        seenUsernames.add(username);
+
+        if (seenEmails.has(email)) {
+            showToast(`Row ${rowNum}: Duplicate email '${email}' within batch entry.`, "danger");
+            row.querySelector(".mw-email")?.focus();
+            return;
+        }
+        seenEmails.add(email);
+
+        workersList.push({ name, username, email, mobile, department: dept, password });
+    }
+
+    const btn = document.getElementById("btn-save-multi-workers");
+    if (btn) {
+        btn.disabled = true;
+        btn.innerHTML = `<i class="fa-solid fa-spinner fa-spin"></i> Registering ${workersList.length} Workers...`;
+    }
+
+    try {
+        const res = await ApiClient.createMultipleWorkers(workersList);
+        showToast(`<strong>Success!</strong> ${res.count || workersList.length} workers successfully registered and assigned STAFF role.`);
+        closeWorkerModal();
+        await loadAdminDashboard();
+    } catch (err) {
+        showToast("Batch Registration Error: " + err.message, "danger");
+    } finally {
+        if (btn) {
+            btn.disabled = false;
+            btn.innerHTML = `<i class="fa-solid fa-users-check"></i> Register All Workers`;
+        }
+    }
 }
 
 function openEditWorkerModal(worker) {
     const modal = document.getElementById("worker-modal");
     if (!modal) return;
     document.getElementById("worker-modal-title").innerHTML = `<i class="fa-solid fa-user-pen"></i> Edit Department Worker`;
-    document.getElementById("worker-form-id").value = worker.userId || worker.id;
-    document.getElementById("w-form-name").value = worker.name || "";
+    const tabs = document.getElementById("worker-modal-tabs");
+    if (tabs) tabs.style.display = "none";
+    switchWorkerModalMode('single');
+
+    const workerId = worker.workerId || worker.id;
+    document.getElementById("worker-form-id").value = workerId;
+    const idGroup = document.getElementById("w-form-id-group");
+    if (idGroup) idGroup.style.display = "block";
+    const idDisp = document.getElementById("w-form-id-display");
+    if (idDisp) idDisp.value = workerId;
+
+    document.getElementById("w-form-name").value = worker.name || worker.staffName || "";
+    document.getElementById("w-form-username").value = worker.username || "";
     document.getElementById("w-form-email").value = worker.email || "";
-    document.getElementById("w-form-email").readOnly = true;
+    document.getElementById("w-form-email").readOnly = false;
     document.getElementById("w-form-mobile").value = worker.mobile || "";
     document.getElementById("w-form-dept").value = worker.department || "Water Supply";
     document.getElementById("w-form-pwd-group").style.display = "none";
     document.getElementById("w-form-active-group").style.display = "block";
     document.getElementById("w-form-active").checked = worker.active !== false;
+
     modal.classList.add("active");
 }
 
 function closeWorkerModal() {
     const modal = document.getElementById("worker-modal");
     if (modal) modal.classList.remove("active");
-    if (document.getElementById("w-form-email")) document.getElementById("w-form-email").readOnly = false;
 }
 
 async function handleSaveWorker(e) {
     e.preventDefault();
     const workerId = document.getElementById("worker-form-id").value;
     const name = document.getElementById("w-form-name").value.trim();
+    const username = document.getElementById("w-form-username").value.trim();
     const email = document.getElementById("w-form-email").value.trim();
     const mobile = document.getElementById("w-form-mobile").value.trim();
     const dept = document.getElementById("w-form-dept").value;
 
+    if (!name || !username || !email || !mobile || !dept) {
+        showToast("All fields are required.", "danger");
+        return;
+    }
+
     try {
         if (!workerId) {
-            // Create
+            // Create Single Worker
             const pwd = document.getElementById("w-form-pwd").value;
-            await ApiClient.createWorker(name, email, mobile, pwd, dept);
-            showToast(`Worker <strong>${name}</strong> added to ${dept} Department!`);
+            if (!pwd || pwd.length < 6) {
+                showToast("Password must be at least 6 characters long.", "danger");
+                return;
+            }
+            await ApiClient.createWorker(name, username, email, mobile, pwd, dept);
+            showToast(`Worker <strong>${name}</strong> successfully created with STAFF role.`);
         } else {
-            // Update
+            // Update Worker
             const active = document.getElementById("w-form-active").checked;
-            await ApiClient.updateWorker(workerId, name, mobile, dept, active);
+            await ApiClient.updateWorker(workerId, name, username, email, mobile, dept, active);
             showToast(`Worker <strong>${name}</strong> updated successfully.`);
         }
         closeWorkerModal();
-        loadAdminDashboard();
+        await loadAdminDashboard();
     } catch (err) {
-        showToast("Failed to save worker: " + err.message, "danger");
+        showToast("Operation Failed: " + err.message, "danger");
     }
 }
 
@@ -1811,9 +2805,9 @@ async function handleToggleWorkerActive(workerId, currentActive) {
     if (!confirm(`Are you sure you want to ${action} worker ${workerId}?`)) return;
 
     try {
-        await ApiClient.updateWorker(workerId, "", "", "", !currentActive);
-        showToast(`Worker <strong>${workerId}</strong> ${action}d successfully.`);
-        loadAdminDashboard();
+        await ApiClient.updateWorker(workerId, { active: !currentActive });
+        showToast(`Worker <strong>${workerId}</strong> account ${action}d successfully.`);
+        await loadAdminDashboard();
     } catch (err) {
         showToast("Action failed: " + err.message, "danger");
     }
@@ -1956,6 +2950,33 @@ function renderStaffComplaintsTable() {
 
     tbody.innerHTML = paginatedItems.map(c => {
         const photoThumb = c.imageUrl ? `<img src="${c.imageUrl}" alt="Photo" style="width:34px; height:34px; object-fit:cover; border-radius:4px; border:1px solid var(--border-color); cursor:pointer; vertical-align:middle; margin-right:8px;" onclick="openImageLightbox('${c.imageUrl}', 'Complaint ${c.complaintId} - Site Photo Evidence')" title="Click to view photo evidence">` : '';
+        const isUrgent = (c.priority || "").toUpperCase() === "CRITICAL" || (c.priority || "").toUpperCase() === "URGENT";
+        const rowClass = isUrgent ? 'class="stitch-table-urgent-row"' : '';
+        const normStatus = (c.status || "").toUpperCase().replace(/[\s_-]/g, "");
+        const canAssign = currentUser && (currentUser.role === 'ADMIN' || currentUser.role === 'MANAGER');
+        let assignBtnHtml = "";
+
+        if (canAssign) {
+            if (normStatus === "RESOLVED" || normStatus === "CLOSED") {
+                // 5. If status is Resolved, completely hide and disable the Assign option
+                assignBtnHtml = "";
+            } else if (normStatus === "ASSIGNED" || normStatus === "INPROGRESS") {
+                // 2, 3, 4. Hide initial Assign button; show separate Reassign option for Admin/Manager
+                assignBtnHtml = `
+                    <button class="btn btn-warning btn-sm" onclick="openReassignModal('${c.complaintId}')" title="Reassign Complaint" style="font-size:11px; padding:2px 8px; background:#d97706; color:#fff; border-color:#b45309;">
+                        <i class="fa-solid fa-arrows-rotate"></i> Reassign
+                    </button>
+                `;
+            } else {
+                // 1. Registered / unassigned: Show initial Assign button
+                assignBtnHtml = `
+                    <button class="btn btn-primary btn-sm" onclick="openAssignModal('${c.complaintId}')" title="Assign to Department Field Worker" style="font-size:11px; padding:2px 8px;">
+                        <i class="fa-solid fa-user-plus"></i> Assign
+                    </button>
+                `;
+            }
+        }
+
         return `
         <tr>
             <td><strong>${c.complaintId}</strong></td>
@@ -1969,9 +2990,7 @@ function renderStaffComplaintsTable() {
             <td>
                 <div class="table-action-group">
                     ${c.imageUrl ? `<button class="btn btn-secondary btn-sm" onclick="openImageLightbox('${c.imageUrl}', 'Complaint ${c.complaintId} - Site Photo Evidence')" title="Click to view image clearly" style="font-size:11px; padding:2px 8px;"><i class="fa-solid fa-camera"></i> Image</button>` : ''}
-                    <button class="btn btn-primary btn-sm" onclick="openAssignModal('${c.complaintId}')" title="Assign to Department Field Worker" style="font-size:11px; padding:2px 8px;">
-                        <i class="fa-solid fa-user-plus"></i> Assign
-                    </button>
+                    ${assignBtnHtml}
                     <button class="btn btn-secondary btn-sm" onclick="openComplaintModal('${c.complaintId}')" title="Manage Case & View Photo Evidence">
                         <i class="fa-solid fa-sliders"></i> Manage
                     </button>
@@ -2269,12 +3288,18 @@ async function openComplaintModal(complaintId) {
 
             // Role-based control of Operational Action and Assignment
             const isWorker = currentUser && (currentUser.role === "WORKER" || currentUser.role === "STAFF");
+            const canAssign = currentUser && (currentUser.role === "ADMIN" || currentUser.role === "MANAGER");
             const assignWorkerGroup = document.getElementById("s-assign-worker-group");
+            const btnModalAssign = document.getElementById("btn-modal-assign-worker");
+            const btnModalReassign = document.getElementById("btn-modal-reassign-worker");
+            const assignWorkerLabel = document.getElementById("s-assign-worker-label");
             const workerOpActionDisplay = document.getElementById("s-worker-operational-action-display");
             const managerOpActionControl = document.getElementById("s-manager-operational-action-control");
             const opActionInput = document.getElementById("s-operational-action-input");
 
-            if (isWorker) {
+            const normStatus = (c.status || "").toUpperCase().replace(/[\s_-]/g, "");
+
+            if (isWorker || !canAssign) {
                 // Workers CANNOT modify Operational Action or reassign department/worker
                 if (assignWorkerGroup) assignWorkerGroup.style.display = "none";
                 if (workerOpActionDisplay) {
@@ -2283,11 +3308,27 @@ async function openComplaintModal(complaintId) {
                 }
                 if (managerOpActionControl) managerOpActionControl.style.display = "none";
             } else {
-                // Manager and Admin CAN view and update Operational Action and assignment
-                if (assignWorkerGroup) assignWorkerGroup.style.display = "block";
+                // Manager and Admin
                 if (workerOpActionDisplay) workerOpActionDisplay.style.display = "none";
                 if (managerOpActionControl) managerOpActionControl.style.display = "flex";
                 if (opActionInput) opActionInput.value = c.operationalAction || "Field Inspection & Maintenance";
+
+                if (normStatus === "RESOLVED" || normStatus === "CLOSED") {
+                    // 5. If the complaint status is Resolved, completely hide and disable the Assign option
+                    if (assignWorkerGroup) assignWorkerGroup.style.display = "none";
+                } else if (normStatus === "ASSIGNED" || normStatus === "INPROGRESS") {
+                    // 2, 3, 4. Once assigned or in progress, hide initial Assign button; show separate Reassign option
+                    if (assignWorkerGroup) assignWorkerGroup.style.display = "block";
+                    if (assignWorkerLabel) assignWorkerLabel.innerHTML = `<i class="fa-solid fa-arrows-rotate" style="color:#d97706;"></i> Reassign Department & Field Worker Officer`;
+                    if (btnModalAssign) btnModalAssign.style.display = "none";
+                    if (btnModalReassign) btnModalReassign.style.display = "inline-flex";
+                } else {
+                    // 1. Registered / unassigned: Show initial Assign button
+                    if (assignWorkerGroup) assignWorkerGroup.style.display = "block";
+                    if (assignWorkerLabel) assignWorkerLabel.innerHTML = `<i class="fa-solid fa-user-gear"></i> Assign Department & Field Worker Officer`;
+                    if (btnModalAssign) btnModalAssign.style.display = "inline-flex";
+                    if (btnModalReassign) btnModalReassign.style.display = "none";
+                }
             }
 
             // Dynamic population of valid next actions based on State Machine
@@ -2296,7 +3337,6 @@ async function openComplaintModal(complaintId) {
             const resolveInput = document.getElementById("s-resolution-input");
             const resolveBtn = document.querySelector("#staff-controls-box button[onclick='handleStaffResolve()']");
 
-            const normStatus = (c.status || "").toUpperCase().replace(/[\s_-]/g, "");
             statusSelect.innerHTML = "";
 
             if (normStatus === "REGISTERED" || normStatus === "SUBMITTED" || normStatus === "PENDING") {
@@ -2389,38 +3429,68 @@ async function loadDuplicateCandidateControls(complaint) {
             return;
         }
 
+        const maxCitizenCount = Math.max(...candidates.map(c => c.distinctCitizenCount || 2), 2);
+
         if (badge) {
             badge.style.display = "inline-block";
             badge.style.backgroundColor = "#fef3c7";
             badge.style.color = "#92400e";
             badge.style.borderColor = "#fcd34d";
-            badge.innerText = `${candidates.length} Candidate${candidates.length > 1 ? 's' : ''} Detected`;
+            badge.innerText = `${maxCitizenCount} Citizens • ${candidates.length} Matching Case${candidates.length > 1 ? 's' : ''}`;
         }
 
-        list.innerHTML = candidates.map(cand => `
+        const bannerHtml = `
+            <div style="background: #fffbeb; border: 1px solid #fcd34d; border-radius: 6px; padding: 10px 14px; margin-bottom: 8px; display: flex; align-items: center; justify-content: space-between;">
+                <div>
+                    <div style="color: #92400e; font-weight: 700; font-size: 13px;">
+                        <i class="fa-solid fa-people-group"></i> Multiple Citizens Reported This Issue
+                    </div>
+                    <div style="font-size: 12px; color: #b45309; margin-top: 2px;">
+                        Reported by <strong>${maxCitizenCount} distinct citizens</strong> across <strong>${candidates.length + 1} matching complaints</strong>.
+                    </div>
+                </div>
+                <span class="badge" style="background: #fef3c7; color: #92400e; border: 1px solid #fde68a; font-weight: 700; font-size: 11px;">
+                    ${maxCitizenCount} Distinct Citizens
+                </span>
+            </div>
+        `;
+
+        const cardsHtml = candidates.map(cand => `
             <div style="background: var(--bg-surface); padding: 12px; border-radius: var(--radius-sm); border: 1px solid var(--border-color); display: flex; flex-direction: column; gap: 8px;">
                 <div style="display: flex; justify-content: space-between; align-items: center; font-size: 13px;">
                     <div>
-                        <strong>Candidate Case: ${escapeHtml(cand.candidateComplaintId)}</strong>
+                        <strong style="color: var(--primary);">Case #${escapeHtml(cand.candidateComplaintId || cand.candidateId)}</strong>
                         <span style="color: var(--text-muted); margin-left: 8px;">(${escapeHtml(cand.category)} | ${escapeHtml(cand.location)})</span>
                     </div>
                     <span class="badge badge-progress" style="font-size: 11px;">${escapeHtml(cand.status)}</span>
                 </div>
-                <div style="font-size: 12px; color: var(--text-muted);">
+                ${cand.candidateDescription ? `<div style="font-size: 12px; color: var(--text-main); background: rgba(0,0,0,0.02); padding: 6px 10px; border-radius: 4px; border-left: 3px solid var(--primary); font-style: italic;">"${escapeHtml(cand.candidateDescription)}"</div>` : ''}
+                <div style="font-size: 12px; color: var(--text-muted); display: flex; flex-wrap: wrap; gap: 12px;">
                     <span><i class="fa-solid fa-triangle-exclamation" style="color: #d97706;"></i> <strong>Match Reason:</strong> ${escapeHtml(cand.reason)}</span>
-                    <span style="margin-left: 12px;"><i class="fa-solid fa-user"></i> Reported by: ${escapeHtml(cand.citizenName)}</span>
+                    <span><i class="fa-solid fa-user"></i> Reported by: <strong>${escapeHtml(cand.citizenName)}</strong></span>
+                    ${cand.similarityScore ? `<span><i class="fa-solid fa-chart-pie" style="color: #2563eb;"></i> Similarity: <strong>${Math.round(cand.similarityScore * 100)}%</strong></span>` : ''}
+                    ${cand.distanceMeters !== null && cand.distanceMeters !== undefined ? `<span><i class="fa-solid fa-location-crosshairs" style="color: #059669;"></i> Distance: <strong>${cand.distanceMeters}m</strong></span>` : ''}
                 </div>
                 <div style="display: flex; gap: 8px; align-items: center; margin-top: 4px;">
-                    <input type="text" id="cand-remarks-${cand.candidateComplaintId}" class="form-control" placeholder="Operator verification remarks..." style="flex: 1; font-size: 12px; padding: 4px 8px;">
-                    <button class="btn btn-primary btn-sm" style="font-size: 12px; padding: 5px 10px;" onclick="handleConfirmDuplicateLink('${escapeHtml(complaint.complaintId)}', '${escapeHtml(cand.candidateComplaintId)}')">
+                    <input type="text" id="cand-remarks-${cand.candidateComplaintId || cand.candidateId}" class="form-control" placeholder="Operator review justification..." style="flex: 1; font-size: 12px; padding: 4px 8px;">
+                    <button class="btn btn-primary btn-sm" style="font-size: 12px; padding: 5px 10px;" onclick="handleConfirmDuplicateLink('${escapeHtml(complaint.complaintId)}', '${escapeHtml(cand.candidateComplaintId || cand.candidateId)}')">
                         <i class="fa-solid fa-check"></i> Confirm Link
                     </button>
-                    <button class="btn btn-secondary btn-sm" style="font-size: 12px; padding: 5px 10px;" onclick="handleRejectDuplicateCandidate('${escapeHtml(complaint.complaintId)}', '${escapeHtml(cand.candidateComplaintId)}')">
+                    <button class="btn btn-secondary btn-sm" style="font-size: 12px; padding: 5px 10px;" onclick="handleRejectDuplicateCandidate('${escapeHtml(complaint.complaintId)}', '${escapeHtml(cand.candidateComplaintId || cand.candidateId)}')">
                         <i class="fa-solid fa-xmark"></i> Reject Candidate
                     </button>
                 </div>
             </div>
         `).join("");
+
+        const footerHtml = `
+            <div style="font-size: 11px; color: var(--text-muted); padding: 4px 6px; display: flex; align-items: center; gap: 6px;">
+                <i class="fa-solid fa-shield-halved" style="color: #16a34a;"></i>
+                <span><strong>Data Integrity Guarantee:</strong> Confirming links grievances for coordinated dispatch. Every citizen's original complaint record and ownership are strictly preserved without deletion or automated merging.</span>
+            </div>
+        `;
+
+        list.innerHTML = bannerHtml + cardsHtml + footerHtml;
     } catch (e) {
         list.innerHTML = `<div style="font-size: 12px; color: #dc2626;">Error querying duplicate candidates: ${escapeHtml(e.message)}</div>`;
     }
@@ -2486,6 +3556,19 @@ function closeModal() {
 // Staff Actions
 async function handleStaffAssign() {
     if (!activeComplaintId) return;
+    const complaint = currentComplaintsList.find(c => c.complaintId === activeComplaintId);
+    if (complaint) {
+        const normStatus = (complaint.status || "").toUpperCase().replace(/[\s_-]/g, "");
+        if (normStatus === "RESOLVED" || normStatus === "CLOSED") {
+            showToast("Invalid assignment: Resolved complaints cannot be assigned.", "danger");
+            return;
+        }
+        if (normStatus === "ASSIGNED" || normStatus === "INPROGRESS") {
+            showToast("Complaint is already assigned. Please use Reassign instead.", "warning");
+            openReassignModal(activeComplaintId);
+            return;
+        }
+    }
     const dept = document.getElementById("s-assign-dept-select").value;
     const staffSelect = document.getElementById("s-assign-staff-select");
     const staffName = staffSelect ? staffSelect.value.trim() : "";
@@ -2496,7 +3579,7 @@ async function handleStaffAssign() {
         await ApiClient.assignDepartment(activeComplaintId, dept, staffName, "", "", operationalAction);
         showToast(`Assigned <strong>${activeComplaintId}</strong> to ${dept} Dept${staffName ? ` (${staffName})` : ''}.`);
         openComplaintModal(activeComplaintId);
-        refreshCurrentView();
+        await refreshCurrentView();
     } catch (e) {
         showToast("Failed to assign department: " + e.message, "danger");
     }
@@ -2568,32 +3651,33 @@ function showHelpModal() {
 function getPriorityBadge(priority) {
     const p = (priority || "").toUpperCase();
     if (!p || p === "UNASSESSED" || p === "NULL") {
-        return `<span class="badge" style="background:#f1f5f9; color:#475569; border:1px solid #cbd5e1;"><i class="fa-solid fa-hourglass"></i> Unassessed</span>`;
+        return `<span class="stitch-badge" style="background:#f1f5f9; color:#475569; border:1px solid #cbd5e1;"><span class="stitch-badge-dot" style="background:#64748b;"></span> Unassessed</span>`;
     }
-    let pClass = "low";
-    let icon = "fa-circle-down";
-
-    if (p === "CRITICAL") { pClass = "critical"; icon = "fa-circle-radiation"; }
-    else if (p === "HIGH") { pClass = "high"; icon = "fa-triangle-exclamation"; }
-    else if (p === "MEDIUM") { pClass = "medium"; icon = "fa-circle-exclamation"; }
-
-    return `<span class="badge badge-${pClass}"><i class="fa-solid ${icon}"></i> ${priority}</span>`;
+    if (p === "CRITICAL" || p === "URGENT") {
+        return `<span class="stitch-badge stitch-badge-urgent"><span class="stitch-badge-dot animate-ping"></span> Critical Urgent</span>`;
+    } else if (p === "HIGH") {
+        return `<span class="stitch-badge stitch-badge-urgent"><span class="stitch-badge-dot"></span> High</span>`;
+    } else if (p === "MEDIUM") {
+        return `<span class="stitch-badge stitch-badge-progress"><span class="stitch-badge-dot"></span> Medium</span>`;
+    } else {
+        return `<span class="stitch-badge stitch-badge-resolved"><span class="stitch-badge-dot"></span> Standard</span>`;
+    }
 }
 
 function getStatusBadge(status, isWaiting = false) {
     if (isWaiting) {
-        return `<span class="badge" style="background-color: #fef3c7; color: #92400e; border: 1px solid #fcd34d;"><i class="fa-solid fa-hourglass-half"></i> Waiting (Queued)</span>`;
+        return `<span class="stitch-badge stitch-badge-pending" title="Waiting for Department Capacity Slot"><span class="stitch-badge-dot"></span> In Queue</span>`;
     }
     const s = (status || "").toUpperCase().replace(/[\s_-]/g, "");
-    let sClass = "pending";
-    let icon = "fa-clock";
-
-    if (s === "ASSIGNED") { sClass = "assigned"; icon = "fa-user-check"; }
-    else if (s === "INPROGRESS") { sClass = "progress"; icon = "fa-gears"; }
-    else if (s === "RESOLVED" || s === "CLOSED") { sClass = "resolved"; icon = "fa-circle-check"; }
-    else if (s === "REGISTERED") { sClass = "pending"; icon = "fa-clock"; }
-
-    return `<span class="badge badge-${sClass}"><i class="fa-solid ${icon}"></i> ${status}</span>`;
+    if (s === "RESOLVED" || s === "CLOSED") {
+        return `<span class="stitch-badge stitch-badge-resolved"><span class="stitch-badge-dot"></span> Resolved</span>`;
+    } else if (s === "INPROGRESS") {
+        return `<span class="stitch-badge stitch-badge-progress"><span class="stitch-badge-dot"></span> In Progress</span>`;
+    } else if (s === "ASSIGNED") {
+        return `<span class="stitch-badge stitch-badge-assigned"><span class="stitch-badge-dot"></span> Assigned</span>`;
+    } else {
+        return `<span class="stitch-badge stitch-badge-pending"><span class="stitch-badge-dot"></span> Registered</span>`;
+    }
 }
 
 function showToast(message, type = "success") {
@@ -2653,3 +3737,336 @@ document.addEventListener("keydown", function(e) {
         closeImageLightbox();
     }
 });
+
+// ------------------- REGISTERED CITIZENS MANAGEMENT (ADMIN) ------------------- //
+let currentAdminCitizens = [];
+let citizenSearchQuery = "";
+let citizenStatusFilter = "ALL";
+let citizenCurrentPage = 1;
+let citizenPageSize = 10;
+let citizenPollInterval = null;
+
+async function loadAdminCitizens(showFeedback = false) {
+    try {
+        const citizens = await ApiClient.getRegisteredCitizens();
+        currentAdminCitizens = (Array.isArray(citizens) ? citizens : []).filter(c => !c.role || c.role.toUpperCase() === "CITIZEN");
+        if (document.getElementById("adm-stat-citizens")) {
+            document.getElementById("adm-stat-citizens").innerText = currentAdminCitizens.length;
+        }
+        renderAdminCitizensTable();
+        if (showFeedback && typeof showToast === 'function') {
+            showToast("Citizens directory refreshed successfully.", "success");
+        }
+    } catch (err) {
+        console.error("Failed to load citizens:", err);
+        if (showFeedback && typeof showToast === 'function') {
+            showToast("Failed to refresh citizens: " + (err.message || err), "danger");
+        }
+    }
+}
+
+function handleCitizenFilterChange() {
+    const searchInput = document.getElementById("adm-citizen-search");
+    const statusSelect = document.getElementById("adm-citizen-status-filter");
+    citizenSearchQuery = (searchInput ? searchInput.value : "").trim().toLowerCase();
+    citizenStatusFilter = statusSelect ? statusSelect.value : "ALL";
+    citizenCurrentPage = 1;
+    renderAdminCitizensTable();
+}
+
+function resetCitizenFilters() {
+    const searchInput = document.getElementById("adm-citizen-search");
+    const statusSelect = document.getElementById("adm-citizen-status-filter");
+    if (searchInput) searchInput.value = "";
+    if (statusSelect) statusSelect.value = "ALL";
+    citizenSearchQuery = "";
+    citizenStatusFilter = "ALL";
+    citizenCurrentPage = 1;
+    renderAdminCitizensTable();
+}
+
+function setCitizenPageSize(size) {
+    citizenPageSize = parseInt(size, 10) || 10;
+    citizenCurrentPage = 1;
+    renderAdminCitizensTable();
+}
+
+function changeCitizenPage(delta) {
+    citizenCurrentPage += delta;
+    renderAdminCitizensTable();
+}
+
+function formatCitizenDateDisplay(rawDate) {
+    if (!rawDate || rawDate === "-") return { date: "-", time: "" };
+    try {
+        const parts = rawDate.trim().split(/[\sT]+/);
+        if (parts.length >= 2 && /^\d{4}-\d{2}-\d{2}$/.test(parts[0])) {
+            const [y, m, d] = parts[0].split("-");
+            const months = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+            const monthName = months[parseInt(m, 10) - 1] || m;
+            const formattedDate = `${d} ${monthName} ${y}`;
+
+            let timeStr = parts[1];
+            const timeParts = timeStr.split(":");
+            if (timeParts.length >= 2) {
+                let hour = parseInt(timeParts[0], 10);
+                const min = timeParts[1];
+                const ampm = hour >= 12 ? "PM" : "AM";
+                hour = hour % 12 || 12;
+                const padHour = String(hour).padStart(2, "0");
+                timeStr = `${padHour}:${min} ${ampm}`;
+            }
+            return { date: formattedDate, time: timeStr };
+        }
+        const parsed = new Date(rawDate);
+        if (!isNaN(parsed.getTime())) {
+            const months = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+            const d = String(parsed.getDate()).padStart(2, "0");
+            const m = months[parsed.getMonth()];
+            const y = parsed.getFullYear();
+            let hour = parsed.getHours();
+            const min = String(parsed.getMinutes()).padStart(2, "0");
+            const ampm = hour >= 12 ? "PM" : "AM";
+            hour = hour % 12 || 12;
+            const padHour = String(hour).padStart(2, "0");
+            return {
+                date: `${d} ${m} ${y}`,
+                time: `${padHour}:${min} ${ampm}`
+            };
+        }
+    } catch (e) {}
+    return { date: rawDate, time: "" };
+}
+
+function renderAdminCitizensTable() {
+    const tbody = document.getElementById("adm-citizens-tbody");
+    if (!tbody) return;
+
+    let filtered = currentAdminCitizens.filter(c => {
+        // Enforce strict citizen role filtering
+        if (c.role && c.role.toUpperCase() !== "CITIZEN") return false;
+
+        // Status filter
+        if (citizenStatusFilter === "ACTIVE" && c.active === false) return false;
+        if (citizenStatusFilter === "INACTIVE" && c.active !== false) return false;
+
+        // Search query matching Name, Username, Mobile, Citizen ID, or Email
+        if (citizenSearchQuery) {
+            const name = (c.name || c.citizenName || "").toLowerCase();
+            const username = (c.username || "").toLowerCase();
+            const mobile = (c.mobile || "").toLowerCase();
+            const id = (c.id || c.citizenId || "").toLowerCase();
+            const email = (c.email || "").toLowerCase();
+            const match = name.includes(citizenSearchQuery) ||
+                          username.includes(citizenSearchQuery) ||
+                          mobile.includes(citizenSearchQuery) ||
+                          id.includes(citizenSearchQuery) ||
+                          email.includes(citizenSearchQuery);
+            if (!match) return false;
+        }
+        return true;
+    });
+
+    const totalItems = filtered.length;
+    const totalPages = Math.ceil(totalItems / citizenPageSize) || 1;
+    if (citizenCurrentPage < 1) citizenCurrentPage = 1;
+    if (citizenCurrentPage > totalPages) citizenCurrentPage = totalPages;
+
+    const startIdx = (citizenCurrentPage - 1) * citizenPageSize;
+    const endIdx = Math.min(startIdx + citizenPageSize, totalItems);
+    const pageItems = filtered.slice(startIdx, endIdx);
+
+    // Update pagination indicators
+    const infoSpan = document.getElementById("adm-citizen-page-info");
+    const currentSpan = document.getElementById("adm-citizen-page-current");
+    const prevBtn = document.getElementById("btn-citizen-prev");
+    const nextBtn = document.getElementById("btn-citizen-next");
+
+    if (infoSpan) {
+        infoSpan.innerText = totalItems > 0 
+            ? `Showing ${startIdx + 1} to ${endIdx} of ${totalItems} citizens`
+            : "Showing 0 of 0 citizens";
+    }
+    if (currentSpan) {
+        currentSpan.innerText = `Page ${citizenCurrentPage} of ${totalPages}`;
+    }
+    if (prevBtn) prevBtn.disabled = citizenCurrentPage <= 1;
+    if (nextBtn) nextBtn.disabled = citizenCurrentPage >= totalPages;
+
+    if (pageItems.length === 0) {
+        tbody.innerHTML = `<tr><td colspan="9" style="text-align:center; padding:36px; color:var(--text-muted);"><i class="fa-solid fa-users-slash" style="font-size:24px; margin-bottom:8px; display:block;"></i>No registered citizens found matching your criteria.</td></tr>`;
+        return;
+    }
+
+    tbody.innerHTML = pageItems.map(c => {
+        const id = escapeHtml(c.id || c.citizenId || "-");
+        const name = escapeHtml(c.name || c.citizenName || c.username || "Citizen");
+        const username = escapeHtml(c.username || "-");
+        const email = escapeHtml(c.email || "-");
+        const mobile = escapeHtml(c.mobile || "-");
+        const rawDate = escapeHtml(c.createdAt || "-");
+        const isActive = c.active !== false;
+        const maskedId = escapeHtml(c.maskedIdentity || "XXXX-XXXX-0000");
+
+        const dateObj = formatCitizenDateDisplay(rawDate);
+        const dateHtml = dateObj.time 
+            ? `<div class="cit-cell-date-box" title="${rawDate}">
+                 <span class="cit-cell-date-main">${dateObj.date}</span>
+                 <span class="cit-cell-date-sub"><i class="fa-regular fa-clock" style="font-size:9.5px; opacity:0.8;"></i> ${dateObj.time}</span>
+               </div>`
+            : `<span class="cit-cell-date-main" title="${rawDate}">${dateObj.date}</span>`;
+
+        const statusBadge = isActive 
+            ? `<span class="cit-cell-status-badge active"><i class="fa-solid fa-circle-check" style="font-size:9.5px;"></i> Active</span>`
+            : `<span class="cit-cell-status-badge inactive"><i class="fa-solid fa-circle-xmark" style="font-size:9.5px;"></i> Inactive</span>`;
+
+        return `
+            <tr>
+                <td class="col-citizen-id">
+                    <span class="cit-cell-id" title="${id}">${id}</span>
+                </td>
+                <td class="col-citizen-name">
+                    <div class="cit-cell-name" title="${name}">${name}</div>
+                </td>
+                <td class="col-username">
+                    <span class="cit-cell-username-chip" title="${username}">
+                        <i class="fa-solid fa-at" style="font-size:10px; opacity:0.6;"></i>
+                        <span style="overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">${username}</span>
+                    </span>
+                </td>
+                <td class="col-email">
+                    <div class="cit-cell-email" title="${email}">
+                        <i class="fa-regular fa-envelope" style="font-size:11px; color:#94a3b8; flex-shrink:0;"></i>
+                        <span style="overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">${email}</span>
+                    </div>
+                </td>
+                <td class="col-mobile">
+                    <span class="cit-cell-mobile">
+                        <i class="fa-solid fa-phone" style="font-size:10px; color:#94a3b8; flex-shrink:0;"></i>
+                        <span>${mobile}</span>
+                    </span>
+                </td>
+                <td class="col-aadhaar">
+                    <span class="cit-cell-aadhaar-badge" title="Masked UID: ${maskedId}">
+                        <i class="fa-solid fa-shield-halved" style="font-size:10px;"></i>
+                        <span>${maskedId}</span>
+                    </span>
+                </td>
+                <td class="col-date">
+                    ${dateHtml}
+                </td>
+                <td class="col-status">
+                    ${statusBadge}
+                </td>
+                <td class="col-action" style="text-align: center;">
+                    <button type="button" class="cit-btn-view-details" onclick="openCitizenDetailsModal('${escapeHtml(c.id || c.citizenId)}')" title="View profile and grievances for ${name}">
+                        <i class="fa-solid fa-eye" style="color:var(--primary); font-size:11px;"></i>
+                        <span>View Details</span>
+                    </button>
+                </td>
+            </tr>
+        `;
+    }).join("");
+}
+
+async function openCitizenDetailsModal(citizenId) {
+    const modal = document.getElementById("citizen-details-modal");
+    if (!modal) return;
+
+    // Reset fields to loading state
+    document.getElementById("cit-modal-name").innerText = "Loading...";
+    document.getElementById("cit-modal-id-badge").innerText = citizenId;
+    document.getElementById("cit-modal-username").innerText = "...";
+    document.getElementById("cit-modal-email").innerText = "...";
+    document.getElementById("cit-modal-mobile").innerText = "...";
+    document.getElementById("cit-modal-date").innerText = "...";
+    document.getElementById("cit-stat-total").innerText = "-";
+    document.getElementById("cit-stat-pending").innerText = "-";
+    document.getElementById("cit-stat-inprogress").innerText = "-";
+    document.getElementById("cit-stat-resolved").innerText = "-";
+    document.getElementById("cit-modal-complaints-tbody").innerHTML = `<tr><td colspan="5" style="text-align:center; padding:16px; color:var(--text-muted);">Loading complaints history...</td></tr>`;
+
+    modal.classList.add("active");
+
+    try {
+        const data = await ApiClient.getCitizenDetails(citizenId);
+        const citizen = data.citizen || {};
+        const stats = data.stats || {};
+        const complaints = Array.isArray(data.complaints) ? data.complaints : [];
+
+        document.getElementById("cit-modal-name").innerText = citizen.name || citizen.citizenName || citizen.username || "Citizen";
+        document.getElementById("cit-modal-id-badge").innerText = citizen.id || citizen.citizenId || citizenId;
+        document.getElementById("cit-modal-username").innerText = citizen.username || "-";
+        document.getElementById("cit-modal-email").innerText = citizen.email || "-";
+        document.getElementById("cit-modal-mobile").innerText = citizen.mobile || "-";
+        document.getElementById("cit-modal-date").innerText = citizen.createdAt || "-";
+        if (document.getElementById("cit-modal-masked-id")) {
+            document.getElementById("cit-modal-masked-id").innerText = citizen.maskedIdentity || "XXXX-XXXX-0000";
+        }
+
+        const statusBadge = document.getElementById("cit-modal-status-badge");
+        if (statusBadge) {
+            if (citizen.active !== false) {
+                statusBadge.className = "badge";
+                statusBadge.style.background = "#ecfdf5";
+                statusBadge.style.color = "#059669";
+                statusBadge.innerHTML = `<i class="fa-solid fa-circle-check"></i> Active Account`;
+            } else {
+                statusBadge.className = "badge";
+                statusBadge.style.background = "#fef2f2";
+                statusBadge.style.color = "#dc2626";
+                statusBadge.innerHTML = `<i class="fa-solid fa-circle-xmark"></i> Inactive Account`;
+            }
+        }
+
+        document.getElementById("cit-stat-total").innerText = stats.total || 0;
+        document.getElementById("cit-stat-pending").innerText = stats.pending || 0;
+        document.getElementById("cit-stat-inprogress").innerText = stats.inProgress || 0;
+        document.getElementById("cit-stat-resolved").innerText = stats.resolved || 0;
+
+        const tbody = document.getElementById("cit-modal-complaints-tbody");
+        if (complaints.length === 0) {
+            tbody.innerHTML = `<tr><td colspan="5" style="text-align:center; padding:16px; color:var(--text-muted);"><i class="fa-solid fa-folder-open" style="margin-right:6px;"></i>No grievances submitted by this citizen yet.</td></tr>`;
+        } else {
+            tbody.innerHTML = complaints.map(c => {
+                const s = (c.status || "REGISTERED").toUpperCase();
+                let badgeColor = "#ca8a04";
+                let badgeBg = "#fefce8";
+                if (s === "RESOLVED") { badgeColor = "#059669"; badgeBg = "#ecfdf5"; }
+                else if (s === "IN_PROGRESS" || s === "TRIAGED") { badgeColor = "#0284c7"; badgeBg = "#f0f9ff"; }
+                else if (s === "REJECTED") { badgeColor = "#dc2626"; badgeBg = "#fef2f2"; }
+
+                return `
+                    <tr>
+                        <td style="font-family:monospace; font-weight:700; color:var(--primary);">${escapeHtml(c.id || c.complaintId || "-")}</td>
+                        <td style="font-weight:600;">${escapeHtml(c.category || "-")}</td>
+                        <td>${escapeHtml(c.location || "-")}</td>
+                        <td><span class="badge" style="background:${badgeBg}; color:${badgeColor}; font-weight:600; font-size:11px;">${escapeHtml(s)}</span></td>
+                        <td style="font-size:11px; color:var(--text-muted);">${escapeHtml(c.createdAt || c.timestamp || "-")}</td>
+                    </tr>
+                `;
+            }).join("");
+        }
+    } catch (err) {
+        console.error("Failed to load citizen details:", err);
+        if (typeof showToast === 'function') {
+            showToast("Failed to load citizen details: " + (err.message || err), "danger");
+        }
+    }
+}
+
+function closeCitizenDetailsModal() {
+    const modal = document.getElementById("citizen-details-modal");
+    if (modal) modal.classList.remove("active");
+}
+
+// Start periodic background refresh for admin citizens when admin is active
+if (!window._adminCitizenPollingStarted) {
+    window._adminCitizenPollingStarted = true;
+    setInterval(() => {
+        const citizenTab = document.getElementById("adm-tab-citizens");
+        if (currentUser && (currentUser.role || "").toUpperCase() === "ADMIN" && citizenTab && citizenTab.classList.contains("active")) {
+            loadAdminCitizens();
+        }
+    }, 15000); // 15 seconds real-time update
+}

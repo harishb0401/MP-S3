@@ -35,6 +35,56 @@ public class Citizen extends User {
         this.name = name;
     }
 
+    public Citizen(
+            String id,
+            String username,
+            String name,
+            String email,
+            String mobile,
+            String passwordHash,
+            String createdAt) {
+
+        super(
+                id,
+                username,
+                email,
+                mobile,
+                passwordHash,
+                "CITIZEN",
+                "",
+                createdAt
+        );
+
+        this.name = name;
+    }
+
+    public Citizen(
+            String id,
+            String username,
+            String name,
+            String email,
+            String mobile,
+            String passwordHash,
+            String identityHash,
+            String maskedIdentity,
+            String createdAt) {
+
+        super(
+                id,
+                username,
+                email,
+                mobile,
+                passwordHash,
+                "CITIZEN",
+                "",
+                createdAt
+        );
+
+        this.name = name;
+        setIdentityHash(identityHash);
+        setMaskedIdentity(maskedIdentity);
+    }
+
     /**
      * Convenience constructor.
      */
@@ -78,15 +128,17 @@ public class Citizen extends User {
 
     @Override
     public String getName() {
-        return (name != null)
+        return (name != null && !name.isBlank())
                 ? name
-                : getUsername();
+                : (getUsername() != null && !getUsername().isBlank() ? getUsername() : "Citizen");
     }
 
     @Override
     public void setName(String name) {
         this.name = name;
-        setUsername(name);
+        if (getUsername() == null || getUsername().isBlank()) {
+            setUsername(name);
+        }
     }
 
     /**
@@ -98,6 +150,14 @@ public class Citizen extends User {
 
     public void setMobileNumber(String mobileNumber) {
         setMobile(mobileNumber);
+    }
+
+    public String getMaskedAadhaar() {
+        return getMaskedIdentity();
+    }
+
+    public void setMaskedAadhaar(String maskedAadhaar) {
+        setMaskedIdentity(maskedAadhaar);
     }
 
     @Override

@@ -10,20 +10,26 @@ public class WaterGrievance extends Complaint {
         super();
         this.category = "Water Supply";
         this.department = "Water Department";
-        this.departmentId = "DEPT-WATER";
+        if (this.departmentId == null || this.departmentId.isEmpty()) {
+            this.departmentId = "DEPT-WATER";
+        }
     }
 
     public WaterGrievance(String id, String complaintId, String citizenId, String citizenName, String citizenMobile,
                           String description, String location, int citizenReportedImpact, String priority, String status) {
         super(id, complaintId, citizenId, citizenName, citizenMobile, "Water Supply", description, location, "Water Department", citizenReportedImpact, priority, status);
-        this.departmentId = "DEPT-WATER";
+        if (this.departmentId == null || this.departmentId.isEmpty()) {
+            this.departmentId = "DEPT-WATER";
+        }
     }
 
     public WaterGrievance(String id, String complaintId, String citizenId, String citizenName, String citizenMobile,
                           String category, String description, String location, String department,
                           int citizenReportedImpact, String priority, String status) {
         super(id, complaintId, citizenId, citizenName, citizenMobile, category != null ? category : "Water Supply", description, location, department != null ? department : "Water Department", citizenReportedImpact, priority, status);
-        this.departmentId = "DEPT-WATER";
+        if (this.departmentId == null || this.departmentId.isEmpty()) {
+            this.departmentId = "DEPT-WATER";
+        }
     }
 
     public WaterGrievance(Complaint source) {
@@ -34,7 +40,9 @@ public class WaterGrievance extends Complaint {
         if (this.department == null || this.department.isEmpty()) {
             this.department = "Water Department";
         }
-        this.departmentId = "DEPT-WATER";
+        if (this.departmentId == null || this.departmentId.isEmpty()) {
+            this.departmentId = "DEPT-WATER";
+        }
     }
 
     @Override

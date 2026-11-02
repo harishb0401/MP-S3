@@ -258,7 +258,19 @@ public class SystemTest {
         // EXECUTE MYSQL PERSISTENCE & MIGRATION TEST SUITE (17 SCENARIOS)
         boolean migrationTestsPassed = DatabaseMigrationTest.runAllTests();
 
-        if (testsPassed == totalTests && priorityTestsPassed && stateMachineTestsPassed && capacityTestsPassed && duplicateTestsPassed && oopTestsPassed && dataValidationPassed && rolePortalsPassed && assessmentGpsPassed && migrationTestsPassed) {
+        // EXECUTE MULTIPLE WORKER MANAGEMENT TEST SUITE (10 SCENARIOS)
+        boolean workerMgmtPassed = MultipleWorkerManagementTest.runAllTests();
+
+        // EXECUTE REGISTERED CITIZEN MANAGEMENT TEST SUITE (10 SCENARIOS)
+        boolean citizenMgmtPassed = RegisteredCitizenManagementTest.runAllTests();
+
+        // EXECUTE CITIZEN IDENTITY VERIFICATION TEST SUITE (10 SCENARIOS)
+        boolean identityVerificationPassed = CitizenIdentityVerificationTest.runAllTests();
+
+        System.out.printf("Sub-suite status: base=%b, priority=%b, stateMachine=%b, capacity=%b, duplicate=%b, oop=%b, dataValidation=%b, rolePortals=%b, assessmentGps=%b, migration=%b, workerMgmt=%b, citizenMgmt=%b, identityVerification=%b\n",
+            testsPassed == totalTests, priorityTestsPassed, stateMachineTestsPassed, capacityTestsPassed, duplicateTestsPassed, oopTestsPassed, dataValidationPassed, rolePortalsPassed, assessmentGpsPassed, migrationTestsPassed, workerMgmtPassed, citizenMgmtPassed, identityVerificationPassed);
+
+        if (testsPassed == totalTests && priorityTestsPassed && stateMachineTestsPassed && capacityTestsPassed && duplicateTestsPassed && oopTestsPassed && dataValidationPassed && rolePortalsPassed && assessmentGpsPassed && migrationTestsPassed && workerMgmtPassed && citizenMgmtPassed && identityVerificationPassed) {
             System.out.println("\n>>> ALL SYSTEM, RBAC PORTALS, RISK ASSESSMENT, GPS GEOLOCATION, PRIORITY RANKING, STATE MACHINE, CAPACITY, DUPLICATE MANAGEMENT, OOP DESIGN, DEMO DATA & MYSQL MIGRATION REQUIREMENTS VERIFIED SUCCESSFULLY! <<<");
         } else {
             System.exit(1);

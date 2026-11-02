@@ -29,6 +29,8 @@ public abstract class User {
     }
 
     private boolean active = true;
+    private String identityHash;
+    private String maskedIdentity;
 
     // Abstract methods demonstrating Polymorphism
     public abstract String getDisplayName();
@@ -95,7 +97,16 @@ public abstract class User {
     public String getId() { return id; }
     public void setId(String id) { this.id = id; }
 
-    public String getUsername() { return username; }
+    public String getUsername() {
+        if (username != null && !username.trim().isEmpty()) {
+            return username.trim();
+        }
+        if (email != null && !email.trim().isEmpty()) {
+            int atIdx = email.indexOf('@');
+            return atIdx > 0 ? email.substring(0, atIdx).trim() : email.trim();
+        }
+        return id != null ? id : "";
+    }
     public void setUsername(String username) { this.username = username; }
 
     public String getEmail() { return email; }
@@ -115,6 +126,16 @@ public abstract class User {
 
     public String getCreatedAt() { return createdAt; }
     public void setCreatedAt(String createdAt) { this.createdAt = createdAt; }
+
+    public String getIdentityHash() { return identityHash; }
+    public void setIdentityHash(String identityHash) { this.identityHash = identityHash; }
+
+    public String getMaskedIdentity() { return maskedIdentity; }
+    public void setMaskedIdentity(String maskedIdentity) { this.maskedIdentity = maskedIdentity; }
+
+    public boolean isIdentityVerified() {
+        return identityHash != null && !identityHash.trim().isEmpty();
+    }
 
     // Compatibility methods for JSON serialization and legacy handlers
     public String getName() {

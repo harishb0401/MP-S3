@@ -44,7 +44,7 @@ public class DepartmentStaff extends User {
     @Override
     public String getDisplayName() {
         String deptName = (department != null) ? department.getDepartmentName() : getDepartment();
-        String cleanName = (staffName != null && !staffName.isEmpty()) ? staffName : "Officer";
+        String cleanName = (staffName != null && !staffName.isEmpty()) ? staffName : getUsername();
         String suffix = " (" + (deptName != null && !deptName.isEmpty() ? deptName : "Unassigned") + ")";
         return cleanName + suffix;
     }
@@ -67,8 +67,20 @@ public class DepartmentStaff extends User {
     public String getStaffId() { return staffId != null ? staffId : getId(); }
     public void setStaffId(String staffId) { this.staffId = staffId; setId(staffId); }
 
-    public String getStaffName() { return staffName; }
+    public String getStaffName() {
+        if (staffName != null && !staffName.isEmpty()) {
+            return staffName;
+        }
+        return getUsername();
+    }
     public void setStaffName(String staffName) { this.staffName = staffName; }
+
+    @Override
+    public void setName(String name) {
+        if (name != null) {
+            this.staffName = name.replaceAll("\\s*\\([^)]*\\)", "").trim();
+        }
+    }
 
     public String getDepartmentId() { return departmentId; }
     public void setDepartmentId(String departmentId) { this.departmentId = departmentId; }
